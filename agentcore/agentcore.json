@@ -32,7 +32,7 @@
         },
         {
           "name": "CHAT_MODEL_ID",
-          "value": "us.anthropic.claude-sonnet-5"
+          "value": "us.anthropic.claude-sonnet-4-6"
         },
         {
           "name": "USER_PROFILE",
