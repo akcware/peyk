@@ -1,0 +1,29 @@
+{
+  "id": "msg_9c1d2e3f-1111-4a2b-8c3d-4e5f6a7b8c9d",
+  "timestamp": "2026-09-11T08:45:03.000Z",
+  "type": "composio.trigger.message",
+  "metadata": {
+    "log_id": "log_SyntheticCal01",
+    "trigger_slug": "GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER",
+    "trigger_id": "ti_SyntheticCal01",
+    "connected_account_id": "ca_SyntheticCalConn",
+    "auth_config_id": "ac_SyntheticCalAuth",
+    "user_id": "default"
+  },
+  "data": {
+    "calendar_id": "primary",
+    "event_id": "evt_7h2k9m4p",
+    "summary": "Standup with client team",
+    "description": "Weekly sync",
+    "location": "Room B",
+    "hangout_link": "https://meet.example.test/abc-defg-hij",
+    "html_link": "https://calendar.example.test/event?eid=evt_7h2k9m4p",
+    "attendees": ["you@example.test", "mara@example-client.test"],
+    "organizer_email": "mara@example-client.test",
+    "creator_email": "mara@example-client.test",
+    "start_time": "2026-09-11T09:00:00+02:00",
+    "start_timestamp": 1789110000,
+    "minutes_until_start": 15,
+    "countdown_window_minutes": 5
+  }
+}

@@ -23,11 +23,27 @@ TOOLKITS: dict[str, dict] = {
         "auth_config_env": "COMPOSIO_GMAIL_AUTH_CONFIG_ID",
         "triggers": {"GMAIL_NEW_GMAIL_MESSAGE": {"labelIds": "INBOX", "interval": 1, "userId": "me"}},
     },
-    "googlecalendar": {  # phase 5; slug verified with --payload-schema before use
+    "googlecalendar": {  # phase 5; slug verified with --payload-schema on 2026-09-10
         "auth_config_env": "COMPOSIO_CALENDAR_AUTH_CONFIG_ID",
-        "triggers": {},
+        "triggers": {"GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER": {
+            "calendarId": "primary", "minutesBeforeStart": 15, "countdownWindowMinutes": 5, "interval": 1, "includeAllDay": False}},
     },
 }
+
+
+def _env(name: str) -> str:
+    """os.environ first, then a minimal .env read (core.config only models the keys it knows)."""
+    import os
+    from pathlib import Path
+
+    if os.environ.get(name):
+        return os.environ[name]
+    env = Path(".env")
+    if env.exists():
+        for line in env.read_text().splitlines():
+            if line.startswith(f"{name}="):
+                return line.split("=", 1)[1].split("#", 1)[0].strip().strip('"')
+    return ""
 
 
 def main() -> int:
@@ -38,6 +54,7 @@ def main() -> int:
     ap.add_argument("--webhook", help="set project webhook subscription URL (V3)")
     ap.add_argument("--payload-schema", action="store_true", help="print trigger type payload schemas and exit")
     ap.add_argument("--no-wait", action="store_true", help="print the OAuth link and exit without waiting")
+    ap.add_argument("--create-auth-config", action="store_true", help="create a Composio-managed auth config for the toolkit")
     ap.add_argument("--disable", metavar="TRIGGER_ID", help="disable a trigger instance (manual gate tests)")
     ap.add_argument("--enable", metavar="TRIGGER_ID", help="enable a trigger instance")
     args = ap.parse_args()
@@ -73,9 +90,13 @@ def main() -> int:
         return 0
 
     if not active:
-        auth_config_id = args.auth_config_id or getattr(s, tk["auth_config_env"], "")
+        auth_config_id = args.auth_config_id or _env(tk["auth_config_env"])
+        if not auth_config_id and args.create_auth_config:
+            created = c.auth_configs.create(args.toolkit, {"type": "use_composio_managed_auth"})
+            auth_config_id = created.id
+            print(f"created auth config {auth_config_id}; put in .env: {tk['auth_config_env']}={auth_config_id}")
         if not auth_config_id:
-            sys.exit(f"no active {args.toolkit} account and {tk['auth_config_env']} not set")
+            sys.exit(f"no active {args.toolkit} account and {tk['auth_config_env']} not set (use --create-auth-config)")
         req = c.connected_accounts.link(user_id, auth_config_id)
         print("\nOpen this link and finish OAuth:\n  ", req.redirect_url, "\n")
         if args.no_wait:

@@ -39,6 +39,26 @@ MAPPINGS: dict[str, Mapping] = {
             "label_ids": "$.label_ids",
         },
     ),
+    # Phase 5: second source. Verified against composio.triggers.get_type on 2026-09-10 (payload keys:
+    # event_id, summary, attendees, location, hangout_link, start_time, start_timestamp, minutes_until_start, ...).
+    "GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER": Mapping(
+        source="calendar",
+        kind="event_starting",
+        source_key="$.event_id",
+        source_key_template="{source_key}:{start_time}",   # same event, different start -> different observation
+        occurred_at="$.start_time",
+        thread_key="$.event_id",
+        payload_fields={
+            "summary": "$.summary",
+            "attendees": "$.attendees",
+            "location": "$.location",
+            "hangout_link": "$.hangout_link",
+            "start_time": "$.start_time",
+            "minutes_until_start": "$.minutes_until_start",
+            "organizer_email": "$.organizer_email",
+            "description": "$.description",
+        },
+    ),
 }
 
 # Actions whose results are turned into observations (backfill / reconcile). Keyed by action slug.
