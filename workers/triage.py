@@ -20,7 +20,7 @@ from core.log import get_logger
 from core.models import Content, Observation
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo
 from core.routing import control_text, is_callback, is_control_channel
-from workers import commands, feedback, gate, gate_state, ticks
+from workers import chat, commands, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
 
@@ -122,7 +122,8 @@ async def handle_command(conn, obs: Observation, *, settings: Settings, notifier
 
 
 async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier,
-                 now: datetime | None = None, tick_ctx: ticks.TickContext | None = None) -> None:
+                 now: datetime | None = None, tick_ctx: ticks.TickContext | None = None,
+                 embedder=None, on_draft=None) -> None:
     now = now or datetime.now(tz=UTC)
     async with db.connection() as conn:
         if is_control_channel(obs, settings):
@@ -131,7 +132,9 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 await notifier.ack(obs, text)
             elif commands.is_command(control_text(obs)):
                 await handle_command(conn, obs, settings=settings, notifier=notifier, now=now)
-            # plain chat messages: phase 3
+            elif control_text(obs) and embedder is not None:
+                await chat.handle_message(conn, obs, settings=settings, agent=agent, notifier=notifier,
+                                          embedder=embedder, on_draft=on_draft)
             return
         if obs.kind == "tick":
             ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)
@@ -148,7 +151,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
 
 
 async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0,
-              tick_ctx: ticks.TickContext | None = None) -> None:
+              tick_ctx: ticks.TickContext | None = None, embedder=None, on_draft=None) -> None:
     user_id = settings.USER_ID
     while True:
         async with db.connection() as conn:
@@ -158,7 +161,8 @@ async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idl
             continue
         slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
         try:
-            await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx)
+            await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
+                         embedder=embedder, on_draft=on_draft)
             async with db.connection() as conn:
                 await queue.complete(conn, obs.id)
             slog.info("triage.done")

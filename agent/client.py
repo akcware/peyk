@@ -49,3 +49,9 @@ class AgentClient:
         if "error" in out:
             raise RuntimeError(f"agent error: {out['error']}")
         return TriageResult(**out["result"]), {"model_id": out.get("model_id", "?"), "latency_ms": out.get("latency_ms")}
+
+    async def chat(self, payload: dict[str, Any]) -> dict[str, Any]:
+        out = await self.invoke({"task": "chat", **payload})
+        if "error" in out:
+            raise RuntimeError(f"agent error: {out['error']}")
+        return {"reply": out.get("reply", ""), "intents": out.get("intents", [])}

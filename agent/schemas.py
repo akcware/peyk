@@ -24,3 +24,23 @@ class ScheduleRequest(BaseModel):
 class MemoryWrite(BaseModel):
     intent: Literal["MemoryWrite"] = "MemoryWrite"
     text: str
+
+
+class ActionDraft(BaseModel):
+    intent: Literal["ActionDraft"] = "ActionDraft"
+    channel: str = "gmail"
+    thread_key: str | None = None
+    to: list[str] = []
+    subject: str | None = None
+    body: str
+
+
+class NeedMore(BaseModel):
+    intent: Literal["NeedMore"] = "NeedMore"
+    query: str
+    since_days: int = 7
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    intents: list[dict] = []
