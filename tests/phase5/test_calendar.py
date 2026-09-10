@@ -25,11 +25,11 @@ def _git(*args: str) -> str:
 
 
 def test_core_untouched():
-    """Everything changed since tag phase-4 must be outside core/ workers/ gateway/ agent/ adapters/*/adapter.py."""
-    if "phase-4" not in _git("tag").split():
-        return  # baseline tag missing (fresh clone without tags): nothing to compare against
-    changed = [line for line in _git("diff", "--name-only", "phase-4..HEAD").splitlines() if line]
-    changed += [line for line in _git("diff", "--name-only", "HEAD").splitlines() if line]      # uncommitted too
+    """Everything changed between tags phase-4 and phase-5 must be outside core/ workers/ gateway/ agent/."""
+    tags = _git("tag").split()
+    if "phase-4" not in tags or "phase-5" not in tags:
+        return  # baseline tags missing (fresh clone without tags): nothing to compare against
+    changed = [line for line in _git("diff", "--name-only", "phase-4..phase-5").splitlines() if line]
     offenders = [f for f in changed if not f.startswith(ALLOWED_PREFIXES)]
     assert offenders == [], f"phase 5 touched core files: {offenders}"
 

@@ -14,3 +14,5 @@ agentcore/*.zip
 agentcore/.cache/
 agentcore/cdk/cdk.out/
 agentcore/cdk/node_modules/
+agentcore/proactive_agent/
+agentcore/.cli/logs/

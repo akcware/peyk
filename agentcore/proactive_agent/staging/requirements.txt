@@ -1,5 +1,0 @@
-# Only what agent/ needs on AgentCore Runtime. No psycopg, no composio: the agent never touches the DB.
-strands-agents>=1.55,<2
-bedrock-agentcore>=1.22
-pydantic>=2.9
-aws-opentelemetry-distro>=0.19
