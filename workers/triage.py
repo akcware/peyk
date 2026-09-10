@@ -19,7 +19,7 @@ from core.identity import display_name_from_header, normalize_email
 from core.log import get_logger
 from core.models import Content, Observation
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo
-from core.routing import control_text, is_callback, is_control_channel
+from core.routing import callback_data, control_text, is_callback, is_control_channel
 from workers import chat, commands, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
@@ -70,6 +70,17 @@ class Notifier:
     async def send_text(self, text: str) -> str:
         handle = await self._connection()
         return await self.adapter.send(handle, self.chat_id, Content(text=text))
+
+    async def send_markup(self, text: str, reply_markup: dict) -> str:
+        handle = await self._connection()
+        return await self.adapter.send(handle, self.chat_id, Content(text=text, reply_markup=reply_markup))
+
+    async def edit_message(self, message_id: int, text: str, reply_markup: dict | None = None) -> None:
+        edit = getattr(self.adapter, "edit_message", None)
+        if edit is None:
+            await self.send_text(text)
+            return
+        await edit(self.chat_id, message_id, text, reply_markup or {"inline_keyboard": []})
 
     async def ack(self, obs: Observation, text: str | None) -> None:
         cq = obs.payload.get("callback_query") or {}
@@ -123,18 +134,23 @@ async def handle_command(conn, obs: Observation, *, settings: Settings, notifier
 
 async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier,
                  now: datetime | None = None, tick_ctx: ticks.TickContext | None = None,
-                 embedder=None, on_draft=None) -> None:
+                 embedder=None, approval=None) -> None:
     now = now or datetime.now(tz=UTC)
     async with db.connection() as conn:
         if is_control_channel(obs, settings):
             if is_callback(obs):
-                text = await feedback.apply(conn, obs)
+                if approval is not None and (callback_data(obs) or "").startswith("act:"):
+                    text = await approval.on_callback(conn, obs)
+                else:
+                    text = await feedback.apply(conn, obs)
                 await notifier.ack(obs, text)
             elif commands.is_command(control_text(obs)):
                 await handle_command(conn, obs, settings=settings, notifier=notifier, now=now)
+            elif approval is not None and await approval.maybe_apply_edit(conn, obs):
+                pass
             elif control_text(obs) and embedder is not None:
                 await chat.handle_message(conn, obs, settings=settings, agent=agent, notifier=notifier,
-                                          embedder=embedder, on_draft=on_draft)
+                                          embedder=embedder, on_draft=approval.on_draft if approval else None)
             return
         if obs.kind == "tick":
             ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)
@@ -151,7 +167,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
 
 
 async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0,
-              tick_ctx: ticks.TickContext | None = None, embedder=None, on_draft=None) -> None:
+              tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None) -> None:
     user_id = settings.USER_ID
     while True:
         async with db.connection() as conn:
@@ -162,7 +178,7 @@ async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idl
         slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
         try:
             await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
-                         embedder=embedder, on_draft=on_draft)
+                         embedder=embedder, approval=approval)
             async with db.connection() as conn:
                 await queue.complete(conn, obs.id)
             slog.info("triage.done")

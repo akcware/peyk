@@ -10,7 +10,7 @@ from core.adapter import AdapterRegistry
 from core.config import get_settings
 from core.embeddings import TitanEmbedder
 from core.log import configure_logging, get_logger
-from workers import ingest, maintenance, scheduler, ticks, triage
+from workers import approval, ingest, maintenance, scheduler, ticks, triage
 
 log = get_logger("workers.main")
 
@@ -27,8 +27,9 @@ async def main() -> None:
     agent = AgentClient(settings.AGENT_MODE, runtime_arn=settings.AGENTCORE_RUNTIME_ARN, region=settings.AWS_REGION)
     tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifier=notifier)
     embedder = TitanEmbedder(region=settings.AWS_REGION)
+    flow = approval.ApprovalFlow(registry, notifier)
     tasks.append(asyncio.create_task(
-        triage.run(settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx, embedder=embedder), name="triage"))
+        triage.run(settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx, embedder=embedder, approval=flow), name="triage"))
     tasks.append(asyncio.create_task(scheduler.run(settings), name="scheduler"))
     tasks.append(asyncio.create_task(maintenance.recover_loop(settings.USER_ID), name="recover"))
 

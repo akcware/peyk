@@ -43,6 +43,15 @@ ADAPTER_MODULES: dict[str, str] = {
 }
 
 
+# outbound channel -> adapter id that can send to it. Data, so workers never branch on channel.
+CHANNEL_ADAPTERS: dict[str, str] = {
+    "gmail": "composio",
+    "calendar": "composio",
+    "telegram": "telegram",
+    "whatsapp": "whatsapp",
+}
+
+
 def validate_capabilities(caps: object) -> Capabilities:
     if not isinstance(caps, dict):
         raise TypeError("capabilities() must return a dict")
@@ -89,6 +98,15 @@ class AdapterRegistry:
         """Adapters whose subscribe() we drive from workers. Session adapters (needs_session) write
         observations from their own process, so no ingest task is opened for them."""
         return [a for a in self._adapters.values() if not a.capabilities()["needs_session"]]
+
+    def for_channel(self, channel: str) -> SourceAdapter:
+        adapter_id = CHANNEL_ADAPTERS.get(channel)
+        if adapter_id is None or adapter_id not in self._adapters:
+            raise KeyError(f"no adapter configured for channel {channel!r}")
+        adapter = self._adapters[adapter_id]
+        if not adapter.capabilities()["can_send"]:
+            raise KeyError(f"adapter {adapter_id!r} cannot send")
+        return adapter
 
     def senders(self) -> list[SourceAdapter]:
         return [a for a in self._adapters.values() if a.capabilities()["can_send"]]

@@ -147,4 +147,23 @@ class ComposioAdapter:
                 return
 
     async def send(self, conn: Connection, thread_key: str, content: Content) -> str:
-        raise NotSupported("composio.send is implemented in phase 4")
+        """Gmail only. thread_key -> GMAIL_REPLY_TO_THREAD, else GMAIL_SEND_EMAIL. Returns the Gmail message id."""
+        channel = content.extra.get("channel", "gmail")
+        if channel != "gmail":
+            raise NotSupported(f"composio adapter cannot send to {channel!r}")
+        if thread_key:
+            args: dict[str, Any] = {"thread_id": thread_key, "message_body": content.text, "user_id": "me"}
+            if content.to:
+                args["recipient_email"] = content.to[0]
+            resp = await asyncio.to_thread(self._execute, "GMAIL_REPLY_TO_THREAD", args)
+        else:
+            if not content.to:
+                raise ValueError("a new mail needs at least one recipient")
+            args = {"recipient_email": content.to[0], "subject": content.subject or "", "body": content.text, "user_id": "me"}
+            if len(content.to) > 1:
+                args["cc"] = content.to[1:]
+            resp = await asyncio.to_thread(self._execute, "GMAIL_SEND_EMAIL", args)
+        if not resp.get("successful", True):
+            raise RuntimeError(f"composio send failed: {resp.get('error')}")
+        data = resp.get("data") or {}
+        return str(data.get("id") or data.get("messageId") or (data.get("response_data") or {}).get("id") or "")
