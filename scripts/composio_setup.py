@@ -38,6 +38,8 @@ def main() -> int:
     ap.add_argument("--webhook", help="set project webhook subscription URL (V3)")
     ap.add_argument("--payload-schema", action="store_true", help="print trigger type payload schemas and exit")
     ap.add_argument("--no-wait", action="store_true", help="print the OAuth link and exit without waiting")
+    ap.add_argument("--disable", metavar="TRIGGER_ID", help="disable a trigger instance (manual gate tests)")
+    ap.add_argument("--enable", metavar="TRIGGER_ID", help="enable a trigger instance")
     args = ap.parse_args()
 
     s = get_settings()
@@ -46,6 +48,12 @@ def main() -> int:
     c = Composio(api_key=s.COMPOSIO_API_KEY)
     tk = TOOLKITS[args.toolkit]
     user_id = s.COMPOSIO_USER_ID
+
+    if args.disable or args.enable:
+        tid = args.disable or args.enable
+        r = c.client.trigger_instances.manage.update(tid, status="disable" if args.disable else "enable")
+        print(f"trigger {tid}: {'disabled' if args.disable else 'enabled'} -> {r}")
+        return 0
 
     if args.payload_schema:
         for slug in tk["triggers"]:
