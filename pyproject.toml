@@ -1,0 +1,50 @@
+[project]
+name = "proactive-agent"
+version = "0.1.0"
+description = "Proactive personal agent: observe Gmail/Calendar/Telegram, triage, interrupt only when it matters."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+dependencies = [
+    "psycopg[binary,pool]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.28",
+    "structlog>=24.4",
+    "phonenumbers>=8.13",
+    "composio==0.21.1",
+    "strands-agents>=1.55,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.8",
+]
+agentcore = [
+    "bedrock-agentcore>=1.22",
+    "bedrock-agentcore-starter-toolkit>=0.3",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["tests"]
+markers = [
+    "llm: needs a real model (not run in CI)",
+    "db: needs TEST_DATABASE_URL",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.setuptools]
+packages = ["core", "core.repo", "adapters", "adapters.composio", "adapters.telegram", "adapters.whatsapp", "gateway", "workers", "agent", "db"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"

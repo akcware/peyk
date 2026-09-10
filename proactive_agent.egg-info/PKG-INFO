@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: proactive-agent
+Version: 0.1.0
+Summary: Proactive personal agent: observe Gmail/Calendar/Telegram, triage, interrupt only when it matters.
+License: MIT
+Requires-Python: <3.13,>=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: psycopg[binary,pool]>=3.2
+Requires-Dist: pydantic>=2.9
+Requires-Dist: pydantic-settings>=2.6
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.32
+Requires-Dist: httpx>=0.28
+Requires-Dist: structlog>=24.4
+Requires-Dist: phonenumbers>=8.13
+Requires-Dist: composio==0.21.1
+Requires-Dist: strands-agents<2,>=1.55
+Dynamic: license-file

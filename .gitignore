@@ -1,0 +1,12 @@
+.env
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/fixtures/**/*.raw.json
+sessions/qr.png
+.bedrock_agentcore.yaml
+.agentcore/
+dist/

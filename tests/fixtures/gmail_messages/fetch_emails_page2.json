@@ -1,0 +1,17 @@
+{
+  "successful": true,
+  "data": {
+    "messages": [
+      {
+        "messageId": "19b1170000000003",
+        "threadId": "19b1170000000001",
+        "sender": "Mara Lindqvist <mara@example-client.test>",
+        "to": "you@example.test",
+        "subject": "Re: Weekly digest",
+        "messageTimestamp": "2026-09-09T11:45:00Z",
+        "labelIds": ["INBOX"],
+        "preview": {"subject": "Re: Weekly digest", "body": "Forwarding this, section 2 is relevant for us."}
+      }
+    ]
+  }
+}

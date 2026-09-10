@@ -1,0 +1,28 @@
+{
+  "id": "msg_7f3a2c1e-9b4d-4e8a-a1c2-0d9e8f7a6b5c",
+  "timestamp": "2026-09-10T09:14:07.695Z",
+  "type": "composio.trigger.message",
+  "metadata": {
+    "log_id": "log_SyntheticAbc123",
+    "trigger_slug": "GMAIL_NEW_GMAIL_MESSAGE",
+    "trigger_id": "ti_SyntheticTrig01",
+    "connected_account_id": "ca_SyntheticConn01",
+    "auth_config_id": "ac_SyntheticAuth01",
+    "user_id": "default"
+  },
+  "data": {
+    "message_id": "19b11732c1b578fd",
+    "thread_id": "19b11732c1b578fd",
+    "sender": "Mara Lindqvist <mara@example-client.test>",
+    "to": "you@example.test",
+    "subject": "Invoice #2041 — payment due Friday",
+    "message_text": "Hi, just a reminder that invoice #2041 is due this Friday. Let me know if anything is unclear. Best, Mara",
+    "message_timestamp": "2026-09-10T09:13:52Z",
+    "label_ids": ["INBOX", "UNREAD", "IMPORTANT"],
+    "preview": {
+      "subject": "Invoice #2041 — payment due Friday",
+      "body": "Hi, just a reminder that invoice #2041 is due this Friday."
+    },
+    "attachment_list": []
+  }
+}

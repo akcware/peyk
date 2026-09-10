@@ -1,0 +1,10 @@
+psycopg[binary,pool]>=3.2
+pydantic>=2.9
+pydantic-settings>=2.6
+fastapi>=0.115
+uvicorn[standard]>=0.32
+httpx>=0.28
+structlog>=24.4
+phonenumbers>=8.13
+composio==0.21.1
+strands-agents<2,>=1.55

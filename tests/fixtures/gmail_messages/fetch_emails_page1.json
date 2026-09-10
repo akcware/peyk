@@ -1,0 +1,28 @@
+{
+  "successful": true,
+  "data": {
+    "messages": [
+      {
+        "messageId": "19b1170000000001",
+        "threadId": "19b1170000000001",
+        "sender": "Newsletter Bot <news@example-news.test>",
+        "to": "you@example.test",
+        "subject": "Weekly digest",
+        "messageTimestamp": "2026-09-09T06:00:00Z",
+        "labelIds": ["INBOX", "CATEGORY_PROMOTIONS"],
+        "preview": {"subject": "Weekly digest", "body": "Here is what happened this week."}
+      },
+      {
+        "messageId": "19b1170000000002",
+        "threadId": "19b1170000000002",
+        "sender": "Dr. Okafor <okafor@example-clinic.test>",
+        "to": "you@example.test",
+        "subject": "Appointment confirmation",
+        "messageTimestamp": "2026-09-09T08:30:00Z",
+        "labelIds": ["INBOX"],
+        "preview": {"subject": "Appointment confirmation", "body": "Your appointment is confirmed for Thursday 10:00."}
+      }
+    ],
+    "nextPageToken": "page-2-token"
+  }
+}
