@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str | None = None
 
     ADAPTERS: str = "composio,telegram"
+    # The user's own control channel: messages/callbacks from here are commands or chat, never triaged.
+    CONTROL_SOURCE: str = "telegram"
 
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""

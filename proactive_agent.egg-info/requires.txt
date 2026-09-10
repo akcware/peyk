@@ -7,4 +7,4 @@ httpx>=0.28
 structlog>=24.4
 phonenumbers>=8.13
 composio==0.21.1
-strands-agents<2,>=1.55
+strands-agents[anthropic]<2,>=1.55

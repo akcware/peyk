@@ -15,7 +15,7 @@ dependencies = [
     "structlog>=24.4",
     "phonenumbers>=8.13",
     "composio==0.21.1",
-    "strands-agents>=1.55,<2",
+    "strands-agents[anthropic]>=1.55,<2",
 ]
 
 [dependency-groups]

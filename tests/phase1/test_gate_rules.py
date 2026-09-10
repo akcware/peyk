@@ -39,6 +39,9 @@ CASES = [
     ("below_threshold_2",           2, {},                                                                   Decision(False, "below_threshold")),
     ("quota_full_u3",               3, {"sent_today": 5},                                                    Decision(False, "quota_exhausted")),
     ("quota_full_u4",               4, {"sent_today": 7},                                                    Decision(False, "quota_exhausted")),
+    ("reserve_blocks_u4_at_3_of_5",  4, {"sent_today": 3},                                                    Decision(False, "quota_exhausted")),
+    ("reserve_lets_u5_at_4_of_5",    5, {"sent_today": 4},                                                    Decision(True, "urgency_bypass")),
+    ("no_reserve_u4_at_4_of_5",      4, {"sent_today": 4, "settings": BudgetSettings(bypass_reserve=0)},     Decision(True, "ok")),
     ("quota_full_u5_still_blocked", 5, {"sent_today": 5},                                                    Decision(False, "quota_exhausted")),
     ("cooldown_u3",                 3, {"last_sent_in_thread_at": NOW - timedelta(minutes=30)},              Decision(False, "thread_cooldown")),
     ("cooldown_u4",                 4, {"last_sent_in_thread_at": NOW - timedelta(minutes=239)},             Decision(False, "thread_cooldown")),
@@ -56,7 +59,7 @@ CASES = [
     ("mute_expired_ok",             3, {"mutes": [MuteRule("sender", "mara@example-client.test", NOW - timedelta(days=1))]}, Decision(True, "ok")),
     ("mute_future_until_blocks",    3, {"mutes": [MuteRule("sender", "mara@example-client.test", NOW + timedelta(days=1))]}, Decision(False, "muted_sender")),
     ("bypass_lower_setting_u4",     4, {"settings": BudgetSettings(bypass_urgency=4, quiet_hours=(23, 8)), "now": NIGHT}, Decision(True, "urgency_bypass")),
-    ("quota_boundary_4_of_5",       3, {"sent_today": 4},                                                    Decision(True, "ok")),
+    ("quota_boundary_2_of_5",       3, {"sent_today": 2},                                                    Decision(True, "ok")),
 ]
 
 

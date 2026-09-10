@@ -7,8 +7,11 @@ this decides *worth interrupting?*. Rule order (first match wins):
   quiet hours                        -> no   (quiet_hours)
   urgency <= 2                       -> no   (below_threshold)
   thread cooldown                    -> no   (thread_cooldown)
-  sent_today >= daily_quota          -> no   (quota_exhausted)
+  sent_today >= daily_quota - bypass_reserve -> no (quota_exhausted)
   otherwise                          -> yes  (ok)
+
+`bypass_reserve` keeps the last slots of the daily quota for urgency >= bypass_urgency, so an
+ordinary morning cannot starve an afternoon emergency. The quota itself is never exceeded.
 """
 from __future__ import annotations
 
@@ -39,6 +42,7 @@ class BudgetSettings:
     thread_cooldown_minutes: int = 240
     quiet_hours: tuple[int, int] | None = None   # (start_hour, end_hour), end exclusive, may wrap midnight
     bypass_urgency: int = 5
+    bypass_reserve: int = 2              # slots of daily_quota only bypass-level urgency may use
 
 
 @dataclass
@@ -100,6 +104,6 @@ def decide(obs: Observation, triage: TriageResult, state: GateState) -> Decision
         state.now - state.last_sent_in_thread_at < timedelta(minutes=s.thread_cooldown_minutes)
     ):
         return Decision(False, "thread_cooldown")
-    if quota_exhausted:
+    if state.sent_today >= max(s.daily_quota - s.bypass_reserve, 0):
         return Decision(False, "quota_exhausted")
     return Decision(True, "ok")

@@ -79,3 +79,12 @@ async def list_since(
         (user_id, since, limit),
     )
     return [_row(r) for r in await cur.fetchall()]
+
+
+async def count_from_sender(conn: psycopg.AsyncConnection, user_id: UUID, sender_email: str) -> int:
+    """How many earlier observations carry this sender address in payload.from (case-insensitive)."""
+    cur = await conn.execute(
+        "select count(*) as n from observation where user_id = %s and payload->>'from' ilike %s",
+        (user_id, f"%{sender_email}%"),
+    )
+    return (await cur.fetchone())["n"]

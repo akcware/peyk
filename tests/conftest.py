@@ -16,7 +16,7 @@ from db.migrate import migrate
 
 TEST_DB_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://agent:agent@localhost:5433/agent_test")
 USER_ID = UUID("00000000-0000-4000-8000-000000000001")
-TABLES = ("identity", "person", "action", "source_cursor", "observation")
+TABLES = ("triage", "sent_notification", "mute_rule", "budget_settings", "identity", "person", "action", "source_cursor", "observation")
 
 
 def _ensure_database(url: str) -> None:
