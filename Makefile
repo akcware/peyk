@@ -1,4 +1,4 @@
-.PHONY: db migrate run-gateway run-workers run-sessions test gate-0 status lint
+.PHONY: db migrate run-gateway run-workers run-sessions test gate-0 status lint requeue-failed
 
 db:
 	docker compose up -d db
@@ -30,3 +30,7 @@ gate-0: test-db
 
 status:
 	docker compose exec -T db psql -U agent -d agent -c "select source, status, count(*) from observation group by 1,2 order by 1,2"
+
+# Put failed observations back on the queue (after fixing the cause).
+requeue-failed:
+	docker compose exec -T db psql -U agent -d agent -c "update observation set status='new', attempts=0, claimed_at=null where status='failed'"
