@@ -872,6 +872,7 @@ name = "proactive-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "botocore", extra = ["crt"] },
     { name = "composio" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -897,6 +898,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "botocore", extras = ["crt"], specifier = ">=1.40" },
     { name = "composio", specifier = "==0.21.1" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.28" },

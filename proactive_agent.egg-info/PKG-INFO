@@ -16,6 +16,7 @@ Requires-Dist: structlog>=24.4
 Requires-Dist: phonenumbers>=8.13
 Requires-Dist: composio==0.21.1
 Requires-Dist: strands-agents[anthropic]<2,>=1.55
+Requires-Dist: botocore[crt]>=1.40
 Dynamic: license-file
 
 # Proactive Agent

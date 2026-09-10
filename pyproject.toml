@@ -16,6 +16,7 @@ dependencies = [
     "phonenumbers>=8.13",
     "composio==0.21.1",
     "strands-agents[anthropic]>=1.55,<2",
+    "botocore[crt]>=1.40",
 ]
 
 [dependency-groups]

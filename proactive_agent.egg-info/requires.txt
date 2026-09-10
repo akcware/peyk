@@ -8,3 +8,4 @@ structlog>=24.4
 phonenumbers>=8.13
 composio==0.21.1
 strands-agents[anthropic]<2,>=1.55
+botocore[crt]>=1.40
