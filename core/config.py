@@ -53,6 +53,20 @@ class Settings(BaseSettings):
         return [a.strip() for a in self.ADAPTERS.split(",") if a.strip()]
 
 
+AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE")
+
+
+def export_agent_env(settings: Settings) -> None:
+    """agent/ reads os.environ only (it must run on AgentCore without core.config). Bridge .env values
+    into the process environment for AGENT_MODE=local. Existing environment variables win."""
+    import os
+
+    for key in AGENT_ENV_KEYS:
+        value = getattr(settings, key, "")
+        if value and not os.environ.get(key):
+            os.environ[key] = str(value)
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

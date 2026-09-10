@@ -7,7 +7,7 @@ import signal
 from agent.client import AgentClient
 from core import db
 from core.adapter import AdapterRegistry
-from core.config import get_settings
+from core.config import export_agent_env, get_settings
 from core.embeddings import TitanEmbedder
 from core.log import configure_logging, get_logger
 from workers import approval, ingest, maintenance, scheduler, ticks, triage
@@ -17,6 +17,7 @@ log = get_logger("workers.main")
 
 async def main() -> None:
     settings = get_settings()
+    export_agent_env(settings)
     configure_logging(settings.LOG_LEVEL)
     await db.open_pool(settings.DATABASE_URL)
     registry = AdapterRegistry.from_ids(settings.adapter_ids)

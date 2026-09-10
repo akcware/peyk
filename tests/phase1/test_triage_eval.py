@@ -13,14 +13,9 @@ FIX = Path(__file__).resolve().parents[1] / "fixtures" / "labeled_triage.jsonl"
 
 def _load_env_from_settings() -> None:
     """agent/ reads os.environ only (no core.config import by design); tests bridge .env for it."""
-    import os
+    from core.config import export_agent_env, get_settings
 
-    from core.config import get_settings
-
-    s = get_settings()
-    for key in ("MODEL_PROVIDER", "AWS_REGION", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE"):
-        if getattr(s, key, "") and not os.environ.get(key):
-            os.environ[key] = str(getattr(s, key))
+    export_agent_env(get_settings())
 
 
 def test_triage_agent_eval():
