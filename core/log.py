@@ -9,6 +9,9 @@ import structlog
 
 def configure_logging(level: str = "INFO") -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper())
+    # httpx logs full request URLs at INFO, which would print the Telegram bot token. Never.
+    for noisy in ("httpx", "httpcore", "composio", "pysher", "websocket"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

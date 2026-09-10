@@ -79,7 +79,7 @@ def main() -> int:
         account_id = active[0].id
 
     for slug, cfg in tk["triggers"].items():
-        r = c.triggers.create(slug, connected_account_id=account_id, trigger_config=cfg)
+        r = c.triggers.create(slug, user_id=user_id, connected_account_id=account_id, trigger_config=cfg)
         print(f"trigger {slug}: id={getattr(r, 'trigger_id', r)}")
 
     if args.webhook:
