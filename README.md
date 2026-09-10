@@ -51,7 +51,7 @@ Record results here before tagging `phase-0`.
 
 ## Layout
 
-See `docs/` for the PRD-derived checklist. Migrations are numbered SQL files in `db/migrations/`, applied by `db/migrate.py`.
+Architecture and the decisions behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Setup checklist: [docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md). Migrations are numbered SQL files in `db/migrations/`, applied by `db/migrate.py`.
 
 ## License
 
