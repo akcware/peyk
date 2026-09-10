@@ -160,10 +160,8 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 ctx.retriage = _retriage
             await ticks.handle_tick(conn, obs, ctx)
             return
-        if obs.kind == "message_in":
-            await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
-            return
-        log.info("triage.skipped_kind", kind=obs.kind, observation_id=str(obs.id))
+        # every other observation is a world event (message_in, event_starting, ...): triage + gate
+        await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
 
 
 async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0,

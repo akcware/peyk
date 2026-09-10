@@ -3,7 +3,7 @@
 A personal agent that *watches* your channels (Gmail, Calendar, Telegram) and interrupts you only when it matters.
 Built for the [Agents for Humans](https://agentsforhumans.devpost.com/) hackathon with Strands Agents on Amazon Bedrock.
 
-> Status: **Phase 0** — pipeline with zero intelligence. Mail in Gmail → raw Telegram notification. No LLM yet.
+> Status: phases 0–4 implemented and unit-tested (`make gate-0` … `gate-4`). Phase-0 manual tests recorded below; phase 1–4 manual tests are pending Bedrock model access (Anthropic use-case form).
 
 ## How it works (phase 0)
 
