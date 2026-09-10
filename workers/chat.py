@@ -3,6 +3,7 @@ The agent gets data in the payload (it has no DB); if it returns a NeedMore inte
 call again — at most MAX_ROUNDS rounds. Side-effect intents are applied here."""
 from __future__ import annotations
 
+import html
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -23,6 +24,7 @@ HISTORY_TURNS = 10
 RECENT_HOURS = 48
 RECENT_LIMIT = 50
 MAX_ROUNDS = 2
+STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, restart) is not answered
 
 
 def _turn_text(obs: Observation) -> tuple[str, str] | None:
@@ -38,8 +40,8 @@ async def build_history(conn: psycopg.AsyncConnection, obs: Observation, *, turn
     rows = await observation_repo.list_by_thread(conn, obs.user_id, obs.thread_key or "", limit=turns * 3 + 5)
     out: list[dict[str, str]] = []
     for r in rows:                     # newest first
-        if r.id == obs.id:
-            continue
+        if r.id == obs.id or r.occurred_at >= obs.occurred_at:
+            continue                   # never include this message or anything that arrived after it
         t = _turn_text(r)
         if t:
             out.append({"role": t[0], "text": t[1]})
@@ -57,7 +59,7 @@ def compact(obs: Observation, urgency: int | None = None) -> dict[str, Any]:
             d[k] = p[k]
     snippet = p.get("snippet") or p.get("text") or ""
     if snippet:
-        d["snippet"] = str(snippet)[:240]
+        d["snippet"] = html.unescape(str(snippet))[:240]
     if urgency is not None:
         d["urgency"] = urgency
     return d
@@ -150,9 +152,25 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     return reply, [i for i in intents if i.get("intent") != "NeedMore"]
 
 
+async def already_answered(conn: psycopg.AsyncConnection, obs: Observation) -> bool:
+    cur = await conn.execute(
+        "select 1 from observation where user_id = %s and kind = 'message_out' and payload->>'in_reply_to' = %s limit 1",
+        (obs.user_id, str(obs.id)),
+    )
+    return await cur.fetchone() is not None
+
+
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
-                         notifier, embedder: Embedder, on_draft=None) -> str:
-    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder)
+                         notifier, embedder: Embedder, on_draft=None, now: datetime | None = None) -> str:
+    now = now or datetime.now(tz=UTC)
+    received = obs.received_at or obs.occurred_at
+    if now - received > STALE_AFTER:
+        log.info("chat.stale_skipped", observation_id=str(obs.id), age_s=int((now - received).total_seconds()))
+        return ""
+    if await already_answered(conn, obs):
+        log.info("chat.already_answered", observation_id=str(obs.id))
+        return ""
+    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now)
     if not reply:
         reply = "(no reply)"
     mid = await notifier.send_text(reply)

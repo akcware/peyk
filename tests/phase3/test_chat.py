@@ -148,3 +148,34 @@ def test_agent_never_touches_db():
     r = subprocess.run(["grep", "-rnE", r"^(from|import) (psycopg|core\.db|core\.repo|core\.embeddings)", "agent", "--include=*.py"],
                        cwd=ROOT, capture_output=True, text=True, check=False)
     assert r.stdout.strip() == "", r.stdout
+
+
+async def test_history_excludes_later_messages_and_stale_is_skipped(conn, settings):
+    t0 = datetime.now(tz=UTC) - timedelta(minutes=1)
+    old = await observation_repo.insert(conn, tg_text("500", "merhaba", t0))
+    await observation_repo.insert(conn, tg_text("501", "5+5?", t0 + timedelta(seconds=10)))    # arrived later
+    history = await chat.build_history(conn, old)
+    assert all(h["text"] != "5+5?" for h in history)
+
+    # stale: received 20 minutes ago -> no reply, nothing sent
+    stale = await observation_repo.insert(conn, tg_text("502", "hey", t0))
+    await conn.execute("update observation set received_at = now() - interval '20 minutes' where id = %s", (stale.id,))
+    stale = await observation_repo.get(conn, stale.id)
+    agent, calls = scripted_agent([{"reply": "late"}])
+    tg = FakeTelegram()
+    out = await chat.handle_message(conn, stale, settings=settings, agent=agent, notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
+    assert out == "" and calls == [] and tg.sent == []
+
+    # idempotent: a message that already has a reply is not answered twice (retry after a late failure)
+    fresh = await observation_repo.insert(conn, tg_text("503", "hi", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, fresh, settings=settings, agent=agent, notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
+    await chat.handle_message(conn, fresh, settings=settings, agent=agent, notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
+    assert len(tg.sent) == 1 and len(calls) == 1
+
+
+def test_render_unescapes_html_and_plain_reason():
+    obs = Observation(user_id=USER_ID, source="gmail", source_key="h", kind="message_in", occurred_at=datetime.now(tz=UTC),
+                      payload={"from": "G <g@x.test>", "subject": "Security alert", "snippet": "you didn&#39;t allow &amp; more"})
+    from agent.schemas import TriageResult
+    text = triage.Notifier.render(obs, TriageResult(urgency=4, category="automated", reason="verify"))
+    assert "didn't allow & more" in text and "→ verify" in text and "_verify_" not in text

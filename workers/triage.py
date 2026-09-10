@@ -6,6 +6,7 @@ are commands/callbacks/chat; everything else is a world event that goes through 
 from __future__ import annotations
 
 import asyncio
+import html
 from datetime import UTC, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -43,13 +44,13 @@ class Notifier:
     def render(obs: Observation, triage: TriageResult) -> str:
         p = obs.payload
         urgency = "‼️" if triage.urgency >= 5 else "❗" if triage.urgency == 4 else "•"
-        who = p.get("from") or p.get("summary") or obs.source
-        subject = p.get("subject") or p.get("summary") or "(no subject)"
-        snippet = (p.get("snippet") or p.get("text") or "").strip()
+        who = html.unescape(str(p.get("from") or p.get("summary") or obs.source))
+        subject = html.unescape(str(p.get("subject") or p.get("summary") or "(no subject)"))
+        snippet = html.unescape(str(p.get("snippet") or p.get("text") or "")).strip()
         body = f"{urgency} [{obs.source}] {who}\n{subject}"
         if snippet:
             body += f"\n\n{snippet[:280]}"
-        body += f"\n\n_{triage.reason}_"
+        body += f"\n\n→ {triage.reason}"
         return body
 
     @staticmethod
