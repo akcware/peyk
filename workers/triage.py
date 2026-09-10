@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from agent.client import AgentClient
 from agent.schemas import TriageResult
@@ -17,9 +18,9 @@ from core.config import Settings
 from core.identity import display_name_from_header, normalize_email
 from core.log import get_logger
 from core.models import Content, Observation
-from core.repo import budget_repo, identity_repo, observation_repo
-from core.routing import is_callback, is_control_channel
-from workers import feedback, gate, gate_state
+from core.repo import budget_repo, identity_repo, job_repo, observation_repo
+from core.routing import control_text, is_callback, is_control_channel
+from workers import commands, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
 
@@ -66,6 +67,10 @@ class Notifier:
         await conn.execute("update sent_notification set tg_message_id = %s where id = %s", (int(mid), sent_id))
         return sent_id
 
+    async def send_text(self, text: str) -> str:
+        handle = await self._connection()
+        return await self.adapter.send(handle, self.chat_id, Content(text=text))
+
     async def ack(self, obs: Observation, text: str | None) -> None:
         cq = obs.payload.get("callback_query") or {}
         answer = getattr(self.adapter, "answer_callback", None)
@@ -101,14 +106,40 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
     return decision
 
 
-async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier, now: datetime | None = None) -> None:
+async def handle_command(conn, obs: Observation, *, settings: Settings, notifier: Notifier, now: datetime) -> None:
+    text = control_text(obs) or ""
+    if text.split()[0].split("@")[0] == "/remind":
+        try:
+            r = commands.parse_remind(text, now, settings.TIMEZONE)
+        except ValueError as e:
+            await notifier.send_text(str(e))
+            return
+        await job_repo.create(conn, obs.user_id, run_at=r.run_at, kind="followup", payload={"note": r.note}, created_by="user")
+        local = r.run_at.astimezone(ZoneInfo(settings.TIMEZONE))
+        await notifier.send_text(f"⏰ Will remind you at {local:%a %H:%M}: {r.note}")
+        return
+    await notifier.send_text("Commands: /remind <1h|09:30|tomorrow [09:30]> <note>")
+
+
+async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier,
+                 now: datetime | None = None, tick_ctx: ticks.TickContext | None = None) -> None:
     now = now or datetime.now(tz=UTC)
     async with db.connection() as conn:
         if is_control_channel(obs, settings):
             if is_callback(obs):
                 text = await feedback.apply(conn, obs)
                 await notifier.ack(obs, text)
-            # plain control-channel messages: commands (phase 2) / chat (phase 3)
+            elif commands.is_command(control_text(obs)):
+                await handle_command(conn, obs, settings=settings, notifier=notifier, now=now)
+            # plain chat messages: phase 3
+            return
+        if obs.kind == "tick":
+            ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)
+            if ctx.retriage is None:
+                async def _retriage(c, o):
+                    return await triage_and_gate(c, o, agent=agent, notifier=notifier, now=datetime.now(tz=UTC))
+                ctx.retriage = _retriage
+            await ticks.handle_tick(conn, obs, ctx)
             return
         if obs.kind == "message_in":
             await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
@@ -116,7 +147,8 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
         log.info("triage.skipped_kind", kind=obs.kind, observation_id=str(obs.id))
 
 
-async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0) -> None:
+async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0,
+              tick_ctx: ticks.TickContext | None = None) -> None:
     user_id = settings.USER_ID
     while True:
         async with db.connection() as conn:
@@ -126,7 +158,7 @@ async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idl
             continue
         slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
         try:
-            await handle(obs, settings=settings, agent=agent, notifier=notifier)
+            await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx)
             async with db.connection() as conn:
                 await queue.complete(conn, obs.id)
             slog.info("triage.done")

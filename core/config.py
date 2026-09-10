@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     AGENT_MODE: Literal["local", "agentcore"] = "local"
     AGENTCORE_RUNTIME_ARN: str = ""
 
+    TIMEZONE: str = "Europe/Berlin"            # for daily@HH:MM recurrences and /remind HH:MM
+    MORNING_BRIEF_AT: str = "08:00"            # local time; empty string disables the default brief job
+    RECONCILE_EVERY: str = "10m"               # empty string disables the reconcile job
+    RECONCILE_LOOKBACK_MINUTES: int = 15
+
     LOG_LEVEL: str = "INFO"
     DEFAULT_PHONE_REGION: str = Field(default="DE", description="phonenumbers default region")
 

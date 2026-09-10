@@ -9,7 +9,7 @@ from core import db
 from core.adapter import AdapterRegistry
 from core.config import get_settings
 from core.log import configure_logging, get_logger
-from workers import ingest, maintenance, triage
+from workers import ingest, maintenance, scheduler, ticks, triage
 
 log = get_logger("workers.main")
 
@@ -24,7 +24,9 @@ async def main() -> None:
     tasks = ingest.start_ingest_tasks(registry.ingestable(), settings.USER_ID)
     notifier = triage.Notifier(registry.get(settings.CONTROL_SOURCE), settings.TELEGRAM_CHAT_ID, settings.USER_ID)
     agent = AgentClient(settings.AGENT_MODE, runtime_arn=settings.AGENTCORE_RUNTIME_ARN, region=settings.AWS_REGION)
-    tasks.append(asyncio.create_task(triage.run(settings, agent=agent, notifier=notifier), name="triage"))
+    tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifier=notifier)
+    tasks.append(asyncio.create_task(triage.run(settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx), name="triage"))
+    tasks.append(asyncio.create_task(scheduler.run(settings), name="scheduler"))
     tasks.append(asyncio.create_task(maintenance.recover_loop(settings.USER_ID), name="recover"))
 
     stop = asyncio.Event()

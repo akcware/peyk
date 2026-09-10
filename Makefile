@@ -1,4 +1,4 @@
-.PHONY: db migrate run-gateway run-workers run-sessions test gate-0 status lint requeue-failed
+.PHONY: db migrate run-gateway run-workers run-sessions test gate-0 gate-1 gate-1-llm gate-2 status lint requeue-failed
 
 db:
 	docker compose up -d db
@@ -24,6 +24,15 @@ test-db: db
 
 test: test-db
 	uv run pytest -q -m "not llm"
+
+gate-1: test-db
+	uv run pytest -q tests/phase1 -m "not llm"
+
+gate-1-llm: test-db
+	uv run pytest -q tests/phase1 -m llm -s
+
+gate-2: test-db
+	uv run pytest -q tests/phase2
 
 gate-0: test-db
 	uv run pytest -q tests/phase0

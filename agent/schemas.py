@@ -13,3 +13,14 @@ class TriageResult(BaseModel):
     urgency: int = Field(ge=1, le=5, description="1 = ignore, 5 = interrupt now")
     category: Category
     reason: str = Field(max_length=200)
+
+
+class ScheduleRequest(BaseModel):
+    intent: Literal["ScheduleRequest"] = "ScheduleRequest"
+    when_iso: str
+    note: str
+
+
+class MemoryWrite(BaseModel):
+    intent: Literal["MemoryWrite"] = "MemoryWrite"
+    text: str
