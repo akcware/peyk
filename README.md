@@ -46,7 +46,7 @@ make gate-0     # tests/phase0 against TEST_DATABASE_URL (compose db, database a
 Record results here before tagging `phase-0`.
 
 - [x] Send yourself a mail → Composio trigger log shows it → raw notification in Telegram. Measured latency (2026-09-10, trigger interval 1 min): mail sent 16:28:20Z → observation 16:29:08Z → Telegram 16:29:09Z = **49 s**; earlier two mails: 11 s and 38 s. Bounded by Composio's polling interval, not by us.
-- [ ] Disable the trigger in Composio → send a mail → re-enable. Outcome (pick one): `event arrived late, single notification` / `event never arrived`. Phase 2's `reconcile` job exists for the second case.
+- [x] Disable the trigger in Composio → send a mail → re-enable. Outcome: **event never arrived** (trigger disabled 16:30:16Z, mail sent while disabled, re-enabled 16:33:27Z, nothing within 4 min; Composio's poller restarts from "now" on enable and does not replay). Phase 2's `reconcile` job (`GMAIL_FETCH_EMAILS` since last cursor, `ON CONFLICT DO NOTHING`) exists exactly for this.
 - [ ] With workers running: `docker compose kill workers` → send a mail → start workers → mail arrives, nothing lost.
 
 ## Layout
