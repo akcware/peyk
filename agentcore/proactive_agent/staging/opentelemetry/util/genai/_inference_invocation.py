@@ -1,0 +1,363 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from opentelemetry._logs import Logger, LogRecord
+from opentelemetry.semconv._incubating.attributes import (
+    gen_ai_attributes as GenAI,
+)
+from opentelemetry.semconv.attributes import server_attributes
+from opentelemetry.trace import INVALID_SPAN, Span, SpanKind, Tracer
+from opentelemetry.util.genai._invocation import (
+    Error,
+    GenAIInvocation,
+    get_content_attributes,
+)
+from opentelemetry.util.genai.completion_hook import CompletionHook
+from opentelemetry.util.genai.metrics import InvocationMetricsRecorder
+from opentelemetry.util.genai.types import (
+    ErrorTypeResolver,
+    InputMessage,
+    MessagePart,
+    OutputMessage,
+    ToolDefinition,
+)
+from opentelemetry.util.genai.utils import (
+    should_emit_event,
+)
+from opentelemetry.util.types import AttributeValue
+
+
+class InferenceInvocation(GenAIInvocation):
+    """Represents a single LLM chat/completion call.
+
+    Use handler.inference(provider) rather than constructing this directly.
+    """
+
+    def __init__(
+        self,
+        tracer: Tracer,
+        metrics_recorder: InvocationMetricsRecorder,
+        logger: Logger,
+        completion_hook: CompletionHook,
+        provider: str,
+        *,
+        request_model: str | None = None,
+        server_address: str | None = None,
+        server_port: int | None = None,
+        operation_name: str | None = None,
+        error_type_resolver: ErrorTypeResolver | None = None,
+    ) -> None:
+        operation_name = (
+            operation_name or GenAI.GenAiOperationNameValues.CHAT.value
+        )
+        """Use handler.inference(provider) rather than calling this directly."""
+        super().__init__(
+            tracer,
+            metrics_recorder,
+            logger,
+            completion_hook,
+            operation_name=operation_name,
+            span_name=f"{operation_name} {request_model}"
+            if request_model
+            else operation_name,
+            span_kind=SpanKind.CLIENT,
+            error_type_resolver=error_type_resolver,
+        )
+        self._provider: str = provider
+        self._request_model: str | None = request_model
+        self._server_address: str | None = server_address
+        self._server_port: int | None = server_port
+
+        self.input_messages: list[InputMessage] = []
+        self.output_messages: list[OutputMessage] = []
+        self.system_instruction: list[MessagePart] = []
+        self._response_model_name: str | None = None
+        self.response_id: str | None = None
+        self.finish_reasons: list[str] | None = None
+        self.input_tokens: int | None = None
+        self.output_tokens: int | None = None
+        self.thinking_tokens: int | None = None
+        self.temperature: float | None = None
+        self.top_p: float | None = None
+        self.frequency_penalty: float | None = None
+        self.presence_penalty: float | None = None
+        self.max_tokens: int | None = None
+        self.stop_sequences: list[str] | None = None
+        self.seed: int | None = None
+        self.cache_creation_input_tokens: int | None = None
+        self.cache_read_input_tokens: int | None = None
+        self.tool_definitions: list[ToolDefinition] | None = None
+        self.top_k: float | None = None
+        self.request_choice_count: int | None = None
+        self.output_type: str | None = None
+        # Rebuilt once per streaming chunk, so cache it and invalidate via
+        # _invalidate_metric_attributes whenever an input changes.
+        self._cached_metric_attributes: dict[str, AttributeValue] | None = None
+        self._start(self._get_start_attributes())
+
+    @property
+    def response_model_name(self) -> str | None:
+        return self._response_model_name
+
+    @response_model_name.setter
+    def response_model_name(self, value: str | None) -> None:
+        if value != self._response_model_name:
+            self._response_model_name = value
+            self._invalidate_metric_attributes()
+
+    def _get_message_attributes(
+        self, *, for_span: bool
+    ) -> dict[str, AttributeValue]:
+        return get_content_attributes(
+            input_messages=self.input_messages,
+            output_messages=self.output_messages,
+            system_instruction=self.system_instruction,
+            tool_definitions=self.tool_definitions,
+            for_span=for_span,
+        )
+
+    def _get_finish_reasons(self) -> list[str] | None:
+        if self.finish_reasons is not None:
+            return self.finish_reasons or None
+        if self.output_messages:
+            reasons = [
+                msg.finish_reason
+                for msg in self.output_messages
+                if msg.finish_reason
+            ]
+            return reasons or None
+        return None
+
+    def _get_start_attributes(self) -> dict[str, AttributeValue]:
+        optional_attrs = (
+            (GenAI.GEN_AI_REQUEST_MODEL, self._request_model),
+            (GenAI.GEN_AI_PROVIDER_NAME, self._provider),
+            (server_attributes.SERVER_ADDRESS, self._server_address),
+            (server_attributes.SERVER_PORT, self._server_port),
+        )
+        return {
+            GenAI.GEN_AI_OPERATION_NAME: self._operation_name,
+            **{k: v for k, v in optional_attrs if v is not None},
+        }
+
+    def _get_attributes(self) -> dict[str, AttributeValue]:
+        attrs: dict[str, AttributeValue] = {}
+        optional_attrs = (
+            (GenAI.GEN_AI_REQUEST_STREAM, self._request_stream),
+            (GenAI.GEN_AI_REQUEST_TEMPERATURE, self.temperature),
+            (GenAI.GEN_AI_REQUEST_TOP_P, self.top_p),
+            (GenAI.GEN_AI_REQUEST_TOP_K, self.top_k),
+            (GenAI.GEN_AI_REQUEST_FREQUENCY_PENALTY, self.frequency_penalty),
+            (GenAI.GEN_AI_REQUEST_PRESENCE_PENALTY, self.presence_penalty),
+            (GenAI.GEN_AI_REQUEST_MAX_TOKENS, self.max_tokens),
+            (GenAI.GEN_AI_REQUEST_STOP_SEQUENCES, self.stop_sequences),
+            (GenAI.GEN_AI_REQUEST_SEED, self.seed),
+            (GenAI.GEN_AI_RESPONSE_FINISH_REASONS, self._get_finish_reasons()),
+            (GenAI.GEN_AI_RESPONSE_MODEL, self.response_model_name),
+            (GenAI.GEN_AI_RESPONSE_ID, self.response_id),
+            (GenAI.GEN_AI_USAGE_INPUT_TOKENS, self.input_tokens),
+            (GenAI.GEN_AI_USAGE_OUTPUT_TOKENS, self.output_tokens),
+            (GenAI.GEN_AI_REQUEST_CHOICE_COUNT, self.request_choice_count),
+            (GenAI.GEN_AI_OUTPUT_TYPE, self.output_type),
+            (
+                GenAI.GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
+                self.cache_creation_input_tokens,
+            ),
+            (
+                GenAI.GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+                self.cache_read_input_tokens,
+            ),
+            (
+                GenAI.GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+                self.thinking_tokens,
+            ),
+            (
+                GenAI.GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
+                self._ttfc_seconds,
+            ),
+        )
+        attrs.update({k: v for k, v in optional_attrs if v is not None})
+        return attrs
+
+    def _invalidate_metric_attributes(self) -> None:
+        """Drop the cached metric attributes so the next read rebuilds them.
+
+        Call this from anywhere that changes an input to
+        ``_get_metric_attributes`` (response model, error type, ...).
+        """
+        self._cached_metric_attributes = None
+
+    def _get_metric_attributes(self) -> dict[str, AttributeValue]:
+        # Cached because this is rebuilt once per streaming chunk. Any mutation
+        # of its inputs must call _invalidate_metric_attributes.
+        if self._cached_metric_attributes is None:
+            attrs = self._get_start_attributes()
+            if self._response_model_name is not None:
+                attrs[GenAI.GEN_AI_RESPONSE_MODEL] = self._response_model_name
+            attrs.update(self.metric_attributes)
+            self._cached_metric_attributes = attrs
+        return self._cached_metric_attributes
+
+    def _apply_error_attributes(self, error: Error) -> None:
+        super()._apply_error_attributes(error)
+        # error.type was just added to metric_attributes.
+        self._invalidate_metric_attributes()
+
+    def _get_metric_token_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        if self.input_tokens is not None:
+            counts[GenAI.GenAiTokenTypeValues.INPUT.value] = self.input_tokens
+        if self.output_tokens is not None:
+            counts[GenAI.GenAiTokenTypeValues.OUTPUT.value] = (
+                self.output_tokens
+            )
+        return counts
+
+    def _apply_finish(self, error: Error | None = None) -> None:
+        if error is not None:
+            self._apply_error_attributes(error)
+        attributes = self._get_attributes()
+        attributes.update(self._get_message_attributes(for_span=True))
+        attributes.update(self.attributes)
+        self.span.set_attributes(attributes)
+        self._metrics_recorder.record(self)
+        log_record = self._maybe_create_event()
+        self._call_completion_hook(
+            inputs=self.input_messages,
+            outputs=self.output_messages,
+            system_instruction=self.system_instruction,
+            tool_definitions=self.tool_definitions,
+            log_record=log_record,
+        )
+        if log_record is not None:
+            self._logger.emit(log_record)
+
+    def _maybe_create_event(self) -> LogRecord | None:
+        """Emit a gen_ai.client.inference.operation.details event.
+
+        For more details, see the semantic convention documentation:
+        https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/gen-ai-events.md#event-eventgen_aiclientinferenceoperationdetails
+        """
+        if not should_emit_event():
+            return None
+
+        attributes = self._get_start_attributes()
+        attributes.update(self._get_attributes())
+        attributes.update(self._get_message_attributes(for_span=False))
+        attributes.update(self.attributes)
+        return LogRecord(
+            event_name="gen_ai.client.inference.operation.details",
+            attributes=attributes,
+            context=self._span_context,
+        )
+
+
+@dataclass
+class LLMInvocation:
+    """Deprecated. Use InferenceInvocation instead.
+
+    Data container for an LLM invocation. Pass to handler.llm() to start
+    the span, then update fields and call handler.stop_llm() or handler.fail_llm().
+    """
+
+    request_model: str | None = None
+    input_messages: list[InputMessage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    output_messages: list[OutputMessage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    system_instruction: list[MessagePart] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    provider: str | None = None
+    response_model_name: str | None = None
+    response_id: str | None = None
+    finish_reasons: list[str] | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    attributes: dict[str, AttributeValue] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    """Additional attributes to set on spans and/or events. Not set on metrics."""
+    metric_attributes: dict[str, AttributeValue] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    """Additional attributes to set on metrics. Must be low cardinality. Not set on spans or events."""
+    temperature: float | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    max_tokens: int | None = None
+    stop_sequences: list[str] | None = None
+    seed: int | None = None
+    server_address: str | None = None
+    server_port: int | None = None
+
+    _inference_invocation: InferenceInvocation | None = field(
+        default=None, init=False, repr=False
+    )
+
+    def _start_with_handler(
+        self,
+        tracer: Tracer,
+        metrics_recorder: InvocationMetricsRecorder,
+        logger: Logger,
+        completion_hook: CompletionHook,
+    ) -> None:
+        """Create and start an InferenceInvocation from this data container. Called by handler.start_llm()."""
+        inv = InferenceInvocation(
+            tracer,
+            metrics_recorder,
+            logger,
+            completion_hook,
+            self.provider or "",
+            request_model=self.request_model,
+            server_address=self.server_address,
+            server_port=self.server_port,
+        )
+        inv.input_messages = self.input_messages
+        inv.output_messages = self.output_messages
+        inv.system_instruction = self.system_instruction
+        inv.response_model_name = self.response_model_name
+        inv.response_id = self.response_id
+        inv.finish_reasons = self.finish_reasons
+        inv.input_tokens = self.input_tokens
+        inv.output_tokens = self.output_tokens
+        inv.temperature = self.temperature
+        inv.top_p = self.top_p
+        inv.frequency_penalty = self.frequency_penalty
+        inv.presence_penalty = self.presence_penalty
+        inv.max_tokens = self.max_tokens
+        inv.stop_sequences = self.stop_sequences
+        inv.seed = self.seed
+        inv.attributes.update(self.attributes)
+        inv.metric_attributes.update(self.metric_attributes)
+        self._inference_invocation = inv
+
+    def _sync_to_invocation(self) -> None:
+        inv = self._inference_invocation
+        if inv is None:
+            return
+        # Start attributes (provider, request_model, server_address, server_port)
+        # are fixed at construction in _start_with_handler and cannot be reassigned.
+        inv.input_messages = self.input_messages
+        inv.output_messages = self.output_messages
+        inv.system_instruction = self.system_instruction
+        inv.response_model_name = self.response_model_name
+        inv.response_id = self.response_id
+        inv.finish_reasons = self.finish_reasons
+        inv.input_tokens = self.input_tokens
+        inv.output_tokens = self.output_tokens
+        inv.temperature = self.temperature
+        inv.top_p = self.top_p
+        inv.frequency_penalty = self.frequency_penalty
+        inv.presence_penalty = self.presence_penalty
+        inv.max_tokens = self.max_tokens
+        inv.stop_sequences = self.stop_sequences
+        inv.seed = self.seed
+        inv.attributes = self.attributes
+        inv.metric_attributes = self.metric_attributes
+
+    @property
+    def span(self) -> Span:
+        """The underlying span, for back-compat with code that checks span.is_recording()."""
+        return (
+            self._inference_invocation.span
+            if self._inference_invocation is not None
+            else INVALID_SPAN
+        )

@@ -10,3 +10,7 @@ sessions/qr.png
 .bedrock_agentcore.yaml
 .agentcore/
 dist/
+agentcore/*.zip
+agentcore/.cache/
+agentcore/cdk/cdk.out/
+agentcore/cdk/node_modules/

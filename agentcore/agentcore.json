@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "proactiveagent",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "proactiveagent"
+  },
+  "runtimes": [
+    {
+      "name": "proactive_agent",
+      "build": "CodeZip",
+      "entrypoint": "app.py",
+      "codeLocation": "agent/",
+      "runtimeVersion": "PYTHON_3_12",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "authorizerType": "AWS_IAM",
+      "envVars": [
+        {
+          "name": "MODEL_PROVIDER",
+          "value": "bedrock"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "TRIAGE_MODEL_ID",
+          "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        },
+        {
+          "name": "CHAT_MODEL_ID",
+          "value": "us.anthropic.claude-sonnet-5"
+        },
+        {
+          "name": "USER_PROFILE",
+          "value": "Freelance software developer in Berlin, works with a few clients; clients, invoices, deadlines, health and family are urgent; newsletters and marketing are noise."
+        }
+      ]
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}
