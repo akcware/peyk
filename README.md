@@ -49,6 +49,12 @@ Record results here before tagging `phase-0`.
 - [x] Disable the trigger in Composio → send a mail → re-enable. Outcome: **event never arrived** (trigger disabled 16:30:16Z, mail sent while disabled, re-enabled 16:33:27Z, nothing within 4 min; Composio's poller restarts from "now" on enable and does not replay). Phase 2's `reconcile` job (`GMAIL_FETCH_EMAILS` since last cursor, `ON CONFLICT DO NOTHING`) exists exactly for this.
 - [x] Workers stopped (Ctrl+C 16:38:07Z) → mail sent 16:38:20Z → workers restarted 16:38:26Z → observation 16:39:26Z, notified. **No loss for a short outage** because Composio's poll fired after the restart. Caveat: an outage that spans a poll tick (≥ 1 min) almost certainly loses the pushed event (websocket delivery has no replay; see test 2). Phase 2 `reconcile` closes that gap; re-run this test with a ≥ 2 min outage after phase 2 to confirm.
 
+### Phase 1 — triage eval (real model)
+
+`make gate-1-llm` on 2026-09-10, Bedrock `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 60 synthetic labeled mails
+(`tests/fixtures/labeled_triage.jsonl`): within-1 accuracy **59/60 (98%)**, label-5 recall **6/6 (100%)**, 85 s wall clock.
+Only miss: "Appointment confirmation" rated 4 vs label 2 (model read "today at 10:00" as time-critical).
+
 ## Layout
 
 Architecture and the decisions behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Setup checklist: [docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md). Migrations are numbered SQL files in `db/migrations/`, applied by `db/migrate.py`.
