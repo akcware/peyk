@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -24,6 +25,24 @@ from core.routing import callback_data, control_text, is_callback, is_control_ch
 from workers import chat, commands, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
+
+
+_MD_BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_MD_CODE = re.compile(r"`([^`\n]+)`")
+_MD_ITALIC = re.compile(r"(?<![\w*])_([^_\n]+)_(?![\w*])")
+
+
+def md_to_telegram_html(text: str) -> str:
+    """Minimal markdown -> Telegram HTML: **bold**, `code`, _italic_. Everything else is escaped."""
+    out = html.escape(text, quote=False)
+    out = _MD_BOLD.sub(r"<b>\1</b>", out)
+    out = _MD_CODE.sub(r"<code>\1</code>", out)
+    out = _MD_ITALIC.sub(r"<i>\1</i>", out)
+    return out
+
+
+def strip_md(text: str) -> str:
+    return _MD_CODE.sub(r"\1", _MD_BOLD.sub(r"\1", text))
 
 
 class Notifier:
@@ -71,6 +90,24 @@ class Notifier:
     async def send_text(self, text: str) -> str:
         handle = await self._connection()
         return await self.adapter.send(handle, self.chat_id, Content(text=text))
+
+    async def send_rich(self, text: str) -> str:
+        """Agent replies are markdown-ish; render as Telegram HTML, fall back to plain text on rejection."""
+        handle = await self._connection()
+        try:
+            return await self.adapter.send(handle, self.chat_id, Content(text=md_to_telegram_html(text), extra={"parse_mode": "HTML"}))
+        except Exception as e:  # noqa: BLE001 - never lose a reply over formatting
+            log.warning("notify.html_rejected", error=str(e))
+            return await self.adapter.send(handle, self.chat_id, Content(text=strip_md(text)))
+
+    async def typing(self) -> None:
+        action = getattr(self.adapter, "send_chat_action", None)
+        if action is None:
+            return
+        try:
+            await action(self.chat_id, "typing")
+        except Exception as e:  # noqa: BLE001
+            log.debug("notify.typing_failed", error=str(e))
 
     async def send_markup(self, text: str, reply_markup: dict) -> str:
         handle = await self._connection()

@@ -127,6 +127,9 @@ class TelegramAdapter:
             params["reply_markup"] = reply_markup
         await self._call("editMessageText", **params)
 
+    async def send_chat_action(self, chat_id: str, action: str = "typing") -> None:
+        await self._call("sendChatAction", chat_id=chat_id, action=action)
+
     async def answer_callback(self, callback_query_id: str, text: str | None = None) -> None:
         params: dict[str, Any] = {"callback_query_id": callback_query_id}
         if text:

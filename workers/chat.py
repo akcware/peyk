@@ -3,6 +3,7 @@ The agent gets data in the payload (it has no DB); if it returns a NeedMore inte
 call again — at most MAX_ROUNDS rounds. Side-effect intents are applied here."""
 from __future__ import annotations
 
+import asyncio
 import html
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -170,10 +171,22 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if await already_answered(conn, obs):
         log.info("chat.already_answered", observation_id=str(obs.id))
         return ""
-    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now)
+    typing = getattr(notifier, "typing", None)
+    if typing:
+        await typing()
+    task = asyncio.ensure_future(converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now))
+    ack_after = float(getattr(settings, "CHAT_ACK_AFTER_S", 2.5))
+    ack_text = getattr(settings, "CHAT_ACK_TEXT", "")
+    done, _ = await asyncio.wait({task}, timeout=ack_after)
+    if not done and ack_text:
+        await notifier.send_text(ack_text)   # "looking into it" while the model works
+        if typing:
+            await typing()
+    reply, intents = await task
     if not reply:
         reply = "(no reply)"
-    mid = await notifier.send_text(reply)
+    send = getattr(notifier, "send_rich", None) or notifier.send_text
+    mid = await send(reply)
     await observation_repo.insert(conn, Observation(
         user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",
         occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,

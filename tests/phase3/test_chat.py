@@ -179,3 +179,39 @@ def test_render_unescapes_html_and_plain_reason():
     from agent.schemas import TriageResult
     text = triage.Notifier.render(obs, TriageResult(urgency=4, category="automated", reason="verify"))
     assert "didn't allow & more" in text and "→ verify" in text and "_verify_" not in text
+
+
+async def test_ack_only_when_slow_and_markdown_rendered(conn, settings):
+    import asyncio
+
+    from workers.triage import md_to_telegram_html
+
+    assert md_to_telegram_html("**Google** — \"Alert\" & `x` _y_") == '<b>Google</b> — "Alert" &amp; <code>x</code> <i>y</i>'
+    assert md_to_telegram_html("a < b") == "a &lt; b"
+
+    fast_settings = settings.model_copy(update={"CHAT_ACK_AFTER_S": 0.2, "CHAT_ACK_TEXT": "👀 …"})
+
+    def slow_handle(payload):
+        import time
+        time.sleep(0.5)
+        return {"task": "chat", "reply": "**done**", "intents": []}
+
+    def fast_handle(payload):
+        return {"task": "chat", "reply": "quick", "intents": []}
+
+    tg = FakeTelegram()
+    tg.actions = []
+    async def send_chat_action(chat_id, action="typing"):
+        tg.actions.append(action)
+    tg.send_chat_action = send_chat_action
+    notifier = triage.Notifier(tg, "777", USER_ID)
+
+    slow = await observation_repo.insert(conn, tg_text("600", "slow question", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, slow, settings=fast_settings, agent=AgentClient("local", handle_fn=slow_handle), notifier=notifier, embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["👀 …", "<b>done</b>"] and tg.actions.count("typing") >= 2
+
+    tg.sent.clear()
+    fast = await observation_repo.insert(conn, tg_text("601", "fast question", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, fast, settings=fast_settings, agent=AgentClient("local", handle_fn=fast_handle), notifier=notifier, embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["quick"]
+    await asyncio.sleep(0)
