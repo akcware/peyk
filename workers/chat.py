@@ -132,7 +132,7 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
 
 
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
-                   embedder: Embedder, now: datetime | None = None) -> tuple[str, list[dict[str, Any]]]:
+                   embedder: Embedder, now: datetime | None = None, contact_search=None) -> tuple[str, list[dict[str, Any]]]:
     """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
     now = now or datetime.now(tz=UTC)
     text = control_text(obs) or ""
@@ -148,12 +148,23 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
                "now_iso": now.astimezone().isoformat(), "timezone": settings.TIMEZONE}
     reply, intents = "", []
     seen_ids = {r["id"] for r in recent}
+    payload["contacts"] = []
     for round_no in range(1, MAX_ROUNDS + 1):
         out = await agent.chat(payload)
         reply, intents = out["reply"], out["intents"]
+        lookups = [i for i in intents if i.get("intent") == "FindContact"]
         need = [i for i in intents if i.get("intent") == "NeedMore"]
-        if not need or round_no == MAX_ROUNDS:
+        if (not need and not lookups) or round_no == MAX_ROUNDS:
             break
+        if lookups:
+            names = {str(i.get("name") or "").strip() for i in lookups if i.get("name")}
+            found: list[dict] = []
+            for name in names:
+                found += await contact_search(conn, name) if contact_search else []
+            payload["contacts"] = found + payload["contacts"]
+            log.info("chat.find_contact", round=round_no, names=sorted(names), found=len(found))
+            if not need:
+                continue
         q = need[0]
         more = await recent_observations(conn, obs.user_id, settings, since=now - timedelta(days=int(q.get("since_days") or 7)),
                                          query=q.get("query"))
@@ -162,7 +173,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         payload["recent_observations"] = fresh + payload["recent_observations"]
         payload["message"] = text  # same question, more data
         log.info("chat.need_more", round=round_no, query=q.get("query"), added=len(fresh))
-    return reply, [i for i in intents if i.get("intent") != "NeedMore"]
+    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact")]
 
 
 async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, final: bool = True) -> bool:
@@ -176,7 +187,7 @@ async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, f
 
 
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
-                         notifier, embedder: Embedder, on_draft=None, now: datetime | None = None) -> str:
+                         notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None) -> str:
     now = now or datetime.now(tz=UTC)
     received = obs.received_at or obs.occurred_at
     if now - received > STALE_AFTER:
@@ -212,7 +223,8 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
             await typing()
 
     # Stage 2 — the real work (tools, memory, intents).
-    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now)
+    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
+                                    contact_search=contact_search)
     if not reply:
         reply = "(no reply)"
     mid = await send(reply)

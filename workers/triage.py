@@ -22,7 +22,7 @@ from core.log import get_logger
 from core.models import Content, Observation
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
-from workers import chat, commands, feedback, gate, gate_state, ticks
+from workers import chat, commands, contacts, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
 
@@ -197,8 +197,10 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
             elif approval is not None and await approval.maybe_apply_edit(conn, obs):
                 pass
             elif control_text(obs) and embedder is not None:
+                registry = tick_ctx.registry if tick_ctx else None
                 await chat.handle_message(conn, obs, settings=settings, agent=agent, notifier=notifier,
-                                          embedder=embedder, on_draft=approval.on_draft if approval else None)
+                                          embedder=embedder, on_draft=approval.on_draft if approval else None,
+                                          contact_search=contacts.make_contact_search(registry, obs.user_id))
             return
         if obs.kind == "tick":
             ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)

@@ -63,3 +63,22 @@ async def link(conn: psycopg.AsyncConnection, user_id: UUID, person_id: UUID, ki
         """,
         (user_id, person_id, kind, value),
     )
+
+
+async def search(conn: psycopg.AsyncConnection, user_id: UUID, query: str, *, limit: int = 10) -> list[dict]:
+    """People we have seen: match display_name or identity value (case-insensitive, any token)."""
+    terms = [t for t in query.lower().split() if t]
+    if not terms:
+        return []
+    clauses = " and ".join("(coalesce(p.display_name,'') ilike %s or i.value ilike %s)" for _ in terms)
+    params: list = [user_id]
+    for t in terms:
+        params += [f"%{t}%", f"%{t}%"]
+    cur = await conn.execute(
+        f"""
+        select p.display_name as name, i.kind, i.value from identity i join person p on p.id = i.person_id
+        where i.user_id = %s and {clauses} order by p.display_name nulls last limit %s
+        """,
+        (*params, limit),
+    )
+    return await cur.fetchall()

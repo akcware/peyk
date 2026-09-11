@@ -129,7 +129,7 @@ def test_chat_contract_and_tools():
         {"id": "2", "source": "calendar", "summary": "Standup", "occurred_at": "2026-09-10T07:00:00+00:00"},
     ], "memory_hits": [{"text": "Uses Postgres", "score": 0.9}, {"text": "Lives in Berlin", "score": 0.5}]}
     tools = {t.tool_name: t for t in make_tools(ctx, intents)}
-    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "need_more"}
+    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "need_more"}
     fn = {name: t._tool_func for name, t in tools.items()}
     assert [o["id"] for o in fn["search_observations"]("invoice mara")] == ["1"]
     assert [o["id"] for o in fn["search_observations"]("", "calendar")] == ["2"]
@@ -221,3 +221,53 @@ async def test_secretary_ack_then_answer_and_direct_answer(conn, settings):
     simple = await observation_repo.insert(conn, tg_text("601", "5+5?", datetime.now(tz=UTC)))
     await chat.handle_message(conn, simple, settings=settings, agent=agent, notifier=notifier, embedder=FakeEmbedder())
     assert [m["text"] for m in tg.sent] == ["10!"]          # answered directly, no second stage
+
+
+async def test_find_contact_round(conn, settings):
+    """Agent asks for a contact -> worker looks it up (identity table + adapters) -> agent re-run with results."""
+    from core.repo import identity_repo
+    from workers import contacts
+
+    await identity_repo.resolve(conn, USER_ID, "email", "Deniz Ateş <deniz.ates@example.test>", display_name="Deniz Ateş")
+
+    class FakeGmailContacts:
+        id = "composio"
+        def capabilities(self): return {"can_send": True, "needs_session": False, "needs_user_device": False}
+        async def connect(self, user_id):
+            from core.models import Connection
+            return Connection(adapter_id=self.id, user_id=user_id)
+        async def search_contacts(self, conn, query):
+            return [{"name": "Deniz Ateş", "email": "deniz@work.test", "source": "google_contacts"}]
+
+    from core.adapter import AdapterRegistry
+    search = contacts.make_contact_search(AdapterRegistry({"composio": FakeGmailContacts()}), USER_ID)
+    calls: list[dict] = []
+
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": ""}
+        calls.append(payload)
+        if not payload.get("contacts"):
+            return {"task": "chat", "reply": "looking up", "intents": [{"intent": "FindContact", "name": "Deniz Ateş"}]}
+        emails = sorted(c.get("email") for c in payload["contacts"] if c.get("email"))
+        return {"task": "chat", "reply": f"draft ready for {emails[0]}", "intents": [
+            {"intent": "ActionDraft", "channel": "gmail", "to": [emails[0]], "subject": "Fwd", "body": "hi"}]}
+
+    tg = FakeTelegram()
+    msg = await observation_repo.insert(conn, tg_text("700", "bu maili deniz ateşe gönderir misin?", datetime.now(tz=UTC)))
+    reply = await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle),
+                                      notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder(), contact_search=search)
+    assert len(calls) == 2
+    found = calls[1]["contacts"]
+    assert {c.get("email") for c in found} == {"deniz.ates@example.test", "deniz@work.test"}
+    assert {c["source"] for c in found} == {"known_person", "google_contacts"}
+    assert reply.startswith("draft ready for deniz")
+    outs = [o for o in await observation_repo.list_by_thread(conn, USER_ID, "777", limit=10) if o.kind == "message_out"]
+    assert outs[0].payload["intents"] == ["ActionDraft"]      # FindContact never persisted as an intent
+
+    # tool side: with contacts already in the payload the tool answers without a new intent
+    intents: list = []
+    tools = {t.tool_name: t for t in make_tools({"contacts": found}, intents)}
+    hits = tools["find_contact"]._tool_func("deniz")["contacts"]
+    assert len(hits) == 2 and intents == []
+    assert tools["find_contact"]._tool_func("nobody here")["contacts"] == found   # falls back to everything known

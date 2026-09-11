@@ -40,6 +40,8 @@ long-term memory. Rules:
   says otherwise. Observations carry `notified_at` when you already told the person about them.
 - "Send/forward this mail to X" means: call draft_reply with to=X and a body that conveys the mail's content in your
   own words (or quotes it) — a draft for approval, never a promise that it was sent.
+- When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
+  If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
 - Do not invent observations. If nothing matches, say so."""
 
 
@@ -90,6 +92,7 @@ def _match(obs: dict[str, Any], query: str, source: str | None) -> bool:
 def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     recent: list[dict[str, Any]] = ctx.get("recent_observations") or []
     memory: list[dict[str, Any]] = ctx.get("memory_hits") or []
+    contacts: list[dict[str, Any]] = ctx.get("contacts") or []
 
     @tool
     def search_observations(query: str, source: str = "", since_iso: str = "") -> list[dict]:
@@ -154,6 +157,21 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"draft": True}
 
     @tool
+    def find_contact(name: str) -> dict:
+        """Look up a person's email address (or phone) by name in the person's contacts and mail history.
+        Call this BEFORE asking the person for an address.
+
+        Args:
+            name: the person's name as written, e.g. "Deniz Ateş"
+        """
+        terms = name.lower().split()
+        hits = [c for c in contacts if all(t in (str(c.get("name", "")) + " " + str(c.get("email", ""))).lower() for t in terms)] or contacts
+        if hits:
+            return {"contacts": hits[:8]}
+        intents.append({"intent": "FindContact", "name": name})
+        return {"contacts": [], "note": "lookup requested; you will be re-run with the results"}
+
+    @tool
     def need_more(query: str, since_days: int = 7) -> dict:
         """Ask the system to load more observations matching a query, then re-run this conversation.
 
@@ -164,7 +182,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, need_more]
+    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, need_more]
 
 
 @lru_cache

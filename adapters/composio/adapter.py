@@ -146,6 +146,39 @@ class ComposioAdapter:
             if not page_token:
                 return
 
+    async def search_contacts(self, conn: Connection, query: str, *, limit: int = 8) -> list[dict[str, str]]:
+        """Find people by name via Google Contacts (incl. 'other contacts' = anyone the user has mailed) and,
+        as a fallback, the From/To headers of mails matching the query. Returns [{name, email, source}]."""
+        found: dict[str, dict[str, str]] = {}
+        try:
+            resp = await asyncio.to_thread(self._execute, "GMAIL_SEARCH_PEOPLE", {
+                "query": query, "page_size": limit, "other_contacts": True, "person_fields": "names,emailAddresses"})
+            for item in (resp.get("data") or {}).get("results") or (resp.get("data") or {}).get("people") or []:
+                person = item.get("person", item)
+                names = [n.get("displayName") for n in person.get("names") or [] if n.get("displayName")]
+                for e in person.get("emailAddresses") or []:
+                    email = (e.get("value") or "").strip().lower()
+                    if email and email not in found:
+                        found[email] = {"name": names[0] if names else "", "email": email, "source": "google_contacts"}
+        except Exception as e:  # noqa: BLE001 - contacts are optional, mail headers still work
+            log.warning("composio.search_people_failed", error=str(e))
+        if len(found) < limit:
+            try:
+                from email.utils import getaddresses
+
+                resp = await asyncio.to_thread(self._execute, "GMAIL_FETCH_EMAILS", {
+                    "query": f'"{query}"', "max_results": 20, "verbose": False, "include_payload": False})
+                for m in (resp.get("data") or {}).get("messages") or []:
+                    for name, email in getaddresses([str(m.get("sender") or ""), str(m.get("to") or "")]):
+                        email = email.strip().lower()
+                        if not email or email in found:
+                            continue
+                        if any(t in (name + " " + email).lower() for t in query.lower().split()):
+                            found[email] = {"name": name, "email": email, "source": "mail_headers"}
+            except Exception as e:  # noqa: BLE001
+                log.warning("composio.header_search_failed", error=str(e))
+        return list(found.values())[:limit]
+
     async def send(self, conn: Connection, thread_key: str, content: Content) -> str:
         """Gmail only. thread_key -> GMAIL_REPLY_TO_THREAD, else GMAIL_SEND_EMAIL. Returns the Gmail message id."""
         channel = content.extra.get("channel", "gmail")
