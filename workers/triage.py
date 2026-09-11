@@ -22,7 +22,7 @@ from core.log import get_logger
 from core.models import Content, Observation
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
-from workers import chat, commands, contacts, feedback, gate, gate_state, ticks
+from workers import account, chat, commands, contacts, feedback, gate, gate_state, ticks
 
 log = get_logger("workers.triage")
 
@@ -119,6 +119,10 @@ class Notifier:
         except Exception as e:  # noqa: BLE001
             log.debug("notify.typing_failed", error=str(e))
 
+    async def send_content(self, content: Content) -> str:
+        handle = await self._connection()
+        return await self.adapter.send(handle, self.chat_id, content)
+
     async def send_markup(self, text: str, reply_markup: dict) -> str:
         handle = await self._connection()
         return await self.adapter.send(handle, self.chat_id, Content(text=text, reply_markup=reply_markup))
@@ -193,8 +197,11 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
             approval.notifier = notifier
         if is_control_channel(obs, settings):
             if is_callback(obs):
-                if approval is not None and (callback_data(obs) or "").startswith("act:"):
+                data = callback_data(obs) or ""
+                if approval is not None and data.startswith("act:"):
                     text = await approval.on_callback(conn, obs)
+                elif data.startswith("del:"):
+                    text = await account.on_callback(conn, obs.user_id, data, notifier, tick_ctx.registry if tick_ctx else None)
                 else:
                     text = await feedback.apply(conn, obs)
                 await notifier.ack(obs, text)

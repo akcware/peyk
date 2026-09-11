@@ -63,6 +63,8 @@ long-term memory. Rules:
   own words (or quotes it) — a draft for approval, never a promise that it was sent.
 - When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
   If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
+- If the person asks to delete their account or data, call delete_my_data and reply in one calm sentence that
+  a confirmation is coming; do not argue, do not delete anything yourself, do not describe internals.
 - Do not invent observations. If nothing matches, say so."""
 
 
@@ -108,6 +110,7 @@ Decide two things for the incoming message:
   arithmetic, general knowledge, or anything you can answer right away from the conversation itself.
   Questions about what you can do, which services exist or are connected: answer directly from the facts above
   (needs_work false) — never invent services or abilities that are not listed.
+  Requests to delete their account or data: needs_work true (the full flow handles confirmation).
 - message: what to say right now, in the language the person writes in. If needs_work is true, one short,
   natural sentence that says what you are about to check (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.").
   The person's default language is {language}.
@@ -250,6 +253,14 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"saved": True}
 
     @tool
+    def delete_my_data() -> dict:
+        """Start deleting the person's account and all their data (mail observations, memory, connections).
+        Call this when they clearly ask to delete their account / data / "forget me". The system asks them to
+        confirm twice with buttons — you only start it; never claim anything was deleted."""
+        intents.append({"intent": "DeleteAccountRequest"})
+        return {"requested": True, "note": "confirmation buttons will follow your reply"}
+
+    @tool
     def need_more(query: str, since_days: int = 7) -> dict:
         """Ask the system to load more observations matching a query, then re-run this conversation.
 
@@ -260,7 +271,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, need_more]
+    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, delete_my_data, need_more]
 
 
 @lru_cache

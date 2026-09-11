@@ -115,6 +115,30 @@ class ComposioAdapter:
         acc = await asyncio.to_thread(self.client.client.connected_accounts.retrieve, connection_id)
         return str(getattr(acc, "status", "") or "")
 
+    async def disconnect_all(self, conn: Connection) -> dict[str, int]:
+        """Right-to-erasure on the Composio side: delete this user's trigger instances and connected accounts
+        (revoking the Google grant where Composio supports it)."""
+        cuid = conn.data["composio_user_id"]
+        accounts = await asyncio.to_thread(self.client.client.connected_accounts.list, user_ids=[cuid])
+        ids = [a.id for a in (getattr(accounts, "items", None) or [])]
+        removed = {"triggers": 0, "accounts": 0}
+        if ids:
+            try:
+                act = await asyncio.to_thread(self.client.triggers.list_active, connected_account_ids=ids, show_disabled=True)
+                for t in getattr(act, "items", None) or []:
+                    await asyncio.to_thread(self.client.client.trigger_instances.manage.delete, t.id)
+                    removed["triggers"] += 1
+            except Exception as e:  # noqa: BLE001
+                log.warning("composio.trigger_delete_failed", error=str(e))
+        for aid in ids:
+            try:
+                await asyncio.to_thread(self.client.client.connected_accounts.delete, aid, revoke_on_delete=True)
+                removed["accounts"] += 1
+            except Exception as e:  # noqa: BLE001
+                log.warning("composio.account_delete_failed", account_id=aid, error=str(e))
+        log.info("composio.disconnected_all", composio_user_id=cuid, **removed)
+        return removed
+
     async def enable_triggers(self, conn: Connection, toolkit: str, connected_account_id: str) -> list[str]:
         cfg = TOOLKITS.get(toolkit) or {}
         ids: list[str] = []

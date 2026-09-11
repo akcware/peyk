@@ -17,7 +17,7 @@ from core.models import Choice, Connection, Content, Observation
 from core.repo import job_repo, observation_repo, user_repo
 from tests.conftest import USER_ID
 from tests.phase1.test_worker_flow import FakeTelegram, fake_agent
-from workers import scheduler, ticks, triage, users
+from workers import account, scheduler, ticks, triage, users
 
 
 class FakeComposio:
@@ -227,3 +227,68 @@ async def test_start_command_is_first_contact_not_help(conn, settings):
     await triage.handle(start, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "888", user["id"]),
                         embedder=FakeEmbedder())
     assert len(calls) == 1 and tg.sent[-1]["text"] == "Selam Ece, kurulumu hemen yapalım."
+
+
+async def test_account_deletion_two_confirmations(conn, settings):
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "444", display_name="Can", language="tr")
+    await observation_repo.insert(conn, Observation(user_id=user["id"], source="gmail", source_key="g1", kind="message_in",
+                                                    occurred_at=datetime.now(tz=UTC), payload={"from": "X <x@y.test>", "subject": "s"}))
+    comp = FakeComposio(); comp.accounts[str(user["id"])] = {"gmail": "ca_1"}
+    calls = []
+    async def disconnect_all(handle):
+        calls.append(handle.data["composio_user_id"]); return {"triggers": 1, "accounts": 1}
+    comp.disconnect_all = disconnect_all
+    tg = FakeTelegram()
+    registry = AdapterRegistry({"composio": comp, "telegram": tg})
+    notifier = triage.Notifier(tg, "444", user["id"])
+    ctx = ticks.TickContext(settings=settings, registry=registry, notifier=notifier)
+
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": ""}
+        return {"task": "chat", "reply": "Tamam, onay soracağım.", "intents": [{"intent": "DeleteAccountRequest"}]}
+    from workers import chat
+    msg = await observation_repo.insert(conn, tg_text("444", "1", "hesabımı sil", user["id"]))
+    await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=notifier,
+                              embedder=FakeEmbedder(), registry=registry)
+    ask1 = tg.sent[-1]
+    assert "Emin misin" in ask1["text"] and [c["text"] for c in ask1["markup"]["inline_keyboard"][0]] == ["Evet, hesabımı sil", "Vazgeç"]
+    yes1 = ask1["markup"]["inline_keyboard"][0][0]["callback_data"]
+
+    def cb(data, key):
+        return Observation(user_id=user["id"], source="telegram", source_key=key, kind="message_in", occurred_at=datetime.now(tz=UTC),
+                           thread_key="444", payload={"update_id": int(key), "callback_query": {"id": f"cq{key}", "data": data, "message": {"message_id": 1, "chat": {"id": 444}}}})
+
+    # step 1 -> second question; nothing deleted yet
+    await triage.handle(await observation_repo.insert(conn, cb(yes1, "2")), settings=settings, agent=None, notifier=notifier, tick_ctx=ctx)
+    ask2 = tg.sent[-1]
+    assert "geri alınamaz" in ask2["text"] and calls == [] and await user_repo.get(conn, user["id"]) is not None
+    # tapping the first button again does nothing harmful
+    await triage.handle(await observation_repo.insert(conn, cb(yes1, "3")), settings=settings, agent=None, notifier=notifier, tick_ctx=ctx)
+    assert calls == []
+    # cancel path works at step 2
+    no = ask2["markup"]["inline_keyboard"][0][1]["callback_data"]
+    await triage.handle(await observation_repo.insert(conn, cb(no, "4")), settings=settings, agent=None, notifier=notifier, tick_ctx=ctx)
+    assert tg.sent[-1]["text"] == "Tamam, hiçbir şey silinmedi." and (await user_repo.get(conn, user["id"]))["state"].get("pending_deletion") is None
+
+    # full path: request -> yes1 -> yes2 -> composio disconnected, rows purged, farewell sent
+    msg2 = await observation_repo.insert(conn, tg_text("444", "5", "verilerimi sil", user["id"]))
+    await chat.handle_message(conn, msg2, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=notifier,
+                              embedder=FakeEmbedder(), registry=registry)
+    yes1 = tg.sent[-1]["markup"]["inline_keyboard"][0][0]["callback_data"]
+    await triage.handle(await observation_repo.insert(conn, cb(yes1, "6")), settings=settings, agent=None, notifier=notifier, tick_ctx=ctx)
+    yes2 = tg.sent[-1]["markup"]["inline_keyboard"][0][0]["callback_data"]
+    assert yes2.startswith("del:yes2:")
+    await triage.handle(await observation_repo.insert(conn, cb(yes2, "7")), settings=settings, agent=None, notifier=notifier, tick_ctx=ctx)
+    assert calls == [str(user["id"])]
+    assert tg.sent[-1]["text"].startswith("Bitti.")
+    assert await user_repo.get(conn, user["id"]) is None
+    cur = await conn.execute("select count(*) as n from observation where user_id = %s", (user["id"],))
+    assert (await cur.fetchone())["n"] == 0
+
+    # expiry: a stale request is refused
+    user2, _ = await user_repo.get_or_create_by_control(conn, "telegram", "445", language="en")
+    await user_repo.merge_state(conn, user2["id"], {"pending_deletion": {"step": 1, "started_at": (datetime.now(tz=UTC) - timedelta(minutes=11)).isoformat()}})
+    n2 = triage.Notifier(tg, "445", user2["id"])
+    out = await account.on_callback(conn, user2["id"], f"del:yes1:{user2['id'].hex}", n2, registry)
+    assert out.startswith("The deletion request expired") and await user_repo.get(conn, user2["id"]) is not None

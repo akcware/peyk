@@ -12,9 +12,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from core.config import get_settings
-
-TABLES_BY_USER = ("sent_notification", "mute_rule", "budget_settings", "memory", "scheduled_job", "chat_state", "action",
-                  "identity", "person", "observation")
+from core.repo import user_repo
 
 
 async def main() -> int:
@@ -31,17 +29,9 @@ async def main() -> int:
         if user is None:
             print("no such user")
             return 1
-        uid = user["id"]
-        await conn.execute("delete from triage where observation_id in (select id from observation where user_id = %s)", (uid,))
-        for t in TABLES_BY_USER:
-            cur = await conn.execute(f"delete from {t} where user_id = %s", (uid,))
-            print(f"{t:18s} -{cur.rowcount}")
-        if args.keep_user:
-            await conn.execute("update app_user set state = '{}'::jsonb where id = %s", (uid,))
-            print("app_user kept (state cleared)")
-        else:
-            await conn.execute("delete from app_user where id = %s", (uid,))
-            print(f"app_user deleted ({user['display_name']})")
+        for t, n in (await user_repo.purge(conn, user["id"], keep_user=args.keep_user)).items():
+            print(f"{t:18s} -{n}")
+        print("app_user kept (state cleared)" if args.keep_user else f"app_user deleted ({user['display_name']})")
     return 0
 
 

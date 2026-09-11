@@ -98,3 +98,23 @@ async def ensure_bootstrap(conn: psycopg.AsyncConnection, *, user_id: UUID, cont
         return existing
     return await create(conn, control_source=control_source, control_thread_key=control_thread_key, user_id=user_id,
                         composio_user_id=composio_user_id or str(user_id), profile=profile, language=language, timezone=timezone)
+
+
+PURGE_TABLES = ("sent_notification", "mute_rule", "budget_settings", "memory", "scheduled_job", "chat_state", "action",
+                "identity", "person", "observation")
+
+
+async def purge(conn: psycopg.AsyncConnection, user_id: UUID, *, keep_user: bool = False) -> dict[str, int]:
+    """Right-to-erasure: delete every row keyed by this user, then (unless keep_user) the app_user row."""
+    counts: dict[str, int] = {}
+    cur = await conn.execute("delete from triage where observation_id in (select id from observation where user_id = %s)", (user_id,))
+    counts["triage"] = cur.rowcount
+    for t in PURGE_TABLES:
+        cur = await conn.execute(f"delete from {t} where user_id = %s", (user_id,))
+        counts[t] = cur.rowcount
+    if keep_user:
+        await conn.execute("update app_user set state = '{}'::jsonb where id = %s", (user_id,))
+    else:
+        cur = await conn.execute("delete from app_user where id = %s", (user_id,))
+        counts["app_user"] = cur.rowcount
+    return counts

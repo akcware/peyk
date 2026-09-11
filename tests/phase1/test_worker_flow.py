@@ -28,7 +28,9 @@ class FakeTelegram:
 
     async def send(self, conn, thread_key, content):
         self._n += 1
-        self.sent.append({"chat": thread_key, "text": content.text, "markup": content.reply_markup, "message_id": self._n})
+        markup = content.reply_markup or ({"inline_keyboard": [[{"text": c.text, "callback_data": c.data} for c in content.choices]]}
+                                          if content.choices else None)   # same rendering as the real Telegram adapter
+        self.sent.append({"chat": thread_key, "text": content.text, "markup": markup, "message_id": self._n})
         return str(self._n)
 
     async def answer_callback(self, cq_id, text=None):

@@ -114,6 +114,14 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                     await notifier.send_text(await onboarding.start_connection(conn, user, str(it.get("service") or ""), registry))
                     applied.append("ConnectRequest")
                 continue
+            if kind == "DeleteAccountRequest":
+                from workers import account
+
+                user = await user_repo.get(conn, obs.user_id)
+                if user is not None and notifier is not None:
+                    await account.start(conn, user, notifier)
+                    applied.append("DeleteAccountRequest")
+                continue
             if kind == "ProfileUpdate":
                 fields = {k: (it.get(k) or "").strip() or None for k in ("profile", "language", "timezone", "display_name")}
                 await user_repo.update(conn, obs.user_id, **fields)
