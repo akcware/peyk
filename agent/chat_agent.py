@@ -14,7 +14,7 @@ from typing import Any
 
 from strands import Agent, tool
 
-from agent.model import build_model
+from agent.model import build_model, user_language
 from agent.schemas import ChatAck
 
 CHAT_SYSTEM_PROMPT = """You are a personal proactive assistant for one person, reachable through Telegram.
@@ -26,7 +26,8 @@ Now: {now}
 
 You can see (via tools) the person's recent observations — emails, calendar events, messages — and a small
 long-term memory. Rules:
-- Answer briefly, in the language the person writes in. Telegram formatting: plain text, short lines.
+- Answer briefly, in the language the person writes in (their default language is {language}). Telegram formatting:
+  plain text, short lines.
 - Use search_observations before claiming who wrote or what happened; quote sender and subject.
 - If the answer needs data older or different from what search_observations returns, call need_more ONCE
   with a precise query; you will be re-run with more data.
@@ -56,6 +57,7 @@ Decide two things for the incoming message:
   knowledge, or anything you can answer right away from the conversation itself.
 - message: what to say right now, in the language the person writes in. If needs_work is true, one short,
   natural sentence that says what you are about to check (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.").
+  The person's default language is {language}.
   Do NOT answer the question yet in that case. If needs_work is false, this IS the full reply — keep it short.
 Never mention tools, systems or that you are an AI."""
 
@@ -69,7 +71,7 @@ def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
     profile = os.environ.get("USER_PROFILE", "(no profile provided)")
     agent = Agent(
         model=_ack_model(),
-        system_prompt=ACK_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", "")),
+        system_prompt=ACK_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", ""), language=user_language()),
         messages=to_messages((payload.get("history") or [])[-4:]),
         callback_handler=None,
     )
@@ -191,7 +193,7 @@ def chat(payload: dict[str, Any]) -> dict[str, Any]:
     profile = os.environ.get("USER_PROFILE", "(no profile provided)")
     agent = Agent(
         model=_model(),
-        system_prompt=CHAT_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", "")),
+        system_prompt=CHAT_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", ""), language=user_language()),
         tools=make_tools(payload, intents),
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,

@@ -12,7 +12,7 @@ from typing import Any
 
 from strands import Agent
 
-from agent.model import build_model, model_id
+from agent.model import build_model, model_id, user_language
 from agent.schemas import TriageResult
 
 TRIAGE_SYSTEM_PROMPT = """You triage incoming events for one person and rate how urgently they need to see each one.
@@ -36,10 +36,10 @@ Rules:
 - Never rate above 3 unless there is a concrete reason in the text (deadline, question, money, meeting time).
 - Rate 5 only when waiting an hour would have a real cost.
 - reason: one short internal sentence (max 200 characters) explaining the urgency.
-- summary: what a good personal assistant would say to the person about this, 1-2 sentences, max 320 characters,
-  written in {language}. Name who it is from, what it is about, what (if anything) the person must do and by when.
-  Do not paste the text; paraphrase. Example: "Mara (client) reminds you invoice #2041 is due Friday; no reply needed."
-  Never switch language because the source text is in another language."""
+- summary: what a good personal assistant would say to the person about this, 1-2 sentences, max 320 characters.
+  The summary MUST be written in {language} — the person's language — even when the event text is in another
+  language. Name who it is from, what it is about, what (if anything) the person must do and by when.
+  Do not paste the text; paraphrase. Example (English): Mara (client) reminds you invoice #2041 is due Friday; no reply needed."""
 
 
 def render_observation(payload: dict[str, Any], *, max_text: int = 1200) -> str:
@@ -79,7 +79,7 @@ def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | 
 @lru_cache
 def _agent() -> Agent:
     profile = os.environ.get("USER_PROFILE", "(no profile provided)")
-    language = os.environ.get("USER_LANGUAGE", "en")
+    language = user_language()
     return Agent(
         model=build_model("triage", temperature=0.0, max_tokens=512),
         system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=profile, language=language),

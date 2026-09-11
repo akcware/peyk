@@ -39,3 +39,13 @@ def build_model(kind: Kind, *, temperature: float = 0.0, max_tokens: int = 1024)
         max_tokens=max_tokens,
         streaming=False,
     )
+
+
+LANGUAGE_NAMES = {"tr": "Turkish", "en": "English", "de": "German", "fr": "French", "es": "Spanish", "it": "Italian",
+                  "nl": "Dutch", "pt": "Portuguese", "ru": "Russian", "ar": "Arabic", "ja": "Japanese", "zh": "Chinese"}
+
+
+def user_language() -> str:
+    """USER_LANGUAGE env as a full language name the model cannot misread ('tr' -> 'Turkish')."""
+    code = os.environ.get("USER_LANGUAGE", "en").strip()
+    return LANGUAGE_NAMES.get(code.lower(), code or "English")
