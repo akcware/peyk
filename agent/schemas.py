@@ -44,3 +44,11 @@ class NeedMore(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     intents: list[dict] = []
+
+
+class ChatAck(BaseModel):
+    """The assistant's first reflex to a message: either a direct short answer, or a natural one-liner
+    saying what it is about to look at (then the full agent runs)."""
+
+    needs_work: bool = Field(description="true if answering requires looking at mail/calendar/memory, drafting, scheduling")
+    message: str = Field(max_length=300, description="what to say right now, in the user's language")

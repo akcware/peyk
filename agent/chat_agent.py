@@ -15,6 +15,7 @@ from typing import Any
 from strands import Agent, tool
 
 from agent.model import build_model
+from agent.schemas import ChatAck
 
 CHAT_SYSTEM_PROMPT = """You are a personal proactive assistant for one person, reachable through Telegram.
 
@@ -34,6 +35,42 @@ long-term memory. Rules:
 - When they ask you to write/reply to someone, call draft_reply; say that a draft is ready for approval.
   Never claim something was sent.
 - Do not invent observations. If nothing matches, say so."""
+
+
+ACK_SYSTEM_PROMPT = """You are the first reflex of a personal assistant chatting with one person on Telegram, like a good
+secretary who answers immediately and naturally.
+
+About the person:
+{profile}
+
+Now: {now}
+
+Decide two things for the incoming message:
+- needs_work: true if a proper answer requires looking at their emails, calendar, messages, long-term memory,
+  drafting a message for them, or scheduling a reminder. false for greetings, small talk, arithmetic, general
+  knowledge, or anything you can answer right away from the conversation itself.
+- message: what to say right now, in the language the person writes in. If needs_work is true, one short,
+  natural sentence that says what you are about to check (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.").
+  Do NOT answer the question yet in that case. If needs_work is false, this IS the full reply — keep it short.
+Never mention tools, systems or that you are an AI."""
+
+
+@lru_cache
+def _ack_model():
+    return build_model("triage", temperature=0.3, max_tokens=200)   # fast model
+
+
+def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
+    profile = os.environ.get("USER_PROFILE", "(no profile provided)")
+    agent = Agent(
+        model=_ack_model(),
+        system_prompt=ACK_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", "")),
+        messages=to_messages((payload.get("history") or [])[-4:]),
+        callback_handler=None,
+    )
+    result = agent(str(payload.get("message") or ""), structured_output_model=ChatAck)
+    ack: ChatAck = result.structured_output
+    return {"needs_work": ack.needs_work, "message": ack.message.strip()}
 
 
 def _match(obs: dict[str, Any], query: str, source: str | None) -> bool:

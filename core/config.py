@@ -40,9 +40,6 @@ class Settings(BaseSettings):
     AGENT_MODE: Literal["local", "agentcore"] = "local"
     AGENTCORE_RUNTIME_ARN: str = ""
 
-    CHAT_ACK_TEXT: str = "👀 Looking…"           # sent if a chat reply takes longer than CHAT_ACK_AFTER_S
-    CHAT_ACK_AFTER_S: float = 2.5
-
     TIMEZONE: str = "Europe/Berlin"            # for daily@HH:MM recurrences and /remind HH:MM
     MORNING_BRIEF_AT: str = "08:00"            # local time; empty string disables the default brief job
     RECONCILE_EVERY: str = "10m"               # empty string disables the reconcile job

@@ -3,7 +3,6 @@ The agent gets data in the payload (it has no DB); if it returns a NeedMore inte
 call again — at most MAX_ROUNDS rounds. Side-effect intents are applied here."""
 from __future__ import annotations
 
-import asyncio
 import html
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -153,9 +152,11 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     return reply, [i for i in intents if i.get("intent") != "NeedMore"]
 
 
-async def already_answered(conn: psycopg.AsyncConnection, obs: Observation) -> bool:
+async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, final: bool = True) -> bool:
+    """True if a reply exists for this message (excluding a stage-1 'let me check' ack when final=True)."""
     cur = await conn.execute(
-        "select 1 from observation where user_id = %s and kind = 'message_out' and payload->>'in_reply_to' = %s limit 1",
+        "select 1 from observation where user_id = %s and kind = 'message_out' and payload->>'in_reply_to' = %s "
+        + ("and coalesce(payload->>'stage','answer') <> 'ack' " if final else "") + "limit 1",
         (obs.user_id, str(obs.id)),
     )
     return await cur.fetchone() is not None
@@ -168,24 +169,39 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if now - received > STALE_AFTER:
         log.info("chat.stale_skipped", observation_id=str(obs.id), age_s=int((now - received).total_seconds()))
         return ""
-    if await already_answered(conn, obs):
+    if await already_answered(conn, obs, final=True):
         log.info("chat.already_answered", observation_id=str(obs.id))
         return ""
     typing = getattr(notifier, "typing", None)
     if typing:
         await typing()
-    task = asyncio.ensure_future(converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now))
-    ack_after = float(getattr(settings, "CHAT_ACK_AFTER_S", 2.5))
-    ack_text = getattr(settings, "CHAT_ACK_TEXT", "")
-    done, _ = await asyncio.wait({task}, timeout=ack_after)
-    if not done and ack_text:
-        await notifier.send_text(ack_text)   # "looking into it" while the model works
+    send = getattr(notifier, "send_rich", None) or notifier.send_text
+    text = control_text(obs) or ""
+
+    # Stage 1 — first reflex (fast model): a natural "let me check…" or, for simple things, the answer itself.
+    ack = None
+    try:
+        history = await build_history(conn, obs, turns=4)
+        ack = await agent.chat_ack({"message": text, "history": history, "now_iso": now.astimezone().isoformat()})
+    except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
+        log.warning("chat.ack_failed", error=str(e))
+    if ack and ack["message"]:
+        mid = await send(ack["message"])
+        await observation_repo.insert(conn, Observation(
+            user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",
+            occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,
+            payload={"text": ack["message"], "in_reply_to": str(obs.id), "stage": "ack" if ack["needs_work"] else "answer"},
+        ))
+        if not ack["needs_work"]:
+            log.info("chat.answered_directly", observation_id=str(obs.id))
+            return ack["message"]
         if typing:
             await typing()
-    reply, intents = await task
+
+    # Stage 2 — the real work (tools, memory, intents).
+    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now)
     if not reply:
         reply = "(no reply)"
-    send = getattr(notifier, "send_rich", None) or notifier.send_text
     mid = await send(reply)
     await observation_repo.insert(conn, Observation(
         user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",

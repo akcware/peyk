@@ -55,3 +55,9 @@ class AgentClient:
         if "error" in out:
             raise RuntimeError(f"agent error: {out['error']}")
         return {"reply": out.get("reply", ""), "intents": out.get("intents", [])}
+
+    async def chat_ack(self, payload: dict[str, Any]) -> dict[str, Any]:
+        out = await self.invoke({"task": "chat_ack", **payload})
+        if "error" in out:
+            raise RuntimeError(f"agent error: {out['error']}")
+        return {"needs_work": bool(out.get("needs_work", True)), "message": out.get("message", "")}

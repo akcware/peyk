@@ -24,8 +24,13 @@ elif "agent" not in sys.modules and str(_here.parent) not in sys.path:
 
 
 def handle(payload: dict[str, Any], *, triage_fn: Callable[..., Any] | None = None,
-           chat_fn: Callable[..., Any] | None = None) -> dict[str, Any]:
+           chat_fn: Callable[..., Any] | None = None, ack_fn: Callable[..., Any] | None = None) -> dict[str, Any]:
     task = payload.get("task")
+    if task == "chat_ack":
+        from agent.chat_agent import acknowledge as _ack
+
+        out = (ack_fn or _ack)(payload)
+        return {"task": "chat_ack", "needs_work": bool(out["needs_work"]), "message": out["message"]}
     if task == "triage":
         from agent.triage_agent import triage as _triage
 

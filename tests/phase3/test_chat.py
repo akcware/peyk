@@ -32,6 +32,8 @@ def scripted_agent(script):
     calls: list[dict] = []
 
     def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": ""}   # silent ack in most tests
         calls.append(payload)
         step = script[min(len(calls) - 1, len(script) - 1)]
         return {"task": "chat", "reply": step["reply"], "intents": step.get("intents", [])}
@@ -181,23 +183,18 @@ def test_render_unescapes_html_and_plain_reason():
     assert "didn't allow & more" in text and "→ verify" in text and "_verify_" not in text
 
 
-async def test_ack_only_when_slow_and_markdown_rendered(conn, settings):
-    import asyncio
-
+async def test_secretary_ack_then_answer_and_direct_answer(conn, settings):
     from workers.triage import md_to_telegram_html
 
     assert md_to_telegram_html("**Google** — \"Alert\" & `x` _y_") == '<b>Google</b> — "Alert" &amp; <code>x</code> <i>y</i>'
     assert md_to_telegram_html("a < b") == "a &lt; b"
 
-    fast_settings = settings.model_copy(update={"CHAT_ACK_AFTER_S": 0.2, "CHAT_ACK_TEXT": "👀 …"})
-
-    def slow_handle(payload):
-        import time
-        time.sleep(0.5)
-        return {"task": "chat", "reply": "**done**", "intents": []}
-
-    def fast_handle(payload):
-        return {"task": "chat", "reply": "quick", "intents": []}
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            if "mail" in payload["message"]:
+                return {"task": "chat_ack", "needs_work": True, "message": "Tabii, bugünkü maillere hemen bakıyorum."}
+            return {"task": "chat_ack", "needs_work": False, "message": "10!"}
+        return {"task": "chat", "reply": "**Google** ve Devpost yazmış.", "intents": []}
 
     tg = FakeTelegram()
     tg.actions = []
@@ -205,13 +202,19 @@ async def test_ack_only_when_slow_and_markdown_rendered(conn, settings):
         tg.actions.append(action)
     tg.send_chat_action = send_chat_action
     notifier = triage.Notifier(tg, "777", USER_ID)
+    agent = AgentClient("local", handle_fn=handle)
 
-    slow = await observation_repo.insert(conn, tg_text("600", "slow question", datetime.now(tz=UTC)))
-    await chat.handle_message(conn, slow, settings=fast_settings, agent=AgentClient("local", handle_fn=slow_handle), notifier=notifier, embedder=FakeEmbedder())
-    assert [m["text"] for m in tg.sent] == ["👀 …", "<b>done</b>"] and tg.actions.count("typing") >= 2
+    q = await observation_repo.insert(conn, tg_text("600", "bugün kim mail attı?", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, q, settings=settings, agent=agent, notifier=notifier, embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["Tabii, bugünkü maillere hemen bakıyorum.", "<b>Google</b> ve Devpost yazmış."]
+    assert tg.actions.count("typing") >= 2
+    outs = [o for o in await observation_repo.list_by_thread(conn, USER_ID, "777", limit=10) if o.kind == "message_out"]
+    assert {o.payload["stage"] for o in outs if o.payload.get("in_reply_to") == str(q.id) and "stage" in o.payload} == {"ack"}
+    # idempotency looks at the final answer, not the ack
+    await chat.handle_message(conn, q, settings=settings, agent=agent, notifier=notifier, embedder=FakeEmbedder())
+    assert len(tg.sent) == 2
 
     tg.sent.clear()
-    fast = await observation_repo.insert(conn, tg_text("601", "fast question", datetime.now(tz=UTC)))
-    await chat.handle_message(conn, fast, settings=fast_settings, agent=AgentClient("local", handle_fn=fast_handle), notifier=notifier, embedder=FakeEmbedder())
-    assert [m["text"] for m in tg.sent] == ["quick"]
-    await asyncio.sleep(0)
+    simple = await observation_repo.insert(conn, tg_text("601", "5+5?", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, simple, settings=settings, agent=agent, notifier=notifier, embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["10!"]          # answered directly, no second stage
