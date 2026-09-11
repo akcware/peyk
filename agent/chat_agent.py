@@ -23,6 +23,8 @@ About the person:
 
 Now: {now}
 
+{capabilities}
+
 Account state:
 {user_state}
 
@@ -57,6 +59,32 @@ long-term memory. Rules:
 - Do not invent observations. If nothing matches, say so."""
 
 
+SERVICE_LABELS = {"gmail": "Gmail", "googlecalendar": "Google Calendar"}
+
+
+def render_capabilities(payload: dict[str, Any]) -> str:
+    """Facts about what the assistant can do and which services exist. Rendered into every prompt so the
+    model never invents tools or integrations."""
+    st = payload.get("user_state") or {}
+    available = [SERVICE_LABELS.get(s, s) for s in (st.get("available") or ["gmail", "googlecalendar"])]
+    connected = [SERVICE_LABELS.get(s, s) for s in (st.get("connected") or [])]
+    pending = [SERVICE_LABELS.get(s, s) for s in (st.get("pending") or [])]
+    lines = [
+        "What you can do for the person:",
+        "- watch their connected mail and calendar, rate what matters, and ping them only within a daily interruption budget",
+        "- answer questions about their recent mail, events and messages, and about what you already told them",
+        "- draft replies or new mails that they approve in chat before anything is sent",
+        "- set reminders and a morning brief; remember durable facts about them; look up contacts by name",
+        "- connect services for them by sending a login link (they never type passwords in chat)",
+        f"Services that can be connected: {', '.join(available)} — nothing else (no Outlook, Slack, WhatsApp, Notion …).",
+        f"Connected right now: {', '.join(connected) or 'none'}.",
+    ]
+    if pending:
+        lines.append(f"Connection in progress: {', '.join(pending)}.")
+    lines.append("Never mention internal tool names, models or systems. Describe abilities in plain words.")
+    return "\n".join(lines)
+
+
 ACK_SYSTEM_PROMPT = """You are the first reflex of a personal assistant chatting with one person on Telegram, like a good
 secretary who answers immediately and naturally.
 
@@ -65,10 +93,14 @@ About the person:
 
 Now: {now}
 
+{capabilities}
+
 Decide two things for the incoming message:
 - needs_work: true if a proper answer requires looking at their emails, calendar, messages, long-term memory,
-  drafting a message for them, or scheduling a reminder. false for greetings, small talk, arithmetic, general
-  knowledge, or anything you can answer right away from the conversation itself.
+  drafting a message for them, scheduling a reminder, or connecting a service. false for greetings, small talk,
+  arithmetic, general knowledge, or anything you can answer right away from the conversation itself.
+  Questions about what you can do, which services exist or are connected: answer directly from the facts above
+  (needs_work false) — never invent services or abilities that are not listed.
 - message: what to say right now, in the language the person writes in. If needs_work is true, one short,
   natural sentence that says what you are about to check (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.").
   The person's default language is {language}.
@@ -78,7 +110,7 @@ Never mention tools, systems or that you are an AI."""
 
 @lru_cache
 def _ack_model():
-    return build_model("triage", temperature=0.3, max_tokens=200)   # fast model
+    return build_model("triage", temperature=0.3, max_tokens=500)   # fast model; room for a full short reply + JSON
 
 
 def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
@@ -86,7 +118,8 @@ def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
     agent = Agent(
         model=_ack_model(),
         system_prompt=ACK_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
-                                               language=user_language(user.get("language"))),
+                                               language=user_language(user.get("language")),
+                                               capabilities=render_capabilities(payload)),
         messages=to_messages((payload.get("history") or [])[-4:]),
         callback_handler=None,
     )
@@ -265,7 +298,8 @@ def chat(payload: dict[str, Any]) -> dict[str, Any]:
     agent = Agent(
         model=_model(),
         system_prompt=CHAT_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
-                                                language=user_language(user.get("language")), user_state=render_user_state(payload)),
+                                                language=user_language(user.get("language")), user_state=render_user_state(payload),
+                                                capabilities=render_capabilities(payload)),
         tools=make_tools(payload, intents),
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,

@@ -271,3 +271,12 @@ async def test_find_contact_round(conn, settings):
     hits = tools["find_contact"]._tool_func("deniz")["contacts"]
     assert len(hits) == 2 and intents == []
     assert tools["find_contact"]._tool_func("nobody here")["contacts"] == found   # falls back to everything known
+
+
+def test_prompts_state_real_capabilities_only():
+    from agent.chat_agent import ACK_SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, render_capabilities
+
+    caps = render_capabilities({"user_state": {"available": ["gmail", "googlecalendar"], "connected": ["gmail"], "pending": ["googlecalendar"]}})
+    assert "Gmail, Google Calendar" in caps and "Connected right now: Gmail" in caps and "in progress: Google Calendar" in caps
+    assert "no Outlook, Slack" in caps
+    assert "{capabilities}" in ACK_SYSTEM_PROMPT and "{capabilities}" in CHAT_SYSTEM_PROMPT
