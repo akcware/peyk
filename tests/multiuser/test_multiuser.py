@@ -174,9 +174,19 @@ async def test_agent_driven_onboarding_end_to_end(conn, settings):
     cid = jobs[0]["payload"]["connection_id"]
     comp.status[cid] = "ACTIVE"
     comp.accounts[str(user["id"])] = {"gmail": "ca_new"}
+    seen_events = []
+    def voice(payload):
+        if payload["task"] == "chat":
+            seen_events.append(payload["message"])
+            return {"task": "chat", "reply": "Gmail bağlandı, artık maillerini izliyorum. Önemli bir şey olunca yazarım.", "intents": []}
+        return {"task": "chat_ack", "needs_work": True, "message": ""}
+    ctx.agent, ctx.embedder = AgentClient("local", handle_fn=voice), FakeEmbedder()
     await ticks.handle_tick(conn, tick, ctx)
     assert comp.triggers == [(str(user["id"]), "gmail", "ca_new")]
-    assert tg.sent[-1]["text"].startswith("✅ Gmail connected")
+    assert seen_events and seen_events[0].startswith("[system event: Gmail was just connected")
+    assert tg.sent[-1]["text"] == "Gmail bağlandı, artık maillerini izliyorum. Önemli bir şey olunca yazarım."
+    outs = [o for o in await observation_repo.list_by_thread(conn, user["id"], "777", limit=5) if o.kind == "message_out"]
+    assert outs[0].payload["kind"] == "event_reaction"
     u = await user_repo.get(conn, user["id"])
     assert u["state"]["connected"] == {"gmail": "ca_new"} and u["state"]["pending"] == {}
     assert await job_repo.pending_of_kind(conn, user["id"], "await_connection") == []

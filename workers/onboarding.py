@@ -72,11 +72,11 @@ async def start_connection(conn: psycopg.AsyncConnection, user: dict, service: s
                           payload={"toolkit": toolkit, "connection_id": link["connection_id"], "expires_at": (started + CONNECT_TIMEOUT).isoformat()},
                           recurrence=POLL, created_by="agent")
     log.info("onboarding.link_sent", user_id=str(user["id"]), toolkit=toolkit)
-    return f"🔗 {TOOLKITS[toolkit]['label']}: {link['url']}\n(link valid ~15 min; I'll confirm here once it's connected)"
+    return f"🔗 {TOOLKITS[toolkit]['label']}\n{link['url']}"
 
 
 async def check_connection(conn: psycopg.AsyncConnection, user_id: UUID, job_payload: dict[str, Any], registry: AdapterRegistry | None,
-                           notifier) -> str | None:
+                           notifier, react=None) -> str | None:
     """await_connection tick. Returns 'connected' | 'expired' | None (still waiting)."""
     toolkit, connection_id = job_payload.get("toolkit"), job_payload.get("connection_id")
     adapter = _composio(registry)
@@ -103,7 +103,12 @@ async def check_connection(conn: psycopg.AsyncConnection, user_id: UUID, job_pay
         pending.pop(toolkit, None)
         await user_repo.merge_state(conn, user_id, {"connected": connected, "pending": pending, "connected_checked_at": datetime.now(tz=UTC).isoformat()})
         await job_repo.cancel_matching(conn, user_id, "await_connection", "toolkit", toolkit)
-        await notifier.send_text(f"✅ {TOOLKITS[toolkit]['label']} connected. I'm watching it now" + (" (triggers enabled)." if trigger_ids else "."))
+        label = TOOLKITS[toolkit]["label"]
+        fallback = f"✅ {label} connected. I'm watching it now."
+        if react is not None:
+            await react(conn, user_id, f"{label} was just connected successfully; you are now watching it for this person", fallback)
+        else:
+            await notifier.send_text(fallback)
         log.info("onboarding.connected", user_id=str(user_id), toolkit=toolkit, triggers=trigger_ids)
         return "connected"
     if expired or status.upper() in ("FAILED", "EXPIRED", "REVOKED"):
@@ -111,6 +116,11 @@ async def check_connection(conn: psycopg.AsyncConnection, user_id: UUID, job_pay
         pending.pop(toolkit, None)
         await user_repo.merge_state(conn, user_id, {"pending": pending})
         await job_repo.cancel_matching(conn, user_id, "await_connection", "toolkit", toolkit)
-        await notifier.send_text(f"⌛ The {TOOLKITS[toolkit]['label']} link expired or failed. Say the word and I'll send a new one.")
+        label = TOOLKITS[toolkit]["label"]
+        fallback = f"⌛ The {label} link expired or failed. Say the word and I'll send a new one."
+        if react is not None:
+            await react(conn, user_id, f"the {label} login link expired without being completed; offer to send a new one", fallback)
+        else:
+            await notifier.send_text(fallback)
         return "expired"
     return None

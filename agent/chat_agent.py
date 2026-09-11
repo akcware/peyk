@@ -63,6 +63,9 @@ long-term memory. Rules:
   own words (or quotes it) — a draft for approval, never a promise that it was sent.
 - When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
   If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
+- A message of the form "[system event: …]" is not from the person: something happened (a service got connected,
+  a link expired). React in one or two natural sentences in their language — e.g. confirm Gmail is now being
+  watched and what happens next, or offer a fresh link. Never repeat the bracketed text.
 - If the person asks to delete their account or data, call delete_my_data and reply in one calm sentence that
   a confirmation is coming; do not argue, do not delete anything yourself, do not describe internals.
 - Do not invent observations. If nothing matches, say so."""
@@ -313,12 +316,13 @@ def render_user_state(payload: dict[str, Any]) -> str:
 def chat(payload: dict[str, Any]) -> dict[str, Any]:
     intents: list[dict[str, Any]] = []
     user = payload.get("user") or {}
+    event_mode = payload.get("mode") == "event"   # reacting to a system event: text only, no tools
     agent = Agent(
         model=_model(),
         system_prompt=CHAT_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
                                                 language=user_language(user.get("language")), user_state=render_user_state(payload),
                                                 capabilities=render_capabilities(payload)),
-        tools=make_tools(payload, intents),
+        tools=[] if event_mode else make_tools(payload, intents),
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,
     )

@@ -166,7 +166,7 @@ async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry
 
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                    embedder: Embedder, now: datetime | None = None, contact_search=None, registry=None,
-                   user: dict | None = None, state: dict | None = None) -> tuple[str, list[dict[str, Any]]]:
+                   user: dict | None = None, state: dict | None = None, mode: str | None = None) -> tuple[str, list[dict[str, Any]]]:
     """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
     now = now or datetime.now(tz=UTC)
     from workers.commands import as_chat_text
@@ -191,6 +191,8 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         now_local = now.astimezone()
     payload = {"message": text, "history": history, "recent_observations": recent, "memory_hits": memory_hits,
                "now_iso": now_local.isoformat(), "timezone": tz, "user": user or {}, "user_state": state or {}}
+    if mode:
+        payload["mode"] = mode
     reply, intents = "", []
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
@@ -292,3 +294,34 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     applied = await apply_intents(conn, obs, intents, embedder=embedder, on_draft=on_draft, registry=registry, notifier=notifier)
     log.info("chat.replied", observation_id=str(obs.id), intents=applied)
     return reply
+
+
+async def react_to_event(conn: psycopg.AsyncConnection, user_id: UUID, event_text: str, *, settings: Settings, agent: AgentClient,
+                         notifier, embedder: Embedder, registry=None, fallback: str | None = None) -> str:
+    """Let the agent phrase a system event (a service got connected, a link expired) in its own voice and the
+    person's language, with the conversation context. Falls back to `fallback` text if the agent fails."""
+    user_row = await user_repo.get(conn, user_id)
+    if user_row is None:
+        return ""
+    thread_key = user_row["control_thread_key"]
+    pseudo = Observation(user_id=user_id, source=user_row["control_source"], source_key=f"event:{datetime.now(tz=UTC).timestamp()}",
+                         kind="message_in", occurred_at=datetime.now(tz=UTC), thread_key=thread_key,
+                         payload={"control": {"text": f"[system event: {event_text} — tell the person now, in one or two sentences]"}})
+    try:
+        user, state = await user_payload(conn, pseudo, registry)
+        reply, intents = await converse(conn, pseudo, settings=settings, agent=agent, embedder=embedder, registry=registry,
+                                        user=user, state=state, mode="event")
+    except Exception as e:  # noqa: BLE001
+        log.warning("chat.event_reaction_failed", error=str(e))
+        reply, intents = "", []
+    text = reply.strip() or (fallback or "")
+    if not text:
+        return ""
+    send = getattr(notifier, "send_rich", None) or notifier.send_text
+    mid = await send(text)
+    await observation_repo.insert(conn, Observation(
+        user_id=user_id, source=user_row["control_source"], source_key=f"out:{mid}", kind="message_out",
+        occurred_at=datetime.now(tz=UTC), thread_key=thread_key, payload={"text": text, "kind": "event_reaction", "event": event_text}))
+    if intents:
+        await apply_intents(conn, pseudo, intents, embedder=embedder, registry=registry, notifier=notifier)
+    return text

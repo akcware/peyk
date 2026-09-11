@@ -25,6 +25,8 @@ class TickContext:
     notifier: Any = None              # single-user Notifier (tests) — or use `notifiers` for per-user lookup
     retriage: Callable[[psycopg.AsyncConnection, Observation], Awaitable[Any]] | None = None
     notifiers: Any = None             # workers.users.Notifiers
+    agent: Any = None                 # AgentClient, for agent-voiced reactions to system events
+    embedder: Any = None
 
     async def notifier_for(self, conn, user_id) -> Any:
         if self.notifiers is not None:
@@ -127,7 +129,15 @@ async def await_connection(conn, obs: Observation, ctx: TickContext) -> None:
     from workers import onboarding
 
     payload = (obs.payload.get("job") or {}).get("payload", {})
-    await onboarding.check_connection(conn, obs.user_id, payload, ctx.registry, await ctx.notifier_for(conn, obs.user_id))
+    notifier = await ctx.notifier_for(conn, obs.user_id)
+    react = None
+    if ctx.agent is not None and ctx.embedder is not None:
+        from workers import chat
+
+        async def react(c, user_id, event_text, fallback):
+            await chat.react_to_event(c, user_id, event_text, settings=ctx.settings, agent=ctx.agent, notifier=notifier,
+                                      embedder=ctx.embedder, registry=ctx.registry, fallback=fallback)
+    await onboarding.check_connection(conn, obs.user_id, payload, ctx.registry, notifier, react=react)
 
 
 HANDLERS: dict[str, Callable[[psycopg.AsyncConnection, Observation, TickContext], Awaitable[None]]] = {
