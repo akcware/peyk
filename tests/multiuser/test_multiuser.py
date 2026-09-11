@@ -208,3 +208,22 @@ async def test_bootstrap_user_from_env_and_default_jobs_per_user(conn, settings)
     claimed = await queue.claim_next(conn, None)
     assert claimed is not None and claimed.user_id == other["id"]
     assert TriageResult(urgency=1, category="other", reason="x").summary == ""
+
+
+async def test_start_command_is_first_contact_not_help(conn, settings):
+    from workers.commands import START_TEXT, as_chat_text, is_remind
+    assert as_chat_text("/start") == START_TEXT and as_chat_text("/start@proactiveagent_bot") == START_TEXT
+    assert as_chat_text("/help") == "help" and as_chat_text("merhaba") == "merhaba"
+    assert is_remind("/remind 1h x") and not is_remind("/start")
+
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "888", display_name="Ece")
+    tg = FakeTelegram()
+    calls = []
+    def handle(payload):
+        calls.append(payload)
+        assert payload["task"] == "chat" and payload["message"] == START_TEXT and payload["user_state"]["is_new"]
+        return {"task": "chat", "reply": "Selam Ece, kurulumu hemen yapalım.", "intents": []}
+    start = await observation_repo.insert(conn, tg_text("888", "1", "/start", user["id"]))
+    await triage.handle(start, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "888", user["id"]),
+                        embedder=FakeEmbedder())
+    assert len(calls) == 1 and tg.sent[-1]["text"] == "Selam Ece, kurulumu hemen yapalım."

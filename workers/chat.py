@@ -161,7 +161,9 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
                    user: dict | None = None, state: dict | None = None) -> tuple[str, list[dict[str, Any]]]:
     """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
     now = now or datetime.now(tz=UTC)
-    text = control_text(obs) or ""
+    from workers.commands import as_chat_text
+
+    text = as_chat_text(control_text(obs))
     if user is None:
         user, state = await user_payload(conn, obs, registry)
     history = await build_history(conn, obs)
@@ -236,7 +238,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if typing:
         await typing()
     send = getattr(notifier, "send_rich", None) or notifier.send_text
-    text = control_text(obs) or ""
+    from workers.commands import as_chat_text
+
+    text = as_chat_text(control_text(obs))
 
     user, state = await user_payload(conn, obs, registry)
     onboarding_needed = bool(state.get("is_new"))   # first conversation: the full agent greets and offers connections

@@ -198,7 +198,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 else:
                     text = await feedback.apply(conn, obs)
                 await notifier.ack(obs, text)
-            elif commands.is_command(control_text(obs)):
+            elif commands.is_remind(control_text(obs)):
                 await handle_command(conn, obs, settings=settings, notifier=notifier, now=now)
             elif approval is not None and await approval.maybe_apply_edit(conn, obs):
                 pass

@@ -48,3 +48,23 @@ def parse_remind(text: str, now: datetime, tz: str) -> Remind:
 
 def is_command(text: str | None) -> bool:
     return bool(text) and text.startswith("/")
+
+
+def is_remind(text: str | None) -> bool:
+    """The only real command. /start and anything else starting with '/' is handled by the agent as chat."""
+    return bool(text) and text.split()[0].split("@")[0] == "/remind"
+
+
+START_TEXT = "[the person just opened the chat by pressing Start]"
+
+
+def as_chat_text(text: str | None) -> str:
+    """Turn a Telegram command into something the agent can react to naturally."""
+    if not text:
+        return ""
+    head = text.split()[0].split("@")[0]
+    if head == "/start":
+        return START_TEXT
+    if text.startswith("/"):
+        return text.lstrip("/")
+    return text
