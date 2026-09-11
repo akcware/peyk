@@ -21,6 +21,7 @@ from core.log import get_logger
 from core.models import Connection, Content, Observation
 
 from .mappings import ACTION_ITEMS_PATH, ACTION_MAPPINGS, ACTION_NEXT_PAGE_PATH, apply, get_path
+from .profile import PROFILE_SAMPLERS
 from .setup import TOOLKITS
 from .webhook import to_observation
 
@@ -114,6 +115,13 @@ class ComposioAdapter:
     async def connection_status(self, conn: Connection, connection_id: str) -> str:
         acc = await asyncio.to_thread(self.client.client.connected_accounts.retrieve, connection_id)
         return str(getattr(acc, "status", "") or "")
+
+    async def sample_for_profile(self, conn: Connection, toolkit: str) -> list[dict[str, Any]]:
+        """Metadata sample of the person's recent activity in a toolkit (see profile.py). [] if none registered."""
+        sampler = PROFILE_SAMPLERS.get(toolkit)
+        if sampler is None:
+            return []
+        return await asyncio.to_thread(sampler, self._execute, conn.data.get("composio_user_id"))
 
     async def disconnect_all(self, conn: Connection) -> dict[str, int]:
         """Right-to-erasure on the Composio side: delete this user's trigger instances and connected accounts
