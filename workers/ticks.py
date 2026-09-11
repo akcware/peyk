@@ -92,8 +92,13 @@ async def reconcile(conn, obs: Observation, ctx: TickContext) -> None:
     now = datetime.now(tz=UTC)
     for adapter in ctx.registry.ingestable():
         cursor = await cursor_repo.get(conn, obs.user_id, adapter.id)
-        since = (datetime.fromisoformat(cursor) if cursor else now - timedelta(hours=24)) - lookback
-        newest = datetime.fromisoformat(cursor) if cursor else since
+        if cursor is None:
+            # Bootstrap: establish the cursor only. Replaying history here would triage (and notify about) old mail.
+            await cursor_repo.set(conn, obs.user_id, adapter.id, now.isoformat())
+            log.info("reconcile.bootstrap_cursor", adapter=adapter.id, cursor=now.isoformat())
+            continue
+        since = datetime.fromisoformat(cursor) - lookback
+        newest = datetime.fromisoformat(cursor)
         inserted = skipped = 0
         try:
             handle = await adapter.connect(obs.user_id)
@@ -107,7 +112,7 @@ async def reconcile(conn, obs: Observation, ctx: TickContext) -> None:
         except Exception as e:  # noqa: BLE001
             log.error("reconcile.adapter_failed", adapter=adapter.id, error=str(e))
             continue
-        if newest and (not cursor or newest > datetime.fromisoformat(cursor)):
+        if newest > datetime.fromisoformat(cursor):
             await cursor_repo.set(conn, obs.user_id, adapter.id, newest.isoformat())
         log.info("reconcile.done", adapter=adapter.id, inserted=inserted, already_seen=skipped, since=since.isoformat())
 

@@ -62,7 +62,7 @@ def main() -> int:
     s = get_settings()
     if not s.COMPOSIO_API_KEY:
         sys.exit("COMPOSIO_API_KEY missing in .env")
-    c = Composio(api_key=s.COMPOSIO_API_KEY)
+    c = Composio(api_key=s.COMPOSIO_API_KEY, toolkit_versions=s.composio_toolkit_versions or None)
     tk = TOOLKITS[args.toolkit]
     user_id = s.COMPOSIO_USER_ID
 
@@ -84,6 +84,9 @@ def main() -> int:
     print(f"user_id={user_id} toolkit={args.toolkit} active_accounts={[a.id for a in active]}")
 
     if args.status:
+        meta = c.client.toolkits.retrieve(args.toolkit).model_dump().get("meta") or {}
+        pinned = s.composio_toolkit_versions.get(args.toolkit)
+        print(f"toolkit version: current={meta.get('version')} pinned={pinned or '(none — set COMPOSIO_TOOLKIT_VERSIONS)'}")
         act = c.triggers.list_active(connected_account_ids=[a.id for a in active] or None)
         for t in getattr(act, "items", []) or []:
             print(f"  trigger {t.trigger_name} id={t.id} disabled={getattr(t, 'disabled_at', None)}")

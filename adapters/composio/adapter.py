@@ -51,7 +51,12 @@ class ComposioAdapter:
         if self._client is None:
             from composio import Composio  # imported lazily; only this package may import composio
 
-            self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY)
+            versions = self._settings.composio_toolkit_versions
+            if not versions:
+                log.warning("composio.toolkit_versions_unpinned",
+                            hint="set COMPOSIO_TOOLKIT_VERSIONS=gmail=...,googlecalendar=... (see scripts/composio_setup.py --status); "
+                                 "tools.execute will fail without it")
+            self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY, toolkit_versions=versions or None)
         return self._client
 
     def _execute(self, slug: str, arguments: dict[str, Any]) -> dict[str, Any]:

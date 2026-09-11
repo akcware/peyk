@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     COMPOSIO_GMAIL_AUTH_CONFIG_ID: str = ""
     COMPOSIO_GMAIL_CONNECTED_ACCOUNT_ID: str = ""
     COMPOSIO_DELIVERY: Literal["ws", "webhook"] = "ws"
+    # Pinned toolkit versions for tools.execute (Composio refuses "latest" for manual execution).
+    # Format: "gmail=20260911_00,googlecalendar=20260911_00". `scripts/composio_setup.py --status` prints current ones.
+    COMPOSIO_TOOLKIT_VERSIONS: str = ""
+
+    @property
+    def composio_toolkit_versions(self) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for part in self.COMPOSIO_TOOLKIT_VERSIONS.split(","):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                out[k.strip()] = v.strip()
+        return out
 
     MODEL_PROVIDER: Literal["bedrock", "anthropic"] = "bedrock"
     AWS_REGION: str = "us-east-1"

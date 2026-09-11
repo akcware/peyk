@@ -25,14 +25,15 @@ async def insert(conn: psycopg.AsyncConnection, obs: Observation) -> Observation
     cur = await conn.execute(
         f"""
         insert into observation
-          (user_id, source, source_key, kind, occurred_at, thread_key, payload, is_backfill)
-        values (%s, %s, %s, %s, %s, %s, %s, %s)
+          (user_id, source, source_key, kind, occurred_at, thread_key, payload, is_backfill, status)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         on conflict (user_id, source, source_key) do nothing
         returning {_COLS}
         """,
         (
             obs.user_id, obs.source, obs.source_key, obs.kind, obs.occurred_at,
             obs.thread_key, Jsonb(obs.payload), obs.is_backfill,
+            "done" if obs.kind == "message_out" else obs.status,   # our own outbound records are not work
         ),
     )
     row = await cur.fetchone()

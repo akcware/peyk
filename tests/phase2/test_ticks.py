@@ -142,3 +142,18 @@ async def test_reconcile_no_duplicate_notification(conn, settings):
 def test_tick_unknown_kind_is_noop():
     assert "morning_brief" in ticks.HANDLERS and "reconcile" in ticks.HANDLERS
     assert TriageResult(urgency=1, category="other", reason="x").urgency == 1
+
+
+async def test_reconcile_bootstrap_sets_cursor_without_replay(conn, settings):
+    pages = _pages()
+    calls = []
+    def execute(slug, args, *, user_id):
+        calls.append(slug); return pages[args.get("page_token")]
+    adapter = ComposioAdapter(settings=settings, execute=execute)
+    ctx = ticks.TickContext(settings=settings, registry=AdapterRegistry({"composio": adapter}), notifier=triage.Notifier(FakeTelegram(), "777", USER_ID))
+    await ticks.handle_tick(conn, await _tick(conn, "reconcile"), ctx)
+    assert calls == []                                                       # no fetch on first run
+    assert await observation_repo.count(conn, USER_ID, source="gmail") == 0
+    assert await cursor_repo.get(conn, USER_ID, "composio") is not None
+    await ticks.handle_tick(conn, await _tick(conn, "reconcile"), ctx)       # second run replays since cursor - lookback
+    assert calls and await observation_repo.count(conn, USER_ID, source="gmail") == 3
