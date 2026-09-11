@@ -35,7 +35,11 @@ Rules:
 - Marketing that pretends to be urgent ("last chance!") is 1.
 - Never rate above 3 unless there is a concrete reason in the text (deadline, question, money, meeting time).
 - Rate 5 only when waiting an hour would have a real cost.
-- reason: one short sentence, max 200 characters, in the language of the person's profile."""
+- reason: one short internal sentence (max 200 characters) explaining the urgency.
+- summary: what a good personal assistant would say to the person about this, 1-2 sentences, max 320 characters,
+  written in {language}. Name who it is from, what it is about, what (if anything) the person must do and by when.
+  Do not paste the text; paraphrase. Example: "Mara (client) reminds you invoice #2041 is due Friday; no reply needed."
+  Never switch language because the source text is in another language."""
 
 
 def render_observation(payload: dict[str, Any], *, max_text: int = 1200) -> str:
@@ -75,9 +79,10 @@ def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | 
 @lru_cache
 def _agent() -> Agent:
     profile = os.environ.get("USER_PROFILE", "(no profile provided)")
+    language = os.environ.get("USER_LANGUAGE", "en")
     return Agent(
         model=build_model("triage", temperature=0.0, max_tokens=512),
-        system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=profile),
+        system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=profile, language=language),
         callback_handler=None,
     )
 

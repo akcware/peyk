@@ -31,7 +31,7 @@ class TickContext:
 async def brief_items(conn: psycopg.AsyncConnection, user_id, since: datetime, *, min_urgency: int = 3) -> list[dict]:
     cur = await conn.execute(
         """
-        select o.source, o.payload, t.urgency, t.category, t.reason, o.occurred_at
+        select o.source, o.payload, t.urgency, t.category, t.reason, t.summary, o.occurred_at
         from observation o join triage t on t.observation_id = o.id
         where o.user_id = %s and o.occurred_at >= %s and t.urgency >= %s and o.is_backfill = false
         order by t.urgency desc, o.occurred_at desc
@@ -52,7 +52,7 @@ def render_brief(items: list[dict], now: datetime) -> str:
         subject = p.get("subject") or p.get("summary") or "(no subject)"
         mark = "‼️" if it["urgency"] >= 5 else "❗" if it["urgency"] == 4 else "•"
         lines.append(f"{mark} [{it['source']}] {who} — {subject}")
-        lines.append(f"   {it['reason']}")
+        lines.append(f"   {it.get('summary') or it['reason']}")
     lines += ["", f"{len(items)} item(s) with urgency ≥ 3."]
     return "\n".join(lines)
 

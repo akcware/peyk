@@ -37,6 +37,10 @@
         {
           "name": "USER_PROFILE",
           "value": "Freelance software developer in Berlin, works with a few clients; clients, invoices, deadlines, health and family are urgent; newsletters and marketing are noise."
+        },
+        {
+          "name": "USER_LANGUAGE",
+          "value": "tr"
         }
       ]
     }

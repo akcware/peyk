@@ -180,7 +180,10 @@ def test_render_unescapes_html_and_plain_reason():
                       payload={"from": "G <g@x.test>", "subject": "Security alert", "snippet": "you didn&#39;t allow &amp; more"})
     from agent.schemas import TriageResult
     text = triage.Notifier.render(obs, TriageResult(urgency=4, category="automated", reason="verify"))
-    assert "didn't allow & more" in text and "→ verify" in text and "_verify_" not in text
+    assert text.startswith("❗ G · gmail\nSecurity alert") and "didn't allow & more" in text and "_verify_" not in text
+    with_summary = triage.Notifier.render(obs, TriageResult(urgency=4, category="automated", reason="verify",
+                                                             summary="Google says Composio got access; confirm it was you."))
+    assert "confirm it was you" in with_summary and "didn't allow" not in with_summary
 
 
 async def test_secretary_ack_then_answer_and_direct_answer(conn, settings):

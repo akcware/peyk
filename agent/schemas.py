@@ -12,7 +12,9 @@ Category = Literal["person", "transactional", "newsletter", "automated", "calend
 class TriageResult(BaseModel):
     urgency: int = Field(ge=1, le=5, description="1 = ignore, 5 = interrupt now")
     category: Category
-    reason: str = Field(max_length=200)
+    reason: str = Field(max_length=200, description="one short internal sentence: why this urgency")
+    summary: str = Field(default="", max_length=320,
+                         description="what a good assistant would tell the person: who, what, what is needed, by when")
 
 
 class ScheduleRequest(BaseModel):

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     USER_ID: UUID = UUID("00000000-0000-4000-8000-000000000001")
     USER_PROFILE: str = ""
+    USER_LANGUAGE: str = "en"                  # language for summaries/notifications (tr, en, de, ...)
 
     DATABASE_URL: str = "postgresql://agent:agent@localhost:5433/agent"
     TEST_DATABASE_URL: str | None = None
@@ -53,7 +54,7 @@ class Settings(BaseSettings):
         return [a.strip() for a in self.ADAPTERS.split(",") if a.strip()]
 
 
-AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE")
+AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE", "USER_LANGUAGE")
 
 
 def export_agent_env(settings: Settings) -> None:

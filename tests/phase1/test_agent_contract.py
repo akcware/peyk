@@ -20,7 +20,7 @@ def test_agentcore_contract_local():
 
     out = agent_app.handle({"task": "triage", "observation": {"source": "gmail", "kind": "message_in", "payload": {"subject": "x"}},
                             "sender_context": {"prior_messages_from_sender": 2}}, triage_fn=fake_triage)
-    assert out == {"task": "triage", "result": {"urgency": 3, "category": "person", "reason": "ok"}, "model_id": "m", "latency_ms": 5}
+    assert out == {"task": "triage", "result": {"urgency": 3, "category": "person", "reason": "ok", "summary": ""}, "model_id": "m", "latency_ms": 5}
     assert TriageResult(**out["result"]).urgency == 3
     assert "error" in agent_app.handle({"task": "nope"})
 

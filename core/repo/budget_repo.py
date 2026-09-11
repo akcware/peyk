@@ -9,17 +9,17 @@ import psycopg
 
 async def insert_triage(
     conn: psycopg.AsyncConnection, observation_id: UUID, *, urgency: int, category: str, reason: str,
-    model_id: str, latency_ms: int | None,
+    model_id: str, latency_ms: int | None, summary: str = "",
 ) -> None:
     await conn.execute(
         """
-        insert into triage (observation_id, urgency, category, reason, model_id, latency_ms)
-        values (%s, %s, %s, %s, %s, %s)
+        insert into triage (observation_id, urgency, category, reason, summary, model_id, latency_ms)
+        values (%s, %s, %s, %s, %s, %s, %s)
         on conflict (observation_id) do update
           set urgency = excluded.urgency, category = excluded.category, reason = excluded.reason,
-              model_id = excluded.model_id, latency_ms = excluded.latency_ms, created_at = now()
+              summary = excluded.summary, model_id = excluded.model_id, latency_ms = excluded.latency_ms, created_at = now()
         """,
-        (observation_id, urgency, category, reason, model_id, latency_ms),
+        (observation_id, urgency, category, reason, summary, model_id, latency_ms),
     )
 
 

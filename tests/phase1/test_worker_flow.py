@@ -126,6 +126,7 @@ def test_render_is_source_agnostic():
     obs = Observation(user_id=USER_ID, source="calendar", source_key="e1:2026", kind="event_starting",
                       occurred_at=datetime(2026, 9, 10, 9, 0, tzinfo=UTC), thread_key="e1",
                       payload={"summary": "Standup", "location": "Room B"})
-    text = triage.Notifier.render(obs, TriageResult(urgency=5, category="calendar", reason="starts soon"))
-    assert "[calendar] Standup" in text and "starts soon" in text
+    text = triage.Notifier.render(obs, TriageResult(urgency=5, category="calendar", reason="starts soon",
+                                                     summary="Standup with the client team starts in 15 minutes in Room B."))
+    assert text.startswith("‼️ Standup · calendar") and "starts in 15 minutes" in text and "starts soon" not in text
     assert json.dumps(triage.Notifier.buttons(UUID_ZERO := "00000000-0000-0000-0000-000000000000")).count(UUID_ZERO) == 3

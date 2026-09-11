@@ -61,16 +61,18 @@ class Notifier:
 
     @staticmethod
     def render(obs: Observation, triage: TriageResult) -> str:
+        """Assistant-style notification: who · source, subject, then the model's secretary summary.
+        Raw text only as a fallback when there is no summary."""
         p = obs.payload
         urgency = "‼️" if triage.urgency >= 5 else "❗" if triage.urgency == 4 else "•"
-        who = html.unescape(str(p.get("from") or p.get("summary") or obs.source))
-        subject = html.unescape(str(p.get("subject") or p.get("summary") or "(no subject)"))
-        snippet = html.unescape(str(p.get("snippet") or p.get("text") or "")).strip()
-        body = f"{urgency} [{obs.source}] {who}\n{subject}"
-        if snippet:
-            body += f"\n\n{snippet[:280]}"
-        body += f"\n\n→ {triage.reason}"
-        return body
+        raw_from = str(p.get("from") or p.get("organizer_email") or "")
+        who = display_name_from_header(raw_from) or normalize_email(raw_from) if raw_from else str(p.get("summary") or obs.source)
+        subject = html.unescape(str(p.get("subject") or p.get("summary") or "")).strip()
+        head = f"{urgency} {html.unescape(who)} · {obs.source}"
+        if subject:
+            head += f"\n{subject}"
+        body = triage.summary.strip() or html.unescape(str(p.get("snippet") or p.get("text") or "")).strip()[:280] or triage.reason
+        return f"{head}\n\n{body}"
 
     @staticmethod
     def buttons(sent_id: UUID) -> dict:
@@ -83,8 +85,16 @@ class Notifier:
     async def send(self, conn, obs: Observation, triage: TriageResult) -> UUID:
         sent_id = await budget_repo.insert_sent(conn, self.user_id, obs.id, thread_key=obs.thread_key, urgency=triage.urgency, tg_message_id=None)
         handle = await self._connection()
-        mid = await self.adapter.send(handle, self.chat_id, Content(text=self.render(obs, triage), reply_markup=self.buttons(sent_id)))
+        text = self.render(obs, triage)
+        mid = await self.adapter.send(handle, self.chat_id, Content(text=text, reply_markup=self.buttons(sent_id)))
         await conn.execute("update sent_notification set tg_message_id = %s where id = %s", (int(mid), sent_id))
+        # The notification is something *we said* in the control thread: record it so the chat agent knows about it.
+        await observation_repo.insert(conn, Observation(
+            user_id=self.user_id, source=self.adapter.id, source_key=f"out:{mid}", kind="message_out",
+            occurred_at=datetime.now(tz=UTC), thread_key=self.chat_id,
+            payload={"text": text, "kind": "notification", "notified_observation_id": str(obs.id),
+                     "notified_source": obs.source, "notified_thread_key": obs.thread_key, "urgency": triage.urgency},
+        ))
         return sent_id
 
     async def send_text(self, text: str) -> str:
@@ -145,7 +155,7 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
     observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload}
     result, meta = await agent.triage(observation, ctx)
     await budget_repo.insert_triage(conn, obs.id, urgency=result.urgency, category=result.category, reason=result.reason,
-                                    model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
+                                    summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
     state = await gate_state.load(conn, obs, now)
     decision = gate.decide(obs, result, state)
     log.info("triage.decided", observation_id=str(obs.id), urgency=result.urgency, category=result.category,

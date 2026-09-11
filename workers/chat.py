@@ -29,7 +29,10 @@ STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, res
 
 def _turn_text(obs: Observation) -> tuple[str, str] | None:
     if obs.kind == "message_out":
-        return "assistant", str(obs.payload.get("text") or "")
+        text = str(obs.payload.get("text") or "")
+        if obs.payload.get("kind") == "notification":
+            text = f"[notification I sent about observation {obs.payload.get('notified_observation_id')}]\n{text}"
+        return "assistant", text
     text = control_text(obs)
     if not text or text.startswith("/") or "callback_query" in obs.payload:
         return None
@@ -82,9 +85,19 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
                 if o.source != settings.CONTROL_SOURCE and o.kind != "tick"][:limit]
     if not rows:
         return []
-    cur = await conn.execute("select observation_id, urgency from triage where observation_id = any(%s)", ([o.id for o in rows],))
-    urg = {r["observation_id"]: r["urgency"] for r in await cur.fetchall()}
-    return [compact(o, urg.get(o.id)) for o in rows]
+    cur = await conn.execute("select observation_id, urgency, summary from triage where observation_id = any(%s)", ([o.id for o in rows],))
+    tri = {r["observation_id"]: r for r in await cur.fetchall()}
+    cur = await conn.execute("select observation_id, sent_at from sent_notification where observation_id = any(%s)", ([o.id for o in rows],))
+    notified = {r["observation_id"]: r["sent_at"] for r in await cur.fetchall()}
+    out = []
+    for o in rows:
+        d = compact(o, tri[o.id]["urgency"] if o.id in tri else None)
+        if o.id in tri and tri[o.id]["summary"]:
+            d["summary"] = tri[o.id]["summary"]
+        if o.id in notified:
+            d["notified_at"] = notified[o.id].isoformat()
+        out.append(d)
+    return out
 
 
 async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents: list[dict[str, Any]], *,
