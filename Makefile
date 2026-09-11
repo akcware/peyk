@@ -55,3 +55,7 @@ status:
 # Put failed observations back on the queue (after fixing the cause).
 requeue-failed:
 	docker compose exec -T db psql -U agent -d agent -c "update observation set status='new', attempts=0, claimed_at=null where status='failed'"
+
+# Forget a user (re-test onboarding): make reset-user CHAT=<telegram chat id>
+reset-user:
+	uv run python scripts/reset_user.py --chat $(CHAT)
