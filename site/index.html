@@ -50,7 +50,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .muted{color:var(--muted)}
 
 /* reveal */
-.rv{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.js .rv{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
 
 /* ---------- nav ---------- */
@@ -171,11 +171,11 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .kept{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(.6rem,2vw,1.5rem);max-width:760px}
 .kept__slot{display:grid;gap:.6rem;justify-items:center;text-align:center;font-size:.9rem;line-height:1.3;color:var(--fg)}
 .kept__ring{width:34px;height:34px;border-radius:50%;border:1.5px dashed var(--line)}
-.kept__label{opacity:0;transform:translateY(6px);transition:opacity .5s ease 1s,transform .5s ease 1s;text-wrap:balance}
+.js .kept__label{opacity:0;transform:translateY(6px);transition:opacity .5s ease 1s,transform .5s ease 1s;text-wrap:balance}
 .swarm-stage.is-collapsed .kept__label{opacity:1;transform:none}
 .swarm-count{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;font-family:var(--serif);font-size:clamp(1.25rem,2.4vw,1.6rem);color:var(--muted)}
 .swarm-count b{font-weight:500;color:var(--fg);font-size:1.35em;font-variant-numeric:tabular-nums}
-.swarm-count .n--after{opacity:0;transition:opacity .5s ease 1.1s}
+.js .swarm-count .n--after{opacity:0;transition:opacity .5s ease 1.1s}
 .swarm-count .n--before{transition:opacity .5s ease .2s}
 .swarm-stage.is-collapsed .n--before{opacity:.35;text-decoration:line-through;text-decoration-thickness:1px}
 .swarm-stage.is-collapsed .n--after{opacity:1}
@@ -596,7 +596,7 @@ I'll tell you when it's linked.</div><div class="mini__b">Gmail connected. I'm w
   </div>
 </footer>
 
-<script>
+<script>document.documentElement.classList.add('js');
 (function(){
 'use strict';
 var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
