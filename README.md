@@ -63,6 +63,12 @@ person agrees, the agent's `connect_service` intent makes the worker create a Co
 poll (`await_connection` job, every 20 s, 15 min limit) until the account is ACTIVE — then the triggers for that
 person are enabled and the agent confirms. No slash commands; the person can ask to connect anything later.
 
+**First-learn.** Right after a service is connected, a detached job samples the last 30 days of metadata
+(senders, subjects, document titles — never bodies), registers the people in it, and lets the agent propose
+3–6 facts plus a profile: "I looked at senders and subjects, not content. You mostly deal with X about Y —
+correct me?" Nothing is stored until the person confirms or corrects it (`confirm_learned`). Sensitive life
+situations are only ever asked about, never inferred into memory.
+
 Every table carries `user_id`; queue, budget, mutes, memory, jobs and timezone are per user. Composio events are
 routed by their entity user id (our uuid), Telegram messages by chat id. The control channel is an adapter
 (`Content.choices`, `ControlEvent`), so a WhatsApp client can replace Telegram without touching workers.
