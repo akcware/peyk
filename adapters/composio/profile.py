@@ -18,7 +18,7 @@ from typing import Any
 ExecuteFn = Callable[[str, dict[str, Any], str | None], dict[str, Any]]
 
 
-def sample_gmail(execute: ExecuteFn, composio_user_id: str, *, days: int = 30, max_messages: int = 200) -> list[dict[str, Any]]:
+def sample_gmail(execute: ExecuteFn, composio_user_id: str, *, days: int = 30, max_messages: int = 100) -> list[dict[str, Any]]:
     """Last `days` of inbox + sent metadata: who writes to the person, whom they write to, what about."""
     from datetime import UTC, datetime, timedelta
 

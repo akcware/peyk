@@ -29,7 +29,7 @@ async def main() -> None:
     notifiers = users.Notifiers(registry, settings)
     agent = AgentClient(settings.AGENT_MODE, runtime_arn=settings.AGENTCORE_RUNTIME_ARN, region=settings.AWS_REGION)
     embedder = TitanEmbedder(region=settings.AWS_REGION)
-    tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifiers=notifiers, agent=agent, embedder=embedder)
+    tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifiers=notifiers, agent=agent, embedder=embedder, background=True)
     flow = approval.ApprovalFlow(registry, None)   # notifier is set per observation
     tasks.append(asyncio.create_task(
         triage.run(settings, agent=agent, tick_ctx=tick_ctx, embedder=embedder, approval=flow, notifiers=notifiers), name="triage"))

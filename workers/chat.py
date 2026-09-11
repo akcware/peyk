@@ -122,6 +122,12 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                     await account.start(conn, user, notifier)
                     applied.append("DeleteAccountRequest")
                 continue
+            if kind == "LearnConfirm":
+                from workers import learn
+
+                await learn.confirm(conn, obs, it, embedder=embedder)
+                applied.append("LearnConfirm")
+                continue
             if kind == "ProfileUpdate":
                 fields = {k: (it.get(k) or "").strip() or None for k in ("profile", "language", "timezone", "display_name")}
                 await user_repo.update(conn, obs.user_id, **fields)
@@ -159,9 +165,15 @@ async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry
     user = await user_repo.get(conn, obs.user_id)
     if user is None:
         return {}, {}
+    from workers import learn
+
     u = {"display_name": user.get("display_name"), "profile": user.get("profile") or "", "language": user.get("language") or "en",
          "timezone": user.get("timezone") or "UTC"}
-    return u, await onboarding.user_state(conn, user, registry)
+    state = await onboarding.user_state(conn, user, registry)
+    pending = learn.pending_for_state(user)
+    if pending:
+        state["pending_learn"] = pending
+    return u, state
 
 
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,

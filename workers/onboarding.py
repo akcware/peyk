@@ -110,6 +110,9 @@ async def check_connection(conn: psycopg.AsyncConnection, user_id: UUID, job_pay
         else:
             await notifier.send_text(fallback)
         log.info("onboarding.connected", user_id=str(user_id), toolkit=toolkit, triggers=trigger_ids)
+        from workers import learn
+
+        await learn.schedule(conn, user_id, toolkit)
         return "connected"
     if expired or status.upper() in ("FAILED", "EXPIRED", "REVOKED"):
         pending = dict((user.get("state") or {}).get("pending") or {})

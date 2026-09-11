@@ -54,3 +54,12 @@ class ChatAck(BaseModel):
 
     needs_work: bool = Field(description="true if answering requires looking at mail/calendar/memory, drafting, scheduling")
     message: str = Field(max_length=300, description="what to say right now, in the user's language")
+
+
+class LearnResult(BaseModel):
+    """What the agent proposes to remember after sampling a freshly connected service."""
+
+    facts: list[str] = Field(default_factory=list, max_length=8, description="3-6 durable facts about the person, third person, one sentence each")
+    profile_suggestion: str = Field(default="", max_length=400, description="1-3 sentences: who they are, what matters, what is urgent")
+    top_people: list[str] = Field(default_factory=list, max_length=6, description="names (with role if obvious) the person deals with most")
+    message: str = Field(max_length=900, description="what to say to the person: what you noticed, ask them to confirm or correct")

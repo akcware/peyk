@@ -27,6 +27,7 @@ class TickContext:
     notifiers: Any = None             # workers.users.Notifiers
     agent: Any = None                 # AgentClient, for agent-voiced reactions to system events
     embedder: Any = None
+    background: bool = False          # run slow handlers (first_learn) detached from the consumer loop
 
     async def notifier_for(self, conn, user_id) -> Any:
         if self.notifiers is not None:
@@ -140,7 +141,33 @@ async def await_connection(conn, obs: Observation, ctx: TickContext) -> None:
     await onboarding.check_connection(conn, obs.user_id, payload, ctx.registry, notifier, react=react)
 
 
+async def first_learn(conn, obs: Observation, ctx: TickContext) -> None:
+    """Slow (metadata sampling + one big model call): detached so it never stalls other users' observations."""
+    import asyncio
+
+    from core import db
+    from workers import learn
+
+    toolkit = (obs.payload.get("job") or {}).get("payload", {}).get("toolkit")
+    if not toolkit or ctx.agent is None:
+        return
+    notifier = await ctx.notifier_for(conn, obs.user_id)
+    if not ctx.background:
+        await learn.run(conn, obs.user_id, toolkit, registry=ctx.registry, agent=ctx.agent, notifier=notifier, embedder=ctx.embedder)
+        return
+
+    async def _detached():
+        try:
+            async with db.connection() as c:
+                await learn.run(c, obs.user_id, toolkit, registry=ctx.registry, agent=ctx.agent, notifier=notifier, embedder=ctx.embedder)
+        except Exception as e:  # noqa: BLE001
+            log.error("first_learn.failed", user_id=str(obs.user_id), toolkit=toolkit, error=str(e))
+
+    asyncio.create_task(_detached(), name=f"first_learn:{obs.user_id}")
+
+
 HANDLERS: dict[str, Callable[[psycopg.AsyncConnection, Observation, TickContext], Awaitable[None]]] = {
+    "first_learn": first_learn,
     "morning_brief": morning_brief,
     "followup": followup,
     "recheck_thread": recheck_thread,

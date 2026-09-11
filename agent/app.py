@@ -37,6 +37,10 @@ def handle(payload: dict[str, Any], *, triage_fn: Callable[..., Any] | None = No
         fn = triage_fn or _triage
         result, meta = fn(payload.get("observation") or {}, payload.get("sender_context"))
         return {"task": "triage", "result": result.model_dump(), **meta}
+    if task == "learn":
+        from agent.learn_agent import learn as _learn
+
+        return {"task": "learn", **_learn(payload)}
     if task == "chat":
         from agent.chat_agent import chat as _chat
 

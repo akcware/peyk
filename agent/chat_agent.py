@@ -63,6 +63,10 @@ long-term memory. Rules:
   own words (or quotes it) — a draft for approval, never a promise that it was sent.
 - When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
   If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
+- If the account state lists UNCONFIRMED proposed facts and the person's message confirms, corrects or partly
+  rejects them ("evet doğru", "Mara müşteri değil, iş arkadaşı", "hepsi doğru ama…"), call confirm_learned with
+  the accepted (and corrected) facts and profile, then acknowledge in one short sentence. If they ignore the
+  proposal and ask something else, just help them; the proposal can wait.
 - A message of the form "[system event: …]" is not from the person: something happened (a service got connected,
   a link expired). React in one or two natural sentences in their language — e.g. confirm Gmail is now being
   watched and what happens next, or offer a fresh link. Never repeat the bracketed text.
@@ -241,6 +245,18 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"requested": True, "note": "a login link will be sent to the person right after your reply"}
 
     @tool
+    def confirm_learned(facts: list[str], profile: str = "") -> dict:
+        """Store what the person confirmed from your earlier proposal (after connecting a service).
+        Pass only the facts they accepted, corrected as they said; pass the profile if they accepted it (edited if needed).
+
+        Args:
+            facts: accepted facts, one sentence each, third person
+            profile: accepted profile text, or empty to keep the current one
+        """
+        intents.append({"intent": "LearnConfirm", "facts": list(facts or []), "profile": profile})
+        return {"stored": len(facts or [])}
+
+    @tool
     def set_profile(profile: str = "", language: str = "", timezone: str = "", display_name: str = "") -> dict:
         """Save what you learned about the person: a short profile (who they are, what is urgent for them),
         their language (ISO code like tr, en, de), IANA timezone (e.g. Europe/Berlin) and how to address them.
@@ -274,7 +290,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, delete_my_data, need_more]
+    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, delete_my_data, need_more]
 
 
 @lru_cache
@@ -310,6 +326,13 @@ def render_user_state(payload: dict[str, Any]) -> str:
     lines.append(f"available services: {', '.join(st.get('available') or ['gmail', 'googlecalendar'])}")
     if st.get("is_new"):
         lines.append("this is the person's FIRST conversation with you")
+    pl = st.get("pending_learn")
+    if pl:
+        lines.append(f"UNCONFIRMED things you proposed after connecting {pl.get('toolkit')} (waiting for their confirmation):")
+        for f in pl.get("facts") or []:
+            lines.append(f"  - {f}")
+        if pl.get("profile_suggestion"):
+            lines.append(f"  proposed profile: {pl['profile_suggestion']}")
     return "\n".join(lines)
 
 

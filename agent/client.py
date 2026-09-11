@@ -61,3 +61,9 @@ class AgentClient:
         if "error" in out:
             raise RuntimeError(f"agent error: {out['error']}")
         return {"needs_work": bool(out.get("needs_work", True)), "message": out.get("message", "")}
+
+    async def learn(self, payload: dict[str, Any]) -> dict[str, Any]:
+        out = await self.invoke({"task": "learn", **payload})
+        if "error" in out:
+            raise RuntimeError(f"agent error: {out['error']}")
+        return {k: out.get(k) for k in ("facts", "profile_suggestion", "top_people", "message")}
