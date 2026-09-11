@@ -55,6 +55,18 @@ Record results here before tagging `phase-0`.
 (`tests/fixtures/labeled_triage.jsonl`): within-1 accuracy **59/60 (98%)**, label-5 recall **6/6 (100%)**, 85 s wall clock.
 Only miss: "Appointment confirmation" rated 4 vs label 2 (model read "today at 10:00" as time-critical).
 
+## Multi-user and onboarding
+
+Anyone can message the bot. The first message from an unknown chat creates an `app_user` row; the chat agent
+greets, asks who they are (saved via `set_profile`), and offers to connect Gmail / Google Calendar. When the
+person agrees, the agent's `connect_service` intent makes the worker create a Composio OAuth link, send it, and
+poll (`await_connection` job, every 20 s, 15 min limit) until the account is ACTIVE — then the triggers for that
+person are enabled and the agent confirms. No slash commands; the person can ask to connect anything later.
+
+Every table carries `user_id`; queue, budget, mutes, memory, jobs and timezone are per user. Composio events are
+routed by their entity user id (our uuid), Telegram messages by chat id. The control channel is an adapter
+(`Content.choices`, `ControlEvent`), so a WhatsApp client can replace Telegram without touching workers.
+
 ## Layout
 
 Architecture and the decisions behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Setup checklist: [docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md). Migrations are numbered SQL files in `db/migrations/`, applied by `db/migrate.py`.
