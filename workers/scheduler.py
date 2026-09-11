@@ -12,7 +12,7 @@ from core.config import Settings
 from core.log import get_logger
 from core.models import Observation
 from core.recurrence import next_run
-from core.repo import job_repo, observation_repo
+from core.repo import job_repo, observation_repo, user_repo
 
 log = get_logger("workers.scheduler")
 
@@ -27,15 +27,20 @@ def tick_observation(job: dict) -> Observation:
     )
 
 
-async def fire_due(conn, user_id: UUID, now: datetime, tz: str) -> int:
+async def fire_due(conn, user_id: UUID | None, now: datetime, tz: str) -> int:
+    """user_id=None fires due jobs of every user; daily recurrences use each user's timezone."""
     jobs = await job_repo.claim_due(conn, user_id, now)
+    tz_cache: dict[UUID, str] = {}
     for job in jobs:
         try:
             await observation_repo.insert(conn, tick_observation(job))
             await job_repo.mark(conn, job["id"], "done")
             if job["recurrence"]:
-                await job_repo.create(conn, user_id, run_at=next_run(job["recurrence"], now, tz), kind=job["kind"],
-                                      payload=job["payload"], recurrence=job["recurrence"], created_by=job["created_by"])
+                if job["user_id"] not in tz_cache:
+                    u = await user_repo.get(conn, job["user_id"])
+                    tz_cache[job["user_id"]] = (u or {}).get("timezone") or tz
+                await job_repo.create(conn, job["user_id"], run_at=next_run(job["recurrence"], now, tz_cache[job["user_id"]]),
+                                      kind=job["kind"], payload=job["payload"], recurrence=job["recurrence"], created_by=job["created_by"])
             log.info("scheduler.fired", job_id=str(job["id"]), kind=job["kind"])
         except Exception as e:  # noqa: BLE001
             await job_repo.mark(conn, job["id"], "failed")
@@ -43,26 +48,32 @@ async def fire_due(conn, user_id: UUID, now: datetime, tz: str) -> int:
     return len(jobs)
 
 
-async def ensure_default_jobs(conn, settings: Settings, now: datetime | None = None) -> None:
-    """Idempotent: creates the recurring system jobs (morning brief, reconcile) if none is pending."""
+async def ensure_default_jobs(conn, settings: Settings, now: datetime | None = None, *, user_id: UUID | None = None,
+                              tz: str | None = None) -> None:
+    """Idempotent per user: creates the recurring system jobs (morning brief, reconcile) if none is pending."""
     now = now or datetime.now(tz=UTC)
-    if settings.MORNING_BRIEF_AT and not await job_repo.pending_of_kind(conn, settings.USER_ID, "morning_brief"):
+    uid = user_id or settings.USER_ID
+    tz = tz or settings.TIMEZONE
+    if settings.MORNING_BRIEF_AT and not await job_repo.pending_of_kind(conn, uid, "morning_brief"):
         rec = f"daily@{settings.MORNING_BRIEF_AT}"
-        await job_repo.create(conn, settings.USER_ID, run_at=next_run(rec, now, settings.TIMEZONE), kind="morning_brief",
-                              recurrence=rec, created_by="system")
-    if settings.RECONCILE_EVERY and not await job_repo.pending_of_kind(conn, settings.USER_ID, "reconcile"):
+        await job_repo.create(conn, uid, run_at=next_run(rec, now, tz), kind="morning_brief", recurrence=rec, created_by="system")
+    if settings.RECONCILE_EVERY and not await job_repo.pending_of_kind(conn, uid, "reconcile"):
         rec = f"every:{settings.RECONCILE_EVERY}"
-        await job_repo.create(conn, settings.USER_ID, run_at=next_run(rec, now, settings.TIMEZONE), kind="reconcile",
-                              recurrence=rec, created_by="system")
+        await job_repo.create(conn, uid, run_at=next_run(rec, now, tz), kind="reconcile", recurrence=rec, created_by="system")
+
+
+async def ensure_default_jobs_all_users(conn, settings: Settings) -> None:
+    for u in await user_repo.list_all(conn):
+        await ensure_default_jobs(conn, settings, user_id=u["id"], tz=u["timezone"])
 
 
 async def run(settings: Settings, *, every: float = 30.0) -> None:
     async with db.connection() as conn:
-        await ensure_default_jobs(conn, settings)
+        await ensure_default_jobs_all_users(conn, settings)
     while True:
         try:
             async with db.connection() as conn:
-                await fire_due(conn, settings.USER_ID, datetime.now(tz=UTC), settings.TIMEZONE)
+                await fire_due(conn, None, datetime.now(tz=UTC), settings.TIMEZONE)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001

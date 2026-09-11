@@ -38,14 +38,32 @@ class Connection(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class Choice(BaseModel):
+    """A tappable option. Telegram renders inline buttons; a text-only channel renders a numbered list."""
+
+    text: str
+    data: str            # callback payload, <= 64 bytes
+
+
 class Content(BaseModel):
     """Outbound message content, channel-agnostic. Adapters render it."""
 
     text: str
     subject: str | None = None
     to: list[str] = Field(default_factory=list)
-    reply_markup: dict[str, Any] | None = None
+    choices: list[Choice] = Field(default_factory=list)
+    reply_markup: dict[str, Any] | None = None     # channel-specific escape hatch (Telegram)
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ControlEvent(BaseModel):
+    """Normalized inbound event from the user's control channel."""
+
+    text: str | None = None
+    callback: str | None = None          # choice data the user tapped / typed
+    callback_id: str | None = None       # channel handle to acknowledge the tap
+    message_id: int | str | None = None  # the channel message the tap belongs to
+    display_name: str | None = None
 
 
 class Person(BaseModel):

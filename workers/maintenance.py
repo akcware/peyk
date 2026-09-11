@@ -10,7 +10,7 @@ from core.log import get_logger
 log = get_logger("workers.maintenance")
 
 
-async def recover_loop(user_id: UUID, *, every: float = 60.0) -> None:
+async def recover_loop(user_id: UUID | None = None, *, every: float = 60.0) -> None:
     while True:
         await asyncio.sleep(every)
         async with db.connection() as conn:

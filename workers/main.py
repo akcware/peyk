@@ -10,7 +10,7 @@ from core.adapter import AdapterRegistry
 from core.config import export_agent_env, get_settings
 from core.embeddings import TitanEmbedder
 from core.log import configure_logging, get_logger
-from workers import approval, ingest, maintenance, scheduler, ticks, triage
+from workers import approval, ingest, maintenance, scheduler, ticks, triage, users
 
 log = get_logger("workers.main")
 
@@ -20,19 +20,21 @@ async def main() -> None:
     export_agent_env(settings)
     configure_logging(settings.LOG_LEVEL)
     await db.open_pool(settings.DATABASE_URL)
-    registry = AdapterRegistry.from_ids(settings.adapter_ids)
+    directory = users.DbUserDirectory(settings)
+    await users.ensure_bootstrap_user(settings)
+    registry = AdapterRegistry.from_ids(settings.adapter_ids, composio={"users": directory}, telegram={"users": directory})
     log.info("workers.start", adapters=[a.id for a in registry.all()], ingest=[a.id for a in registry.ingestable()])
 
     tasks = ingest.start_ingest_tasks(registry.ingestable(), settings.USER_ID)
-    notifier = triage.Notifier(registry.get(settings.CONTROL_SOURCE), settings.TELEGRAM_CHAT_ID, settings.USER_ID)
+    notifiers = users.Notifiers(registry, settings)
     agent = AgentClient(settings.AGENT_MODE, runtime_arn=settings.AGENTCORE_RUNTIME_ARN, region=settings.AWS_REGION)
-    tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifier=notifier)
+    tick_ctx = ticks.TickContext(settings=settings, registry=registry, notifiers=notifiers)
     embedder = TitanEmbedder(region=settings.AWS_REGION)
-    flow = approval.ApprovalFlow(registry, notifier)
+    flow = approval.ApprovalFlow(registry, None)   # notifier is set per observation
     tasks.append(asyncio.create_task(
-        triage.run(settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx, embedder=embedder, approval=flow), name="triage"))
+        triage.run(settings, agent=agent, tick_ctx=tick_ctx, embedder=embedder, approval=flow, notifiers=notifiers), name="triage"))
     tasks.append(asyncio.create_task(scheduler.run(settings), name="scheduler"))
-    tasks.append(asyncio.create_task(maintenance.recover_loop(settings.USER_ID), name="recover"))
+    tasks.append(asyncio.create_task(maintenance.recover_loop(None), name="recover"))
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

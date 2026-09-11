@@ -10,7 +10,7 @@ from uuid import UUID
 
 import httpx
 
-from core.adapter import Capabilities
+from core.adapter import Capabilities, UserDirectory
 from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
@@ -27,11 +27,13 @@ class TelegramAdapter:
         settings: Settings | None = None,
         http: httpx.AsyncClient | None = None,
         poll_timeout: int = 25,
+        users: UserDirectory | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._http = http
         self._poll_timeout = poll_timeout
         self._offset: int | None = None
+        self._users = users
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -105,8 +107,13 @@ class TelegramAdapter:
             for update in updates:
                 self._offset = max(self._offset or 0, update["update_id"] + 1)
                 obs = self.update_to_observation(update, conn.user_id)
-                if obs is not None:
-                    yield obs
+                if obs is None:
+                    continue
+                if self._users is not None and obs.thread_key:
+                    frm = (update.get("message") or update.get("callback_query") or {}).get("from") or {}
+                    name = " ".join(x for x in (frm.get("first_name"), frm.get("last_name")) if x) or None
+                    obs.user_id = await self._users.resolve_control(self.id, obs.thread_key, display_name=name)
+                yield obs
 
     async def backfill(self, conn: Connection, since: datetime) -> AsyncIterator[Observation]:
         return
@@ -116,6 +123,8 @@ class TelegramAdapter:
         params: dict[str, Any] = {"chat_id": thread_key, "text": content.text}
         if content.reply_markup:
             params["reply_markup"] = content.reply_markup
+        elif content.choices:
+            params["reply_markup"] = {"inline_keyboard": [[{"text": c.text, "callback_data": c.data} for c in content.choices]]}
         if content.extra.get("parse_mode"):
             params["parse_mode"] = content.extra["parse_mode"]
         result = await self._call("sendMessage", **params)

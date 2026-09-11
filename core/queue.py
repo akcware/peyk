@@ -17,28 +17,30 @@ _RETURNING = (
 )
 
 
-async def _claim(conn: psycopg.AsyncConnection, user_id: UUID, is_backfill: bool) -> Observation | None:
+async def _claim(conn: psycopg.AsyncConnection, user_id: UUID | None, is_backfill: bool) -> Observation | None:
+    user_clause = "user_id = %s and " if user_id is not None else ""
+    params: tuple = (user_id, is_backfill) if user_id is not None else (is_backfill,)
     async with conn.transaction():
         cur = await conn.execute(
             f"""
             update observation set status = 'claimed', claimed_at = now(), attempts = attempts + 1
             where id = (
               select id from observation
-              where user_id = %s and status = 'new' and is_backfill = %s
+              where {user_clause}status = 'new' and is_backfill = %s
               order by received_at
               for update skip locked
               limit 1
             )
             returning {_RETURNING}
             """,
-            (user_id, is_backfill),
+            params,
         )
         row = await cur.fetchone()
     return Observation(**row) if row else None
 
 
-async def claim_next(conn: psycopg.AsyncConnection, user_id: UUID) -> Observation | None:
-    """Live queue: is_backfill = false."""
+async def claim_next(conn: psycopg.AsyncConnection, user_id: UUID | None = None) -> Observation | None:
+    """Live queue: is_backfill = false. user_id=None claims across all users."""
     return await _claim(conn, user_id, False)
 
 
@@ -65,13 +67,14 @@ async def fail(conn: psycopg.AsyncConnection, obs_id: UUID, *, max_attempts: int
     return (await cur.fetchone())["status"]
 
 
-async def recover_stale(conn: psycopg.AsyncConnection, user_id: UUID, *, older_than: timedelta = STALE_CLAIM) -> int:
-    """Crash tolerance: claimed rows older than `older_than` go back to 'new'."""
-    cur = await conn.execute(
-        """
-        update observation set status = 'new', claimed_at = null
-        where user_id = %s and status = 'claimed' and claimed_at < now() - %s
-        """,
-        (user_id, older_than),
-    )
+async def recover_stale(conn: psycopg.AsyncConnection, user_id: UUID | None = None, *, older_than: timedelta = STALE_CLAIM) -> int:
+    """Crash tolerance: claimed rows older than `older_than` go back to 'new'. user_id=None: all users."""
+    if user_id is None:
+        cur = await conn.execute(
+            "update observation set status = 'new', claimed_at = null where status = 'claimed' and claimed_at < now() - %s",
+            (older_than,))
+    else:
+        cur = await conn.execute(
+            "update observation set status = 'new', claimed_at = null where user_id = %s and status = 'claimed' and claimed_at < now() - %s",
+            (user_id, older_than))
     return cur.rowcount

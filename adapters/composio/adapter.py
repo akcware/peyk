@@ -15,12 +15,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from core.adapter import Capabilities, NotSupported
+from core.adapter import Capabilities, NotSupported, UserDirectory
 from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
 
 from .mappings import ACTION_ITEMS_PATH, ACTION_MAPPINGS, ACTION_NEXT_PAGE_PATH, apply, get_path
+from .setup import TOOLKITS
 from .webhook import to_observation
 
 log = get_logger("composio.adapter")
@@ -39,11 +40,13 @@ class ComposioAdapter:
         client: Any | None = None,
         execute: ExecuteFn | None = None,
         page_size: int = 100,
+        users: UserDirectory | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._client = client
         self._execute_override = execute
         self._page_size = page_size
+        self._users = users
 
     # ---- SDK access (lazy so tests never need an API key) ----
     @property
@@ -59,40 +62,73 @@ class ComposioAdapter:
             self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY, toolkit_versions=versions or None)
         return self._client
 
-    def _execute(self, slug: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    def _execute(self, slug: str, arguments: dict[str, Any], composio_user_id: str | None = None) -> dict[str, Any]:
+        uid = composio_user_id or self._settings.COMPOSIO_USER_ID
         if self._execute_override is not None:
-            return self._execute_override(slug, arguments, user_id=self._settings.COMPOSIO_USER_ID)
-        return self.client.tools.execute(slug, arguments, user_id=self._settings.COMPOSIO_USER_ID)
+            return self._execute_override(slug, arguments, user_id=uid)
+        return self.client.tools.execute(slug, arguments, user_id=uid)
+
+    async def _composio_user_id(self, user_id: UUID) -> str:
+        if self._users is not None:
+            try:
+                return await self._users.composio_user_id(user_id)
+            except Exception as e:  # noqa: BLE001
+                log.warning("composio.user_lookup_failed", user_id=str(user_id), error=str(e))
+        return self._settings.COMPOSIO_USER_ID
 
     # ---- SourceAdapter ----
     def capabilities(self) -> Capabilities:
         return {"can_send": True, "needs_session": False, "needs_user_device": False}
 
     async def connect(self, user_id: UUID) -> Connection:
-        conn = Connection(adapter_id=self.id, user_id=user_id, data={"composio_user_id": self._settings.COMPOSIO_USER_ID})
+        """Cheap: no network. The per-user Composio entity id is what every later call needs."""
+        cuid = await self._composio_user_id(user_id)
+        conn = Connection(adapter_id=self.id, user_id=user_id, data={"composio_user_id": cuid})
         if not self._settings.COMPOSIO_API_KEY:
             log.warning("composio.no_api_key", hint="set COMPOSIO_API_KEY; adapter runs in inert mode")
-            return conn
-        try:
-            accounts = await asyncio.to_thread(
-                self.client.client.connected_accounts.list,
-                user_ids=[self._settings.COMPOSIO_USER_ID],
-                toolkit_slugs=["gmail"],
-                statuses=["ACTIVE"],
-            )
-            items = getattr(accounts, "items", None) or []
-            if not items:
-                log.warning(
-                    "composio.gmail_not_connected",
-                    hint="connect Gmail in the Composio dashboard for this user id, then enable GMAIL_NEW_GMAIL_MESSAGE",
-                    composio_user_id=self._settings.COMPOSIO_USER_ID,
-                )
-            else:
-                conn.data["gmail_connected_account_id"] = getattr(items[0], "id", None)
-                log.info("composio.gmail_connected", connected_account_id=conn.data["gmail_connected_account_id"])
-        except Exception as e:  # noqa: BLE001 - connectivity check must not crash workers
-            log.warning("composio.connect_check_failed", error=str(e))
         return conn
+
+    # ---- onboarding (driven by the agent through workers) ----
+    async def connected_toolkits(self, conn: Connection) -> dict[str, str]:
+        """{toolkit_slug: connected_account_id} for ACTIVE accounts of this user."""
+        accounts = await asyncio.to_thread(
+            self.client.client.connected_accounts.list, user_ids=[conn.data["composio_user_id"]], statuses=["ACTIVE"])
+        out: dict[str, str] = {}
+        for a in getattr(accounts, "items", None) or []:
+            slug = getattr(getattr(a, "toolkit", None), "slug", None) or getattr(a, "toolkit_slug", None) or ""
+            if slug and slug not in out:
+                out[slug] = a.id
+        return out
+
+    async def link(self, conn: Connection, toolkit: str) -> dict[str, str]:
+        """Start OAuth for a toolkit: returns {url, connection_id}. The user opens the url; see connection_status()."""
+        cfg = TOOLKITS.get(toolkit)
+        if cfg is None:
+            raise NotSupported(f"unknown toolkit {toolkit!r}")
+        auth_config_id = getattr(self._settings, cfg["auth_config_env"], "") or self._env(cfg["auth_config_env"])
+        if not auth_config_id:
+            raise RuntimeError(f"{cfg['auth_config_env']} not configured")
+        req = await asyncio.to_thread(self.client.connected_accounts.link, conn.data["composio_user_id"], auth_config_id)
+        return {"url": req.redirect_url, "connection_id": req.id}
+
+    async def connection_status(self, conn: Connection, connection_id: str) -> str:
+        acc = await asyncio.to_thread(self.client.client.connected_accounts.retrieve, connection_id)
+        return str(getattr(acc, "status", "") or "")
+
+    async def enable_triggers(self, conn: Connection, toolkit: str, connected_account_id: str) -> list[str]:
+        cfg = TOOLKITS.get(toolkit) or {}
+        ids: list[str] = []
+        for slug, trigger_config in (cfg.get("triggers") or {}).items():
+            r = await asyncio.to_thread(self.client.triggers.create, slug, user_id=conn.data["composio_user_id"],
+                                        connected_account_id=connected_account_id, trigger_config=trigger_config)
+            ids.append(str(getattr(r, "trigger_id", r)))
+        return ids
+
+    @staticmethod
+    def _env(name: str) -> str:
+        import os
+
+        return os.environ.get(name, "")
 
     async def subscribe(self, conn: Connection) -> AsyncIterator[Observation]:
         if self._settings.COMPOSIO_DELIVERY != "ws" or not self._settings.COMPOSIO_API_KEY:
@@ -113,7 +149,11 @@ class ComposioAdapter:
                 event = await queue.get()
                 if event is _QUEUE_END:
                     return
-                obs = to_observation(event, conn.user_id)
+                user_id = await self.user_for_event(event, default=conn.user_id)
+                if user_id is None:
+                    log.warning("composio.event_unknown_user", composio_user_id=event.get("user_id"), trigger=event.get("trigger_slug"))
+                    continue
+                obs = to_observation(event, user_id)
                 if obs is not None:
                     yield obs
         finally:
@@ -121,6 +161,18 @@ class ComposioAdapter:
                 subscription.stop()
             except Exception as e:  # noqa: BLE001
                 log.debug("composio.subscription_stop_failed", error=str(e))
+
+    async def user_for_event(self, event: dict[str, Any], *, default: UUID | None) -> UUID | None:
+        """Composio events carry the entity user id; map it to our user. The legacy single-user entity id
+        (COMPOSIO_USER_ID from .env) maps to the bootstrap user."""
+        cuid = str(event.get("user_id") or ((event.get("metadata") or {}).get("connected_account") or {}).get("user_id") or "")
+        if self._users is not None and cuid:
+            resolved = await self._users.resolve_composio(cuid)
+            if resolved is not None:
+                return resolved
+        if not cuid or cuid == self._settings.COMPOSIO_USER_ID:
+            return default
+        return None
 
     async def backfill(
         self, conn: Connection, since: datetime, *, is_backfill: bool = True, slug: str = "GMAIL_FETCH_EMAILS"
@@ -138,7 +190,7 @@ class ComposioAdapter:
             }
             if page_token:
                 args["page_token"] = page_token
-            resp = await asyncio.to_thread(self._execute, slug, args)
+            resp = await asyncio.to_thread(self._execute, slug, args, conn.data.get("composio_user_id"))
             if not resp.get("successful", True):
                 raise RuntimeError(f"{slug} failed: {resp.get('error')}")
             data = resp.get("data") or {}
@@ -157,7 +209,8 @@ class ComposioAdapter:
         found: dict[str, dict[str, str]] = {}
         try:
             resp = await asyncio.to_thread(self._execute, "GMAIL_SEARCH_PEOPLE", {
-                "query": query, "page_size": limit, "other_contacts": True, "person_fields": "names,emailAddresses"})
+                "query": query, "page_size": limit, "other_contacts": True, "person_fields": "names,emailAddresses"},
+                conn.data.get("composio_user_id"))
             for item in (resp.get("data") or {}).get("results") or (resp.get("data") or {}).get("people") or []:
                 person = item.get("person", item)
                 names = [n.get("displayName") for n in person.get("names") or [] if n.get("displayName")]
@@ -172,7 +225,8 @@ class ComposioAdapter:
                 from email.utils import getaddresses
 
                 resp = await asyncio.to_thread(self._execute, "GMAIL_FETCH_EMAILS", {
-                    "query": f'"{query}"', "max_results": 20, "verbose": False, "include_payload": False})
+                    "query": f'"{query}"', "max_results": 20, "verbose": False, "include_payload": False},
+                    conn.data.get("composio_user_id"))
                 for m in (resp.get("data") or {}).get("messages") or []:
                     for name, email in getaddresses([str(m.get("sender") or ""), str(m.get("to") or "")]):
                         email = email.strip().lower()
@@ -193,14 +247,14 @@ class ComposioAdapter:
             args: dict[str, Any] = {"thread_id": thread_key, "message_body": content.text, "user_id": "me"}
             if content.to:
                 args["recipient_email"] = content.to[0]
-            resp = await asyncio.to_thread(self._execute, "GMAIL_REPLY_TO_THREAD", args)
+            resp = await asyncio.to_thread(self._execute, "GMAIL_REPLY_TO_THREAD", args, conn.data.get("composio_user_id"))
         else:
             if not content.to:
                 raise ValueError("a new mail needs at least one recipient")
             args = {"recipient_email": content.to[0], "subject": content.subject or "", "body": content.text, "user_id": "me"}
             if len(content.to) > 1:
                 args["cc"] = content.to[1:]
-            resp = await asyncio.to_thread(self._execute, "GMAIL_SEND_EMAIL", args)
+            resp = await asyncio.to_thread(self._execute, "GMAIL_SEND_EMAIL", args, conn.data.get("composio_user_id"))
         if not resp.get("successful", True):
             raise RuntimeError(f"composio send failed: {resp.get('error')}")
         data = resp.get("data") or {}

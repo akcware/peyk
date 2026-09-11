@@ -22,8 +22,14 @@ log = get_logger("workers.ticks")
 class TickContext:
     settings: Settings
     registry: AdapterRegistry | None
-    notifier: Any                     # workers.triage.Notifier (send_text / send)
+    notifier: Any = None              # single-user Notifier (tests) — or use `notifiers` for per-user lookup
     retriage: Callable[[psycopg.AsyncConnection, Observation], Awaitable[Any]] | None = None
+    notifiers: Any = None             # workers.users.Notifiers
+
+    async def notifier_for(self, conn, user_id) -> Any:
+        if self.notifiers is not None:
+            return await self.notifiers.for_user(conn, user_id)
+        return self.notifier
 
 
 # ---------- morning brief ----------
@@ -60,14 +66,14 @@ def render_brief(items: list[dict], now: datetime) -> str:
 async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
     now = datetime.now(tz=UTC)
     items = await brief_items(conn, obs.user_id, now - timedelta(hours=24))
-    await ctx.notifier.send_text(render_brief(items, now))
+    await (await ctx.notifier_for(conn, obs.user_id)).send_text(render_brief(items, now))
 
 
 # ---------- followup ----------
 
 async def followup(conn, obs: Observation, ctx: TickContext) -> None:
     note = (obs.payload.get("job") or {}).get("payload", {}).get("note") or "(empty reminder)"
-    await ctx.notifier.send_text(f"⏰ Reminder: {note}")
+    await (await ctx.notifier_for(conn, obs.user_id)).send_text(f"⏰ Reminder: {note}")
 
 
 # ---------- recheck_thread ----------
@@ -117,11 +123,19 @@ async def reconcile(conn, obs: Observation, ctx: TickContext) -> None:
         log.info("reconcile.done", adapter=adapter.id, inserted=inserted, already_seen=skipped, since=since.isoformat())
 
 
+async def await_connection(conn, obs: Observation, ctx: TickContext) -> None:
+    from workers import onboarding
+
+    payload = (obs.payload.get("job") or {}).get("payload", {})
+    await onboarding.check_connection(conn, obs.user_id, payload, ctx.registry, await ctx.notifier_for(conn, obs.user_id))
+
+
 HANDLERS: dict[str, Callable[[psycopg.AsyncConnection, Observation, TickContext], Awaitable[None]]] = {
     "morning_brief": morning_brief,
     "followup": followup,
     "recheck_thread": recheck_thread,
     "reconcile": reconcile,
+    "await_connection": await_connection,
 }
 
 

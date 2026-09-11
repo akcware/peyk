@@ -45,7 +45,13 @@ LANGUAGE_NAMES = {"tr": "Turkish", "en": "English", "de": "German", "fr": "Frenc
                   "nl": "Dutch", "pt": "Portuguese", "ru": "Russian", "ar": "Arabic", "ja": "Japanese", "zh": "Chinese"}
 
 
-def user_language() -> str:
-    """USER_LANGUAGE env as a full language name the model cannot misread ('tr' -> 'Turkish')."""
-    code = os.environ.get("USER_LANGUAGE", "en").strip()
+def user_language(code: str | None = None) -> str:
+    """Language code -> full name the model cannot misread ('tr' -> 'Turkish'). Falls back to USER_LANGUAGE env."""
+    code = (code or os.environ.get("USER_LANGUAGE", "en")).strip()
     return LANGUAGE_NAMES.get(code.lower(), code or "English")
+
+
+def user_profile(payload: dict | None = None) -> str:
+    """Profile from the request payload (multi-user) or the USER_PROFILE env (single-user fallback)."""
+    u = (payload or {}).get("user") or {}
+    return (u.get("profile") or os.environ.get("USER_PROFILE") or "(no profile provided)").strip()

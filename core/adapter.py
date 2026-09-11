@@ -20,6 +20,16 @@ class NotSupported(Exception):
     """Adapter cannot perform this operation for this source/thread."""
 
 
+class UserDirectory(Protocol):
+    """How adapters map external identities to our user ids. Implemented in workers/ (DB-backed) and tests."""
+
+    async def resolve_control(self, source: str, thread_key: str, *, display_name: str | None = None) -> UUID: ...
+
+    async def resolve_composio(self, composio_user_id: str) -> UUID | None: ...
+
+    async def composio_user_id(self, user_id: UUID) -> str: ...
+
+
 @runtime_checkable
 class SourceAdapter(Protocol):
     id: str

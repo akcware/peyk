@@ -7,14 +7,13 @@ Returns:  {"reply": str, "intents": [ {"intent": "MemoryWrite"|"ScheduleRequest"
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
 from strands import Agent, tool
 
-from agent.model import build_model, user_language
+from agent.model import build_model, user_language, user_profile
 from agent.schemas import ChatAck
 
 CHAT_SYSTEM_PROMPT = """You are a personal proactive assistant for one person, reachable through Telegram.
@@ -23,6 +22,19 @@ About the person:
 {profile}
 
 Now: {now}
+
+Account state:
+{user_state}
+
+Onboarding — you run it yourself, conversationally, no commands:
+- If this is the first conversation or nothing is connected: greet briefly, say what you do (watch their mail and
+  calendar, ping them only when it matters, answer questions, draft replies), then offer to connect Gmail and/or
+  Google Calendar. When they agree, call connect_service for each service they want — you will get a link back
+  to show them. Do not ask for their email address or password; the link handles login.
+- If the profile is not set: ask, in one short question, who they are / what they do / what counts as urgent for
+  them, and save the answer with set_profile (also their language and timezone if you can infer them).
+- At any later time the person may ask to connect or disconnect a service; use connect_service.
+- Keep onboarding to a few messages; never lecture.
 
 You can see (via tools) the person's recent observations — emails, calendar events, messages — and a small
 long-term memory. Rules:
@@ -70,10 +82,11 @@ def _ack_model():
 
 
 def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
-    profile = os.environ.get("USER_PROFILE", "(no profile provided)")
+    user = payload.get("user") or {}
     agent = Agent(
         model=_ack_model(),
-        system_prompt=ACK_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", ""), language=user_language()),
+        system_prompt=ACK_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
+                                               language=user_language(user.get("language"))),
         messages=to_messages((payload.get("history") or [])[-4:]),
         callback_handler=None,
     )
@@ -172,6 +185,31 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"contacts": [], "note": "lookup requested; you will be re-run with the results"}
 
     @tool
+    def connect_service(service: str) -> dict:
+        """Start connecting an external service for the person (OAuth link is generated and shown to them).
+
+        Args:
+            service: gmail or googlecalendar
+        """
+        intents.append({"intent": "ConnectRequest", "service": service})
+        return {"requested": True, "note": "a login link will be sent to the person right after your reply"}
+
+    @tool
+    def set_profile(profile: str = "", language: str = "", timezone: str = "", display_name: str = "") -> dict:
+        """Save what you learned about the person: a short profile (who they are, what is urgent for them),
+        their language (ISO code like tr, en, de), IANA timezone (e.g. Europe/Berlin) and how to address them.
+
+        Args:
+            profile: 1-3 sentences, third person
+            language: ISO 639-1 code
+            timezone: IANA timezone name
+            display_name: how to address the person
+        """
+        intents.append({"intent": "ProfileUpdate", "profile": profile, "language": language, "timezone": timezone,
+                        "display_name": display_name})
+        return {"saved": True}
+
+    @tool
     def need_more(query: str, since_days: int = 7) -> dict:
         """Ask the system to load more observations matching a query, then re-run this conversation.
 
@@ -182,7 +220,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, need_more]
+    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, need_more]
 
 
 @lru_cache
@@ -206,12 +244,28 @@ def to_messages(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return msgs
 
 
+def render_user_state(payload: dict[str, Any]) -> str:
+    st = payload.get("user_state") or {}
+    user = payload.get("user") or {}
+    lines = []
+    lines.append(f"name: {user.get('display_name') or 'unknown'}")
+    lines.append(f"profile set: {'yes' if (user.get('profile') or '').strip() else 'no'}")
+    lines.append(f"connected services: {', '.join(st.get('connected') or []) or 'none'}")
+    if st.get("pending"):
+        lines.append(f"connection in progress: {', '.join(st['pending'])}")
+    lines.append(f"available services: {', '.join(st.get('available') or ['gmail', 'googlecalendar'])}")
+    if st.get("is_new"):
+        lines.append("this is the person's FIRST conversation with you")
+    return "\n".join(lines)
+
+
 def chat(payload: dict[str, Any]) -> dict[str, Any]:
     intents: list[dict[str, Any]] = []
-    profile = os.environ.get("USER_PROFILE", "(no profile provided)")
+    user = payload.get("user") or {}
     agent = Agent(
         model=_model(),
-        system_prompt=CHAT_SYSTEM_PROMPT.format(profile=profile, now=payload.get("now_iso", ""), language=user_language()),
+        system_prompt=CHAT_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
+                                                language=user_language(user.get("language")), user_state=render_user_state(payload)),
         tools=make_tools(payload, intents),
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,

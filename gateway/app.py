@@ -14,7 +14,7 @@ from adapters.composio.webhook import (
 from core import db
 from core.config import get_settings
 from core.log import configure_logging, get_logger
-from core.repo import observation_repo
+from core.repo import observation_repo, user_repo
 
 log = get_logger("gateway")
 
@@ -54,7 +54,16 @@ def create_app(database_url: str | None = None) -> FastAPI:
             log.warning("webhook.rejected", reason=str(e))
             return Response(status_code=401)
         event = parse_envelope(raw)
-        obs = to_observation(event, settings.USER_ID)
+        cuid = str((event.get("metadata") or {}).get("user_id") or "")
+        user_id = settings.USER_ID
+        if cuid and cuid != settings.COMPOSIO_USER_ID:
+            async with db.connection() as conn:
+                user = await user_repo.get_by_composio(conn, cuid)
+            if user is None:
+                log.warning("webhook.unknown_user", composio_user_id=cuid)
+                return Response(status_code=200, content='{"stored":false,"reason":"unknown_user"}', media_type="application/json")
+            user_id = user["id"]
+        obs = to_observation(event, user_id)
         if obs is None:
             return Response(status_code=200, content='{"stored":false,"reason":"unknown_trigger"}', media_type="application/json")
         async with db.connection() as conn:

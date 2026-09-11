@@ -15,7 +15,7 @@ from core.config import Settings
 from core.embeddings import Embedder
 from core.log import get_logger
 from core.models import Observation
-from core.repo import job_repo, memory_repo, observation_repo
+from core.repo import job_repo, memory_repo, observation_repo, user_repo
 from core.routing import control_text
 
 log = get_logger("workers.chat")
@@ -101,11 +101,24 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
 
 
 async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents: list[dict[str, Any]], *,
-                        embedder: Embedder, on_draft=None) -> list[str]:
+                        embedder: Embedder, on_draft=None, registry=None, notifier=None) -> list[str]:
     applied: list[str] = []
     for it in intents:
         kind = it.get("intent")
         try:
+            if kind == "ConnectRequest":
+                from workers import onboarding
+
+                user = await user_repo.get(conn, obs.user_id)
+                if user is not None and notifier is not None:
+                    await notifier.send_text(await onboarding.start_connection(conn, user, str(it.get("service") or ""), registry))
+                    applied.append("ConnectRequest")
+                continue
+            if kind == "ProfileUpdate":
+                fields = {k: (it.get(k) or "").strip() or None for k in ("profile", "language", "timezone", "display_name")}
+                await user_repo.update(conn, obs.user_id, **fields)
+                applied.append("ProfileUpdate")
+                continue
             if kind == "MemoryWrite" and it.get("text"):
                 vec = await embedder.embed(it["text"])
                 await memory_repo.insert(conn, obs.user_id, it["text"], vec, source_observation_id=obs.id)
@@ -131,11 +144,26 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
     return applied
 
 
+async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry=None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """(user dict for the agent, user_state for onboarding). Falls back to env-configured single user."""
+    from workers import onboarding
+
+    user = await user_repo.get(conn, obs.user_id)
+    if user is None:
+        return {}, {}
+    u = {"display_name": user.get("display_name"), "profile": user.get("profile") or "", "language": user.get("language") or "en",
+         "timezone": user.get("timezone") or "UTC"}
+    return u, await onboarding.user_state(conn, user, registry)
+
+
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
-                   embedder: Embedder, now: datetime | None = None, contact_search=None) -> tuple[str, list[dict[str, Any]]]:
+                   embedder: Embedder, now: datetime | None = None, contact_search=None, registry=None,
+                   user: dict | None = None, state: dict | None = None) -> tuple[str, list[dict[str, Any]]]:
     """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
     now = now or datetime.now(tz=UTC)
     text = control_text(obs) or ""
+    if user is None:
+        user, state = await user_payload(conn, obs, registry)
     history = await build_history(conn, obs)
     recent = await recent_observations(conn, obs.user_id, settings, since=now - timedelta(hours=RECENT_HOURS))
     try:
@@ -144,8 +172,15 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     except Exception as e:  # noqa: BLE001
         log.warning("chat.memory_search_failed", error=str(e))
         memory_hits = []
+    tz = (user or {}).get("timezone") or settings.TIMEZONE
+    try:
+        from zoneinfo import ZoneInfo
+
+        now_local = now.astimezone(ZoneInfo(tz))
+    except Exception:  # noqa: BLE001
+        now_local = now.astimezone()
     payload = {"message": text, "history": history, "recent_observations": recent, "memory_hits": memory_hits,
-               "now_iso": now.astimezone().isoformat(), "timezone": settings.TIMEZONE}
+               "now_iso": now_local.isoformat(), "timezone": tz, "user": user or {}, "user_state": state or {}}
     reply, intents = "", []
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
@@ -187,7 +222,8 @@ async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, f
 
 
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
-                         notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None) -> str:
+                         notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None,
+                         registry=None) -> str:
     now = now or datetime.now(tz=UTC)
     received = obs.received_at or obs.occurred_at
     if now - received > STALE_AFTER:
@@ -202,13 +238,19 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     send = getattr(notifier, "send_rich", None) or notifier.send_text
     text = control_text(obs) or ""
 
+    user, state = await user_payload(conn, obs, registry)
+    onboarding_needed = bool(state.get("is_new"))   # first conversation: the full agent greets and offers connections
+
     # Stage 1 — first reflex (fast model): a natural "let me check…" or, for simple things, the answer itself.
+    # Skipped while onboarding: the full agent must run so it can greet, ask and connect.
     ack = None
-    try:
-        history = await build_history(conn, obs, turns=4)
-        ack = await agent.chat_ack({"message": text, "history": history, "now_iso": now.astimezone().isoformat()})
-    except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
-        log.warning("chat.ack_failed", error=str(e))
+    if not onboarding_needed:
+        try:
+            history = await build_history(conn, obs, turns=4)
+            ack = await agent.chat_ack({"message": text, "history": history, "now_iso": now.astimezone().isoformat(),
+                                        "user": user, "user_state": state})
+        except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
+            log.warning("chat.ack_failed", error=str(e))
     if ack and ack["message"]:
         mid = await send(ack["message"])
         await observation_repo.insert(conn, Observation(
@@ -224,7 +266,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
 
     # Stage 2 — the real work (tools, memory, intents).
     reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
-                                    contact_search=contact_search)
+                                    contact_search=contact_search, registry=registry, user=user, state=state)
+    if state.get("is_new"):
+        await user_repo.merge_state(conn, obs.user_id, {"greeted": True})
     if not reply:
         reply = "(no reply)"
     mid = await send(reply)
@@ -233,6 +277,6 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
         occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,
         payload={"text": reply, "in_reply_to": str(obs.id), "intents": [i.get("intent") for i in intents]},
     ))
-    applied = await apply_intents(conn, obs, intents, embedder=embedder, on_draft=on_draft)
+    applied = await apply_intents(conn, obs, intents, embedder=embedder, on_draft=on_draft, registry=registry, notifier=notifier)
     log.info("chat.replied", observation_id=str(obs.id), intents=applied)
     return reply

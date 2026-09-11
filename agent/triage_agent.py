@@ -5,14 +5,13 @@ The prompt is source-agnostic: it renders the observation payload as a key/value
 event or a WhatsApp message goes through the same template (phase 5 gate)."""
 from __future__ import annotations
 
-import os
 import time
 from functools import lru_cache
 from typing import Any
 
 from strands import Agent
 
-from agent.model import build_model, model_id, user_language
+from agent.model import build_model, model_id, user_language, user_profile
 from agent.schemas import TriageResult
 
 TRIAGE_SYSTEM_PROMPT = """You triage incoming events for one person and rate how urgently they need to see each one.
@@ -77,20 +76,22 @@ def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | 
 
 
 @lru_cache
-def _agent() -> Agent:
-    profile = os.environ.get("USER_PROFILE", "(no profile provided)")
-    language = user_language()
+def _model():
+    return build_model("triage", temperature=0.0, max_tokens=512)
+
+
+def _agent(observation: dict[str, Any]) -> Agent:
+    user = observation.get("user") or {}
     return Agent(
-        model=build_model("triage", temperature=0.0, max_tokens=512),
-        system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=profile, language=language),
+        model=_model(),
+        system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=user_profile(observation), language=user_language(user.get("language"))),
         callback_handler=None,
     )
 
 
 def triage(observation: dict[str, Any], sender_context: dict[str, Any] | None = None) -> tuple[TriageResult, dict[str, Any]]:
-    """Returns (result, meta) where meta has model_id and latency_ms. Stateless: a fresh message list per call."""
-    agent = _agent()
-    agent.messages = []  # never carry history between observations
+    """Returns (result, meta) where meta has model_id and latency_ms. Stateless: a fresh agent per call."""
+    agent = _agent(observation)
     t0 = time.perf_counter()
     result = agent(render_prompt(observation, sender_context), structured_output_model=TriageResult)
     latency_ms = int((time.perf_counter() - t0) * 1000)

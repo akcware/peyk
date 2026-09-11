@@ -20,7 +20,7 @@ from core.config import Settings
 from core.identity import display_name_from_header, normalize_email
 from core.log import get_logger
 from core.models import Content, Observation
-from core.repo import budget_repo, identity_repo, job_repo, observation_repo
+from core.repo import budget_repo, identity_repo, job_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
 from workers import chat, commands, contacts, feedback, gate, gate_state, ticks
 
@@ -152,7 +152,9 @@ async def sender_context(conn, obs: Observation) -> dict | None:
 
 async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifier: Notifier, now: datetime) -> gate.Decision:
     ctx = await sender_context(conn, obs)
-    observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload}
+    user = await user_repo.get(conn, obs.user_id) or {}
+    observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload,
+                   "user": {"profile": user.get("profile") or "", "language": user.get("language") or "", "display_name": user.get("display_name")}}
     result, meta = await agent.triage(observation, ctx)
     await budget_repo.insert_triage(conn, obs.id, urgency=result.urgency, category=result.category, reason=result.reason,
                                     summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
@@ -180,11 +182,15 @@ async def handle_command(conn, obs: Observation, *, settings: Settings, notifier
     await notifier.send_text("Commands: /remind <1h|09:30|tomorrow [09:30]> <note>")
 
 
-async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier,
+async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, notifier: Notifier | None = None,
                  now: datetime | None = None, tick_ctx: ticks.TickContext | None = None,
-                 embedder=None, approval=None) -> None:
+                 embedder=None, approval=None, notifiers=None) -> None:
     now = now or datetime.now(tz=UTC)
     async with db.connection() as conn:
+        if notifier is None and notifiers is not None:
+            notifier = await notifiers.for_user(conn, obs.user_id)
+        if approval is not None and notifier is not None:
+            approval.notifier = notifier
         if is_control_channel(obs, settings):
             if is_callback(obs):
                 if approval is not None and (callback_data(obs) or "").startswith("act:"):
@@ -200,7 +206,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 registry = tick_ctx.registry if tick_ctx else None
                 await chat.handle_message(conn, obs, settings=settings, agent=agent, notifier=notifier,
                                           embedder=embedder, on_draft=approval.on_draft if approval else None,
-                                          contact_search=contacts.make_contact_search(registry, obs.user_id))
+                                          contact_search=contacts.make_contact_search(registry, obs.user_id), registry=registry)
             return
         if obs.kind == "tick":
             ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)
@@ -214,19 +220,18 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
         await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
 
 
-async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier, idle_sleep: float = 1.0,
-              tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None) -> None:
-    user_id = settings.USER_ID
+async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier | None = None, idle_sleep: float = 1.0,
+              tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None, notifiers=None) -> None:
     while True:
         async with db.connection() as conn:
-            obs = await queue.claim_next(conn, user_id)
+            obs = await queue.claim_next(conn, None)   # all users
         if obs is None:
             await asyncio.sleep(idle_sleep)
             continue
         slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
         try:
             await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
-                         embedder=embedder, approval=approval)
+                         embedder=embedder, approval=approval, notifiers=notifiers)
             async with db.connection() as conn:
                 await queue.complete(conn, obs.id)
             slog.info("triage.done")

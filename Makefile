@@ -43,6 +43,9 @@ gate-4: test-db
 gate-5: test-db
 	uv run pytest -q tests/phase5
 
+gate-multiuser: test-db
+	uv run pytest -q tests/multiuser
+
 gate-0: test-db
 	uv run pytest -q tests/phase0
 
