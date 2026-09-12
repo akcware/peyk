@@ -44,7 +44,10 @@ line-length = 100
 target-version = "py312"
 
 [tool.setuptools]
-packages = ["core", "core.repo", "adapters", "adapters.composio", "adapters.telegram", "adapters.whatsapp", "gateway", "workers", "agent", "db"]
+packages = ["core", "core.repo", "adapters", "adapters.composio", "adapters.telegram", "adapters.whatsapp", "gateway", "workers", "agent", "db", "db.migrations"]
+
+[tool.setuptools.package-data]
+"db.migrations" = ["*.sql"]
 
 [build-system]
 requires = ["setuptools>=75"]
