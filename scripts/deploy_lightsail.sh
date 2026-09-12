@@ -17,7 +17,7 @@ POWER="${LIGHTSAIL_POWER:-micro}"
 AWS_PROFILE_ADMIN="${LIGHTSAIL_ADMIN_PROFILE:-default}"   # the profile that may manage Lightsail
 KEY_PROFILE="${PEYK_KEY_PROFILE:-peyk}"                  # the profile whose key the container will use
 
-envval() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' | sed -E 's/^"(.*)"$/\1/'; }
+envval() { { grep -E "^$1=" .env || true; } | head -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' | sed -E 's/^"(.*)"$/\1/'; }
 need() { [ -n "$(envval "$1")" ] || { echo "missing $1 in .env" >&2; exit 1; }; }
 
 if [ "${1:-}" = "--logs" ]; then

@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 APP="${FLY_APP:-peyk}"
 KEY_PROFILE="${PEYK_KEY_PROFILE:-peyk}"
 
-envval() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' | sed -E 's/^"(.*)"$/\1/'; }
+envval() { { grep -E "^$1=" .env || true; } | head -1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//' | sed -E 's/^"(.*)"$/\1/'; }
 need() { [ -n "$(envval "$1")" ] || { echo "missing $1 in .env" >&2; exit 1; }; }
 
 if [ "${1:-}" = "--logs" ]; then exec flyctl logs -a "$APP"; fi
