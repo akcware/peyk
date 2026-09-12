@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 
 from agent.client import AgentClient
@@ -17,6 +18,8 @@ log = get_logger("workers.main")
 
 async def main() -> None:
     settings = get_settings()
+    if os.environ.get("AWS_PROFILE", None) == "":   # an empty profile name makes boto3 fail; treat as unset
+        del os.environ["AWS_PROFILE"]
     export_agent_env(settings)
     configure_logging(settings.LOG_LEVEL)
     await db.open_pool(settings.DATABASE_URL)

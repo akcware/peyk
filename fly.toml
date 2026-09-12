@@ -10,7 +10,6 @@ primary_region = "iad"          # us-east: close to Bedrock us-east-1 and the Ne
   LOG_LEVEL = "INFO"
   COMPOSIO_DELIVERY = "ws"
   AGENT_MODE = "local"
-  AWS_PROFILE = ""
 
 [processes]
   workers = "workers"
