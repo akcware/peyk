@@ -179,15 +179,15 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .ph-date,.mini__quiet{background:var(--tg-service);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);color:#fff;font-size:13px;font-weight:600;line-height:1.25;padding:4px 10px 5px;border-radius:13px;text-align:center}
 .ph-date{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:2;white-space:nowrap}
 /* input panel */
-.ph-input{flex:none;background:var(--tg-bar);border-top:.5px solid #BEC2C6;padding:6px 8px 6px;display:flex;align-items:center;gap:7px}
+.ph-input{flex:none;background:var(--tg-bar);border-top:.5px solid #BEC2C6;padding:6px 8px 6px;display:flex;align-items:flex-end;gap:7px}
 .ph-input svg{display:block;stroke:#000;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .ph-clip{width:23px;height:23px;flex:none;opacity:.9}
-.ph-field{flex:1;min-width:0;background:rgba(255,255,255,.8);border:1px solid rgba(0,0,0,.1);border-radius:18px;min-height:35px;padding:6px 34px 6px 12px;position:relative;font-size:15px;display:flex;align-items:center;overflow:hidden}
+.ph-field{flex:1;min-width:0;background:rgba(255,255,255,.8);border:1px solid rgba(0,0,0,.1);border-radius:18px;min-height:35px;padding:6px 34px 6px 12px;position:relative;font-size:15px;line-height:21px;display:flex;align-items:center;overflow:hidden}
 .tg-input__ph{color:rgba(0,0,0,.4);position:absolute;left:12px}
-.tg-input__text{white-space:nowrap;color:#000}
+.tg-input__text{white-space:normal;overflow-wrap:anywhere;min-width:0;color:#000}
 .tg-input__text:not(:empty)+.tg-input__ph{display:none}
 .tg-input__text:not(:empty)::after{content:"";display:inline-block;width:1.5px;height:17px;background:var(--tg-ios);margin-left:1px;vertical-align:-4px;animation:blink 1s steps(2) infinite}
-.ph-emoji{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:22px;height:22px;stroke:rgba(0,0,0,.5)!important}
+.ph-emoji{position:absolute;right:7px;bottom:6px;width:22px;height:22px;stroke:rgba(0,0,0,.5)!important}
 .ph-emoji circle[fill]{fill:rgba(0,0,0,.5)}
 .ph-mic{width:24px;height:24px;flex:none;opacity:.9}
 .ph-send{width:32px;height:32px;border-radius:50%;background:var(--tg-ios);display:none;place-items:center;flex:none}
