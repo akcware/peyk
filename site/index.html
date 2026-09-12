@@ -3,9 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Peyk</title>
+<title>Peyk — Reads everything. Knocks only when it matters.</title>
 <link rel="canonical" href="https://peyk.chat/">
 <meta property="og:url" content="https://peyk.chat/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Peyk">
+<meta property="og:title" content="Peyk — Reads everything. Knocks only when it matters.">
+<meta property="og:description" content="A personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
+<meta property="og:image" content="https://peyk.chat/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Peyk: reads everything, knocks only when it matters.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Peyk — Reads everything. Knocks only when it matters.">
+<meta name="twitter:description" content="A personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
+<meta name="twitter:image" content="https://peyk.chat/og.png">
 <meta name="description" content="Peyk — a personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
 <meta name="theme-color" content="#0F2620">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
@@ -90,7 +102,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 /* ---------- hero ---------- */
 .hero{padding-block:clamp(3rem,7vw,6rem) clamp(4rem,9vw,7rem);position:relative;overflow:hidden}
 .hero .wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:3rem;align-items:center}
-@media (min-width:900px){.hero .wrap{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:4rem}}
+@media (min-width:900px){.hero .wrap{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:1.75rem 4rem}.hero__copy{align-self:end}.hero__phone{grid-column:2;grid-row:1/3}.hero .lex{grid-column:1;align-self:start}}
 .hero__copy{display:grid;gap:1.5rem;max-width:36rem}
 .hero__ctas{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.4rem}
 .hero__note{font-size:.92rem;color:var(--sage);max-width:44ch}
@@ -99,7 +111,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 @media (min-width:900px){.hero__phone{justify-content:flex-end}}
 
 /* dictionary entry */
-.lex{margin-top:.25rem;padding-top:1.1rem;border-top:1px solid var(--line);max-width:34rem;color:var(--sage);font-size:.95rem;line-height:1.5}
+.lex{margin-top:0;padding-top:1.1rem;border-top:1px solid var(--line);max-width:34rem;color:var(--sage);font-size:.95rem;line-height:1.5}
 .lex__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .65rem;margin-bottom:.5rem}
 .lex__hw{font-family:var(--serif);font-weight:500;font-size:1.65rem;line-height:1;letter-spacing:-.01em;color:var(--ivory)}
 .lex__ipa{font-family:var(--serif);font-style:italic;color:var(--sage)}
@@ -298,6 +310,15 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .case{display:grid;gap:1rem;padding:1.4rem;border-radius:14px;background:var(--bg-2);border:1px solid var(--line);align-content:start}
 .case h3{font-family:var(--serif);font-weight:500;font-size:1.45rem;letter-spacing:-.01em}
 .case p{color:var(--muted);font-size:.95rem}
+.tabs{display:none;flex-wrap:wrap;gap:.5rem;margin-bottom:1.25rem}
+.js .tabs{display:flex}
+.tab{font:inherit;font-weight:500;font-size:.95rem;line-height:1;padding:.65rem 1.05rem;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease}
+.tab:hover{border-color:var(--g9);color:var(--g9)}
+.tab:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.tab.is-active{background:var(--g9);border-color:var(--g9);color:var(--ivory)}
+.js .cases{grid-template-columns:1fr}
+.js .case:not(.is-active){display:none}
+@media (min-width:700px){.js .case{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);grid-template-rows:auto 1fr;gap:.9rem 2.5rem;padding:1.8rem 1.9rem}.js .case h3,.js .case p{grid-column:1}.js .case .mini{grid-column:2;grid-row:1/3;align-self:start}}
 .mini{background:var(--tg-wall);background-size:120px 120px,100% 100%,100% 100%,100% 100%,100% 100%,100% 100%;border-radius:12px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:5px;font-family:var(--ui);font-size:14px;line-height:1.3}
 .mini__b{max-width:88%}
 .mini__q{max-width:82%}
@@ -334,6 +355,13 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .step .mini{margin-top:.2rem}
 .onb-claim{margin-top:2rem;font-family:var(--serif);font-size:clamp(1.3rem,2.4vw,1.7rem);color:var(--fg)}
 .onb-claim span{color:var(--muted)}
+
+/* ---------- closing ---------- */
+.closing{text-align:center}
+.closing__inner{display:grid;gap:1.25rem;justify-items:center;max-width:42rem;margin:0 auto}
+.closing .lede{text-align:center}
+.closing__ctas{justify-content:center;margin-top:.4rem}
+.closing__note{font-size:.92rem;color:var(--muted)}
 
 /* ---------- footer ---------- */
 .foot__logo{display:block;width:min(300px,70%);height:auto;margin:0 auto 1.6rem;color:var(--ivory)}
@@ -385,14 +413,6 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         <a class="btn btn--ghost" href="#benefits">See what it does</a>
       </div>
       <p class="hero__note">Free and open source. Your mail stays yours: it reads, it asks, it never sends on its own.</p>
-      <aside class="lex" aria-label="Dictionary entry: peyk">
-        <p class="lex__head"><span class="lex__hw">peyk</span> <span class="lex__ipa">/peɪk/</span> <span class="lex__pos">noun</span> <span class="lex__ety">Turkish, from Persian <span lang="fa" dir="rtl">پیک</span></span></p>
-        <ol class="lex__senses">
-          <li>messenger, courier; historically a runner who carried the ruler's messages.</li>
-          <li>satellite; one that attends and keeps watch.</li>
-        </ol>
-        <p class="lex__ex">— "Peyk brings you only what matters."</p>
-      </aside>
     </div>
     <div class="hero__phone">
       <div class="phone" id="phone" aria-hidden="true">
@@ -419,6 +439,14 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
       </div>
       <p class="sr-only">Example Telegram conversation. Peyk sends a notification: Mara Lindqvist wants to move Thursday's review and needs an answer before 5 pm, with buttons useful, noise, and mute thread under it. You ask who mailed you today; Peyk says "Sure, checking today's mail" and lists three items worth your time. You ask it to write to Mara that the meeting moves to tomorrow; it shows a draft with Send, Edit and Cancel buttons. You tap Edit and say "make it 3 pm"; it shows a new draft. You tap Send; Peyk confirms "Sent to Mara".</p>
     </div>
+      <aside class="lex" aria-label="Dictionary entry: peyk">
+        <p class="lex__head"><span class="lex__hw">peyk</span> <span class="lex__ipa">/peɪk/</span> <span class="lex__pos">noun</span> <span class="lex__ety">Turkish, from Persian <span lang="fa" dir="rtl">پیک</span></span></p>
+        <ol class="lex__senses">
+          <li>messenger, courier; historically a runner who carried the ruler's messages.</li>
+          <li>satellite; one that attends and keeps watch.</li>
+        </ol>
+        <p class="lex__ex">— "Peyk brings you only what matters."</p>
+      </aside>
   </div>
 </section>
 
@@ -518,8 +546,14 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
       <h2 id="h-cases">Four very different days. One quiet phone.</h2>
       <p class="lede">Everyone gets their own budget, memory and time zone. What counts as worth a knock is learned from what you tap, not from a rulebook.</p>
     </div>
+    <div class="tabs rv" role="tablist" aria-label="Pick a day" id="caseTabs">
+      <button class="tab" role="tab" type="button" id="tab-freelancer" aria-controls="case-freelancer" aria-selected="true">The freelancer</button>
+      <button class="tab" role="tab" type="button" id="tab-student" aria-controls="case-student" aria-selected="false">The student</button>
+      <button class="tab" role="tab" type="button" id="tab-oncall" aria-controls="case-oncall" aria-selected="false">The on-call engineer</button>
+      <button class="tab" role="tab" type="button" id="tab-parent" aria-controls="case-parent" aria-selected="false">The parent</button>
+    </div>
     <div class="cases">
-      <article class="case rv">
+      <article class="case rv" id="case-freelancer" role="tabpanel" aria-labelledby="tab-freelancer">
         <h3>The freelancer</h3>
         <p>Clients, invoices, and a pile of tool newsletters. Money and signed contracts get through; digests wait.</p>
         <div class="mini" aria-label="Example conversation">
@@ -529,17 +563,17 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
           <div class="mini__quiet">12 newsletters and 3 receipts wait for the morning brief</div>
         </div>
       </article>
-      <article class="case rv" style="--d:80ms">
+      <article class="case rv" id="case-student" role="tabpanel" aria-labelledby="tab-student">
         <h3>The student, apartment-hunting in a new city</h3>
         <p>Landlord replies are rare and time-critical. Listing digests and the faculty newsletter are neither.</p>
         <div class="mini" aria-label="Example conversation">
-          <div class="mini__b"><b>❗ Frau Weber</b> offers a viewing tomorrow at 17:00 and wants a reply today to hold the slot.<span class="msg__meta">11:40</span></div>
+          <div class="mini__b"><b>❗ Ms Weber</b> offers a viewing tomorrow at 17:00 and wants a reply today to hold the slot.<span class="msg__meta">11:40</span></div>
           <div class="mini__q">am I free then?<span class="msg__meta">11:41<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
           <div class="mini__b">Yes. Your last lecture ends at 15:30 and the evening is empty. Want me to confirm the viewing?<span class="msg__meta">11:41</span></div>
           <div class="mini__quiet">4 listing digests wait for the brief</div>
         </div>
       </article>
-      <article class="case rv" style="--d:160ms">
+      <article class="case rv" id="case-oncall" role="tabpanel" aria-labelledby="tab-oncall">
         <h3>The on-call engineer</h3>
         <p>An alert at 23:10 must wake you, quiet hours or not. The weekly on-call report can wait until eight.</p>
         <div class="mini" aria-label="Example conversation">
@@ -549,13 +583,13 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
           <div class="mini__quiet">Sent during quiet hours. Emergencies always get through.</div>
         </div>
       </article>
-      <article class="case rv" style="--d:240ms">
+      <article class="case rv" id="case-parent" role="tabpanel" aria-labelledby="tab-parent">
         <h3>The parent</h3>
-        <p>School and kita mail is a stream of planning days and bake sales. A family emergency gets through anyway.</p>
+        <p>School and daycare mail is a stream of planning days and bake sales. A family emergency gets through anyway.</p>
         <div class="mini" aria-label="Example conversation">
           <div class="mini__b"><b>❗ Leo's school</b>: Leo is unwell and they ask you to call.<span class="msg__meta">13:02</span></div>
           <div class="mini__q">what's the number?<span class="msg__meta">13:04<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
-          <div class="mini__b">030 4409 8812, the office line from their mail. Want me to remind you about the kita's planning day on Monday?<span class="msg__meta">13:04</span></div>
+          <div class="mini__b">030 4409 8812, the office line from their mail. Want me to remind you about the daycare's planning day on Monday?<span class="msg__meta">13:04</span></div>
           <div class="mini__quiet">Today's budget was used up. This one came through anyway.</div>
         </div>
       </article>
@@ -576,7 +610,7 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
           <label class="ctl__label" for="quota"><span>Knocks per day</span><output id="quotaOut" for="quota">5</output></label>
           <input type="range" id="quota" min="1" max="10" value="5" step="1">
           <div class="slots" id="slots" aria-hidden="true"></div>
-          <p class="ctl__hint">One slot is always kept for emergencies. The dashed one fills only when something can't wait.</p>
+          <p class="ctl__hint">Emergencies don't count against it. The dashed slot is theirs, and it opens even at night.</p>
         </div>
         <div class="ctl">
           <button class="switch" id="quiet" role="switch" aria-checked="true"><span class="switch__track" aria-hidden="true"></span><span>Quiet hours 22:00–07:00</span></button>
@@ -689,9 +723,26 @@ I'll tell you when it's linked.<span class="msg__meta">08:03</span></div><div cl
   </div>
 </section>
 
+<!-- 10. Closing -->
+<section class="band band--ivory closing" aria-labelledby="h-close">
+  <div class="wrap">
+    <div class="closing__inner rv">
+      <h2 id="h-close">Ready when you are.</h2>
+      <p class="lede">Say hi to the bot. Two minutes later it's watching your inbox, and it won't knock until something matters.</p>
+      <div class="hero__ctas closing__ctas">
+        <a class="btn btn--amber" href="https://t.me/proactiveagent_bot" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.3 2.9 10.5c-1.1.4-1.1 1.1-.2 1.4l4.7 1.5 1.8 5.6c.2.6.4.8 1 .8.6 0 .8-.3 1.2-.6l2.6-2.5 4.9 3.6c.9.5 1.5.2 1.8-.8L23.7 4.7c.3-1.3-.5-1.9-2.1-1.4ZM9 13.4l9.6-6.1c.5-.3.9-.1.5.2l-8 7.2-.3 3.3L9 13.4Z"/></svg>
+          Message the bot on Telegram
+        </a>
+      </div>
+      <p class="closing__note">Free and open source. Leaving takes one sentence.</p>
+    </div>
+  </div>
+</section>
+
 </main>
 
-<!-- 10. Footer -->
+<!-- 11. Footer -->
 <footer class="foot">
   <div class="wrap">
     <svg class="foot__logo" viewBox="0 0 520 200" role="img" aria-label="Peyk"><g transform="rotate(-9 260 108)"><ellipse cx="260" cy="108" rx="228" ry="62" fill="none" stroke="currentColor" stroke-width="2.5"/></g><path transform="translate(119.83 146)" d="M64.70400390625 -66.09918359375Q64.70400390625 -72.857578125 61.932814453125 -77.567974609375Q59.161625 -82.27837109375 52.857654296875 -84.723169921875Q46.55368359375 -87.16796875 35.89133984375 -87.16796875H22.06729296875L22.34891015625 -91.52H48.192195312500004Q60.17300390625 -91.52 67.533009765625 -88.217595703125Q74.893015625 -84.91519140625 78.29141796875001 -79.30878515625Q81.6898203125 -73.70237890625 81.6898203125 -66.77757421875Q81.6898203125 -59.699171875000005 78.189017578125 -53.7535703125Q74.68821484375 -47.80796875 67.296208984375 -44.27516796875Q59.904203125 -40.7423671875 48.192195312500004 -40.7423671875H22.34891015625L22.06729296875 -45.094398437500004H42.77765234375Q49.08804296875 -45.094398437500004 54.054431640625 -47.475197265625Q59.0208203125 -49.85599609375 61.862412109375 -54.54079296875Q64.70400390625 -59.22558984375 64.70400390625 -66.09918359375ZM32.128191406250004 -91.52V-4.73601171875L43.12336328125 -1.97120703125V0.0H4.08318359375V-1.97120703125L15.07835546875 -4.73601171875V-86.84798828125L4.08318359375 -89.5359921875V-91.52Z M113.3648359375 -66.9440078125Q120.52006250000001 -66.9440078125 125.72967578125 -64.038400390625Q130.9392890625 -61.13279296875 133.966494140625 -55.539181640625Q136.99369921875 -49.9455703125 137.5825 -41.84316015625H94.90728125000001V-45.9775859375H129.72325L123.14395312500001 -43.22557421875Q122.58075781250001 -50.4319921875 121.12796875000001 -54.860792968750005Q119.6751796875 -59.28959375 117.27519531250002 -61.350388671875Q114.87521093750001 -63.41118359375 111.36803125 -63.41118359375Q106.74726562500001 -63.41118359375 103.451291015625 -60.6976015625Q100.15531640625001 -57.98401953125 98.408130859375 -52.518435546875Q96.6609453125 -47.0528515625 96.6609453125 -38.80964453125Q96.6609453125 -28.364859375 99.310537109375 -21.875271484375002Q101.96012890625 -15.38568359375 107.05451562500001 -12.409689453125Q112.14890234375001 -9.4336953125 119.50888671875 -9.4336953125Q123.01608593750001 -9.4336953125 126.29287890625001 -10.3424921875Q129.569671875 -11.2512890625 132.51366992187502 -13.132886718750001Q135.45766796875 -15.014484375 137.80008203125 -17.93288671875L138.99049218750002 -17.036875000000002Q134.85608203125003 -10.17604296875 130.69607226562502 -6.137625Q126.53606250000001 -2.09920703125 121.97285156250001 -0.3455996093750001Q117.40964062500001 1.4080078125 111.98242578125002 1.4080078125Q103.29120312500001 1.4080078125 96.44319335937502 -2.3871953125Q89.59518359375001 -6.1823984375 85.67838085937501 -13.542400390625001Q81.76157812500001 -20.90240234375 81.76157812500001 -31.564796875Q81.76157812500001 -41.11359765625 85.44798242187501 -49.158400390625005Q89.13438671875001 -57.203203125 96.21279882812502 -62.07360546875Q103.29121093750001 -66.9440078125 113.3648359375 -66.9440078125Z M182.800140625 -14.2337109375 174.94086328125002 3.0208828125 143.35034765625002 -60.953597656250004 135.59357421875 -63.46240234375V-65.536H168.79694140625003V-63.424L160.02897265625 -61.20960546875ZM153.37287890625 29.6319921875Q149.0848671875 29.6319921875 146.28166015625 27.404783203125Q143.47845312500002 25.17757421875 143.47845312500002 20.97915625Q143.47845312500002 19.03355078125 144.14405468750002 17.72154296875Q144.80965625000002 16.40953515625 145.82725781250002 15.737529296875Q146.844859375 15.0655234375 147.75366015625002 15.0655234375Q148.52165234375002 15.0655234375 149.89765429687503 15.807921875000002Q151.27365625000002 16.550320312500002 153.30886328125 17.299119140625002Q155.3440703125 18.04791796875 157.968078125 18.04791796875Q161.09129296875003 18.04791796875 163.39530078125 17.241521484375Q165.69930859375 16.435125 167.5745078125 14.239939453125Q169.44970703125 12.04475390625 171.22889843750002 7.935984375L175.82405859375 -2.73910546875L179.75373437500002 -12.18567578125L196.26575000000003 -61.56800390625L187.292984375 -63.424V-65.536H209.39851953125003V-63.424L201.57774609375002 -61.5936015625L175.14575390625 8.230296875Q172.0353359375 16.38393359375 168.745724609375 21.043154296875002Q165.45611328125 25.702375 161.705703125 27.66718359375Q157.95529296875 29.6319921875 153.37287890625 29.6319921875Z M237.43857031250002 -38.6048359375 242.16189453125003 -43.161746093750004 275.09619140625 -3.75041015625 281.8801640625 -1.8048046875000001V0.0H249.25284765625003V-1.8048046875000001L257.09919140625004 -3.5456054687500003L231.2945703125 -34.29119921875H227.51850390625V-37.5808203125H231.8705625L261.46412890625004 -61.32479296875L251.85131640625002 -63.424V-65.536H277.42577734375004V-63.424L267.620953125 -61.20959375ZM230.65455859375 -3.7888085937500002 238.94890625000002 -1.8048046875000001V0.0H207.2048046875V-1.8048046875000001L215.62716015625 -3.7888085937500002V-82.2910859375Q214.79516015625 -82.76469140625001 213.297560546875 -83.6031015625Q211.7999609375 -84.44151171875001 209.7519609375 -85.59992578125001Q207.7039609375 -86.75833984375001 205.20796093750002 -88.19195703125V-89.53596875L230.104140625 -95.1040078125H230.65455859375V-83.916765625Z" fill="currentColor"/><g transform="rotate(-9 260 108)"><path d="M32 108A228 62 0 0 0 488 108" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="420" cy="151" r="11" fill="#F3B54A"/></g></svg>
@@ -735,7 +786,7 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   var CHECK = '<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg>';
   var NOTIF = { t:'notif', at:'20:29', head:'❗ Mara Lindqvist · gmail\nRe: Thursday review',
     text:'Wants to move Thursday\'s review and needs an answer before 5 pm.', wait:2800 };
-  var LIST = 'Three worth your time:\n• Mara wants to move Thursday\'s review.\n• Invoice #2041 from Halden & Co is due Friday.\n• Kita is closed on Monday, planning day.\nThe other 41 are newsletters and receipts. They\'ll be in tomorrow\'s brief.';
+  var LIST = 'Three worth your time:\n• Mara wants to move Thursday\'s review.\n• Invoice #2041 from Halden & Co is due Friday.\n• Daycare is closed on Monday, planning day.\nThe other 41 are newsletters and receipts. They\'ll be in tomorrow\'s brief.';
   var D1 = 'Hi Mara, let\'s move the review to tomorrow, same time. Does that work for you?\n\nBest,\nAlex';
   var D2 = 'Hi Mara, let\'s move the review to tomorrow at 3 pm. Does that work for you?\n\nBest,\nAlex';
 
@@ -862,19 +913,42 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   }, 120); });
 })();
 
+/* ---------- 3b. use cases: tabs ---------- */
+(function(){
+  var tabs = [].slice.call(document.querySelectorAll('#caseTabs .tab'));
+  if (!tabs.length) return;
+  var panels = tabs.map(function(t){ return $(t.getAttribute('aria-controls')); });
+  function activate(i, focus){
+    tabs.forEach(function(t, k){
+      var on = k === i;
+      t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1;
+      panels[k].classList.toggle('is-active', on); if (on) panels[k].classList.add('in');
+    });
+    if (focus) tabs[i].focus();
+  }
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(){ activate(i); });
+    t.addEventListener('keydown', function(e){
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return;
+      e.preventDefault(); activate((i + d + tabs.length) % tabs.length, true);
+    });
+  });
+  activate(0);
+})();
+
 /* ---------- 4. interruption budget ---------- */
 (function(){
   var mailsEl = $('mails'), quota = $('quota'), quotaOut = $('quotaOut'), quiet = $('quiet'), slots = $('slots'), summary = $('summary');
   if (!mailsEl) return;
-  var RESERVE = 1, COOLDOWN = 120, QUIET_START = 22*60, QUIET_END = 7*60;
+  var COOLDOWN = 120, QUIET_START = 22*60, QUIET_END = 7*60;
   var MAILS = [
-    { t:'06:40', from:'Kita Sonnenblume', subj:'Closed on Monday, planning day', u:3, th:'kita' },
+    { t:'06:40', from:'Sunflower Daycare', subj:'Closed on Monday, planning day', u:3, th:'kita' },
     { t:'07:55', from:'Halden & Co', subj:'Invoice #2041 due Friday', u:3, th:'inv' },
     { t:'08:30', from:'Mara Lindqvist', subj:'Re: Thursday review', u:4, th:'mara' },
     { t:'09:10', from:'Weekly Digest', subj:'10 tools you should try this week', u:1, th:'digest', muted:true },
     { t:'09:45', from:'Mara Lindqvist', subj:'Re: Thursday review, one more thing', u:4, th:'mara' },
     { t:'10:20', from:'Shop', subj:'Your order has shipped', u:1, th:'shop' },
-    { t:'11:05', from:'Frau Weber', subj:'Viewing slot tomorrow 17:00', u:4, th:'flat' },
+    { t:'11:05', from:'Ms Weber', subj:'Viewing slot tomorrow 17:00', u:4, th:'flat' },
     { t:'12:30', from:'PagerDuty', subj:'Weekly on-call report', u:2, th:'pd-report' },
     { t:'13:15', from:'Dr. Amsel', subj:'Appointment confirmation', u:2, th:'doc' },
     { t:'14:40', from:'Jonas (team lead)', subj:'Can you review the PR today?', u:3, th:'pr' },
@@ -887,7 +961,7 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   function toMin(t){ var p = t.split(':'); return (+p[0])*60 + (+p[1]); }
   function inQuiet(m){ return m >= QUIET_START || m < QUIET_END; }
   function decide(q, quietOn){
-    var regular = Math.max(0, q - RESERVE), used = 0, urgent = 0, last = {};
+    var regular = q, used = 0, urgent = 0, last = {};
     return MAILS.map(function(m){
       var min = toMin(m.t), r = { d:'brief', why:'' };
       if (m.muted) { r.d = 'muted'; r.why = 'you muted this conversation'; }
@@ -921,9 +995,9 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
     slots.innerHTML = '';
     for (var s = 0; s < meta.regular; s++) { var sl = el('<span class="slot"></span>'); if (s < meta.used) sl.classList.add('is-used'); slots.appendChild(sl); }
     var rs = el('<span class="slot slot--reserve"></span>'); if (meta.urgent > 0) rs.classList.add('is-used'); slots.appendChild(rs);
-    slots.appendChild(el('<small>' + meta.used + ' of ' + meta.regular + ' everyday knocks used' + (meta.urgent ? ', emergency slot used' : '') + '</small>'));
-    var pings = meta.used + meta.urgent, briefs = res.filter(function(r){ return r.d === 'brief'; }).length;
-    summary.innerHTML = '<span><b>' + pings + '</b>knocks today</span><span><b>' + briefs + '</b>in the morning brief</span><span><b>' + meta.urgent + '</b>emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + '</span>';
+    slots.appendChild(el('<small>' + meta.used + ' of ' + meta.regular + ' everyday knocks used' + (meta.urgent ? ', plus ' + meta.urgent + ' emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + ' on top' : '') + '</small>'));
+    var briefs = res.filter(function(r){ return r.d === 'brief'; }).length;
+    summary.innerHTML = '<span><b>' + meta.used + '</b>everyday knocks</span><span><b>' + meta.urgent + '</b>emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + '</span><span><b>' + briefs + '</b>in the morning brief</span>';
   }
   quota.addEventListener('input', render);
   quiet.addEventListener('click', function(){ quiet.setAttribute('aria-checked', quiet.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); render(); });
