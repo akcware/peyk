@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     COMPOSIO_USER_ID: str = "default"
     COMPOSIO_GMAIL_AUTH_CONFIG_ID: str = ""
     COMPOSIO_CALENDAR_AUTH_CONFIG_ID: str = ""
+    COMPOSIO_NOTION_AUTH_CONFIG_ID: str = ""
+    COMPOSIO_DRIVE_AUTH_CONFIG_ID: str = ""
+    COMPOSIO_DOCS_AUTH_CONFIG_ID: str = ""
     COMPOSIO_GMAIL_CONNECTED_ACCOUNT_ID: str = ""
     COMPOSIO_DELIVERY: Literal["ws", "webhook"] = "ws"
     # Pinned toolkit versions for tools.execute (Composio refuses "latest" for manual execution).

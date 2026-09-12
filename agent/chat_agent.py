@@ -61,6 +61,9 @@ long-term memory. Rules:
   says otherwise. Observations carry `notified_at` when you already told the person about them.
 - "Send/forward this mail to X" means: call draft_reply with to=X and a body that conveys the mail's content in your
   own words (or quotes it) — a draft for approval, never a promise that it was sent.
+- Documents: search_documents / read_document work in two rounds (first call returns a note, you are re-run with
+  data) — call them, do not apologize for the note. To write something for the person (notes, a summary, a
+  plan) call create_document; say a draft is ready for approval, never that it was created.
 - When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
   If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
 - If the account state lists UNCONFIRMED proposed facts and the person's message confirms, corrects or partly
@@ -75,7 +78,7 @@ long-term memory. Rules:
 - Do not invent observations. If nothing matches, say so."""
 
 
-SERVICE_LABELS = {"gmail": "Gmail", "googlecalendar": "Google Calendar"}
+SERVICE_LABELS = {"gmail": "Gmail", "googlecalendar": "Google Calendar", "notion": "Notion", "googledrive": "Google Drive", "googledocs": "Google Docs"}
 
 
 def render_capabilities(payload: dict[str, Any]) -> str:
@@ -91,6 +94,8 @@ def render_capabilities(payload: dict[str, Any]) -> str:
         "- answer questions about their recent mail, events and messages, and about what you already told them",
         "- draft replies or new mails that they approve in chat before anything is sent",
         "- set reminders and a morning brief; remember durable facts about them; look up contacts by name",
+        "- search and read their documents in connected Notion / Google Drive / Google Docs, and create Notion pages or",
+        "  Google Docs for them — creation is a draft they approve in chat first",
         "- connect services for them by sending a login link (they never type passwords in chat)",
         f"Services that can be connected: {', '.join(available)} — nothing else (no Outlook, Slack, WhatsApp, Notion …).",
         f"Connected right now: {', '.join(connected) or 'none'}.",
@@ -156,6 +161,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     recent: list[dict[str, Any]] = ctx.get("recent_observations") or []
     memory: list[dict[str, Any]] = ctx.get("memory_hits") or []
     contacts: list[dict[str, Any]] = ctx.get("contacts") or []
+    documents: dict[str, Any] = ctx.get("documents") or {}      # {"search": {query: [...]}, "read": {"svc:id": {...}}}
 
     @tool
     def search_observations(query: str, source: str = "", since_iso: str = "") -> list[dict]:
@@ -272,6 +278,50 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"saved": True}
 
     @tool
+    def search_documents(query: str, service: str = "") -> dict:
+        """Search the person's documents in their connected Notion / Google Drive / Google Docs by title keywords.
+
+        Args:
+            query: words from the title (or empty for the most recent documents)
+            service: optional: notion | googledrive | googledocs (empty = all connected)
+        """
+        key = f"{service or '*'}|{query.strip().lower()}"
+        cached = (documents.get("search") or {}).get(key)
+        if cached is not None:
+            return {"results": cached[:12]}
+        intents.append({"intent": "DocumentQuery", "op": "search", "query": query, "service": service or None, "key": key})
+        return {"results": [], "note": "searching; you will be re-run with the results"}
+
+    @tool
+    def read_document(service: str, id: str) -> dict:
+        """Read a document's text (Notion page or Google Doc) by id from search_documents results.
+
+        Args:
+            service: notion | googledrive | googledocs
+            id: the document id
+        """
+        key = f"{service}:{id}"
+        cached = (documents.get("read") or {}).get(key)
+        if cached is not None:
+            return cached
+        intents.append({"intent": "DocumentQuery", "op": "read", "service": service, "id": id, "key": key})
+        return {"text": "", "note": "loading; you will be re-run with the document"}
+
+    @tool
+    def create_document(service: str, title: str, body_markdown: str, parent: str = "") -> dict:
+        """Prepare a new Notion page or Google Doc for the person. It is a DRAFT they approve in chat first.
+
+        Args:
+            service: notion | googledocs
+            title: document title
+            body_markdown: the content, markdown
+            parent: optional Notion parent page id (from search_documents); empty otherwise
+        """
+        intents.append({"intent": "ActionDraft", "channel": service, "subject": title, "body": body_markdown,
+                        "thread_key": parent or None, "to": []})
+        return {"draft": True}
+
+    @tool
     def delete_my_data() -> dict:
         """Start deleting the person's account and all their data (mail observations, memory, connections).
         Call this when they clearly ask to delete their account / data / "forget me". The system asks them to
@@ -290,7 +340,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, delete_my_data, need_more]
+    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, search_documents, read_document, create_document, delete_my_data, need_more]
 
 
 @lru_cache

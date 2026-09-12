@@ -63,6 +63,12 @@ person agrees, the agent's `connect_service` intent makes the worker create a Co
 poll (`await_connection` job, every 20 s, 15 min limit) until the account is ACTIVE — then the triggers for that
 person are enabled and the agent confirms. No slash commands; the person can ask to connect anything later.
 
+**Document services.** Notion, Google Drive and Google Docs are connectable too (agent-driven, same link
+flow). In chat the agent can search and read the person's documents (two-round tool calls resolved by the
+worker) and write Notion pages or Google Docs for them — creation is a draft with ✅ Create / ✏️ Edit / ❌ Cancel,
+through the same approval machine as mail. No triggers on purpose: edits to one's own documents are not worth
+an interruption.
+
 **First-learn.** Right after a service is connected, a detached job samples the last 30 days of metadata
 (senders, subjects, document titles — never bodies), registers the people in it, and lets the agent propose
 3–6 facts plus a profile: "I looked at senders and subjects, not content. You mostly deal with X about Y —

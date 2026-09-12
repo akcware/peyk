@@ -52,7 +52,50 @@ def sample_gmail(execute: ExecuteFn, composio_user_id: str, *, days: int = 30, m
     return facts
 
 
-# toolkit slug -> sampler. New services register here (notion, googledrive, googledocs, …).
+def _doc_facts(service: str, items: list[dict[str, Any]], *, cap: int = 40) -> list[dict[str, Any]]:
+    from .documents import _first, _notion_title
+
+    out = []
+    for it in items[:cap]:
+        title = _notion_title(it) if service == "notion" else _first(it, "name", "title", default="(untitled)")
+        out.append({"kind": "document", "service": service, "title": title[:120],
+                    "updated": _first(it, "last_edited_time", "modifiedTime", "modified_time", "updated_at")[:10]})
+    return out
+
+
+def sample_notion(execute: ExecuteFn, composio_user_id: str) -> list[dict[str, Any]]:
+    from .documents import _data, _items
+
+    facts: list[dict[str, Any]] = []
+    pages = _data(execute("NOTION_SEARCH_NOTION_PAGE", {"query": "", "page_size": 40, "direction": "descending", "timestamp": "last_edited_time"}, composio_user_id))
+    facts += _doc_facts("notion", _items(pages, "results", "pages", "items"))
+    dbs = _data(execute("NOTION_FETCH_DATA", {"query": "", "fetch_type": "databases", "page_size": 20}, composio_user_id))
+    for d in _items(dbs, "results", "databases", "items")[:20]:
+        from .documents import _notion_title
+
+        facts.append({"kind": "database", "service": "notion", "title": _notion_title(d)[:120]})
+    return facts
+
+
+def sample_googledrive(execute: ExecuteFn, composio_user_id: str) -> list[dict[str, Any]]:
+    from .documents import _data, _items
+
+    data = _data(execute("GOOGLEDRIVE_LIST_FILES", {"q": "trashed = false", "pageSize": 40, "orderBy": "modifiedTime desc",
+                                                    "fields": "files(id,name,mimeType,modifiedTime)"}, composio_user_id))
+    return _doc_facts("googledrive", _items(data, "files", "items"))
+
+
+def sample_googledocs(execute: ExecuteFn, composio_user_id: str) -> list[dict[str, Any]]:
+    from .documents import _data, _items
+
+    data = _data(execute("GOOGLEDOCS_SEARCH_DOCUMENTS", {"query": "", "max_results": 40, "order_by": "modifiedTime desc"}, composio_user_id))
+    return _doc_facts("googledocs", _items(data, "documents", "files", "items", "results"))
+
+
+# toolkit slug -> sampler. New services register here.
 PROFILE_SAMPLERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "gmail": sample_gmail,
+    "notion": sample_notion,
+    "googledrive": sample_googledrive,
+    "googledocs": sample_googledocs,
 }

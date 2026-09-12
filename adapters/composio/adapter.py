@@ -20,6 +20,7 @@ from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
 
+from .documents import CREATORS, DOCUMENT_SERVICES, READERS, SEARCHERS
 from .mappings import ACTION_ITEMS_PATH, ACTION_MAPPINGS, ACTION_NEXT_PAGE_PATH, apply, get_path
 from .profile import PROFILE_SAMPLERS
 from .setup import TOOLKITS
@@ -115,6 +116,30 @@ class ComposioAdapter:
     async def connection_status(self, conn: Connection, connection_id: str) -> str:
         acc = await asyncio.to_thread(self.client.client.connected_accounts.retrieve, connection_id)
         return str(getattr(acc, "status", "") or "")
+
+    # ---- documents (notion / drive / docs) ----
+    async def search_documents(self, conn: Connection, query: str, services: list[str] | None = None) -> list[dict[str, Any]]:
+        connected = await self.connected_toolkits(conn)
+        targets = [s for s in (services or DOCUMENT_SERVICES) if s in connected and s in SEARCHERS]
+        out: list[dict[str, Any]] = []
+        for svc in targets:
+            try:
+                out += await asyncio.to_thread(SEARCHERS[svc], self._execute, conn.data.get("composio_user_id"), query)
+            except Exception as e:  # noqa: BLE001
+                log.warning("composio.search_documents_failed", service=svc, error=str(e))
+        return out
+
+    async def read_document(self, conn: Connection, service: str, doc_id: str) -> dict[str, Any]:
+        reader = READERS.get(service)
+        if reader is None:
+            raise NotSupported(f"cannot read documents from {service!r}")
+        return await asyncio.to_thread(reader, self._execute, conn.data.get("composio_user_id"), doc_id)
+
+    async def create_document(self, conn: Connection, service: str, title: str, body_markdown: str, parent: str | None = None) -> dict[str, Any]:
+        creator = CREATORS.get(service)
+        if creator is None:
+            raise NotSupported(f"cannot create documents in {service!r}")
+        return await asyncio.to_thread(creator, self._execute, conn.data.get("composio_user_id"), title, body_markdown, parent)
 
     async def sample_for_profile(self, conn: Connection, toolkit: str) -> list[dict[str, Any]]:
         """Metadata sample of the person's recent activity in a toolkit (see profile.py). [] if none registered."""
@@ -273,6 +298,9 @@ class ComposioAdapter:
     async def send(self, conn: Connection, thread_key: str, content: Content) -> str:
         """Gmail only. thread_key -> GMAIL_REPLY_TO_THREAD, else GMAIL_SEND_EMAIL. Returns the Gmail message id."""
         channel = content.extra.get("channel", "gmail")
+        if channel in CREATORS:   # "send" = create the approved document
+            created = await self.create_document(conn, channel, content.subject or "Untitled", content.text, thread_key or None)
+            return str(created.get("id") or "")
         if channel != "gmail":
             raise NotSupported(f"composio adapter cannot send to {channel!r}")
         if thread_key:

@@ -15,7 +15,7 @@ from uuid import UUID
 
 import psycopg
 
-from core.adapter import SourceAdapter
+from core.adapter import DOCUMENT_CHANNELS, SourceAdapter
 from core.log import get_logger
 from core.models import Content
 from core.repo import action_repo
@@ -35,12 +35,19 @@ class InvalidTransition(Exception):
 
 def render_draft(action: dict) -> str:
     c = action["content"]
-    head = "📝 Draft" + (" (reply in thread)" if action.get("thread_key") else "")
-    lines = [head]
-    if c.get("to"):
-        lines.append(f"To: {', '.join(c['to'])}")
-    if c.get("subject"):
-        lines.append(f"Subject: {c['subject']}")
+    doc_label = DOCUMENT_CHANNELS.get(action.get("channel") or "")
+    if doc_label:   # a document to create: subject is its title, thread_key its parent page/folder
+        lines = [f"📝 Draft — {doc_label}"]
+        if c.get("subject"):
+            lines.append(f"Title: {c['subject']}")
+        if action.get("thread_key"):
+            lines.append(f"Parent: {action['thread_key']}")
+    else:
+        lines = ["📝 Draft" + (" (reply in thread)" if action.get("thread_key") else "")]
+        if c.get("to"):
+            lines.append(f"To: {', '.join(c['to'])}")
+        if c.get("subject"):
+            lines.append(f"Subject: {c['subject']}")
     lines += ["", c.get("body", "")]
     lines += ["", f"#{str(action['id'])[:8]} · v{action['content_hash'][:8]}"]
     return "\n".join(lines)
@@ -48,8 +55,9 @@ def render_draft(action: dict) -> str:
 
 def buttons(action: dict) -> dict:
     aid, h = action["id"].hex, action["content_hash"][:HASH_PREFIX]   # hex uuid keeps callback_data <= 64 bytes
+    verb = "Create" if action.get("channel") in DOCUMENT_CHANNELS else "Send"
     return {"inline_keyboard": [[
-        {"text": "✅ Send", "callback_data": f"act:approve:{aid}:{h}"},
+        {"text": f"✅ {verb}", "callback_data": f"act:approve:{aid}:{h}"},
         {"text": "✏️ Edit", "callback_data": f"act:edit:{aid}:{h}"},
         {"text": "❌ Cancel", "callback_data": f"act:reject:{aid}:{h}"},
     ]]}
@@ -93,7 +101,7 @@ async def send(conn: psycopg.AsyncConnection, action_id: UUID, adapter: SourceAd
     if a["status"] != "approved" or a["approved_hash"] != a["content_hash"]:
         raise InvalidTransition("send requires status=approved with approved_hash == content_hash")
     c = a["content"]
-    content = Content(text=c.get("body", ""), subject=c.get("subject"), to=list(c.get("to") or []))
+    content = Content(text=c.get("body", ""), subject=c.get("subject"), to=list(c.get("to") or []), extra={"channel": a["channel"]})
     try:
         external_id = await adapter.send(connection, a["thread_key"] or "", content)
     except Exception as e:

@@ -57,8 +57,16 @@ ADAPTER_MODULES: dict[str, str] = {
 CHANNEL_ADAPTERS: dict[str, str] = {
     "gmail": "composio",
     "calendar": "composio",
+    "notion": "composio",
+    "googledocs": "composio",
     "telegram": "telegram",
     "whatsapp": "whatsapp",
+}
+
+# outbound channels where "send" creates a document instead of delivering a message -> label shown on drafts.
+DOCUMENT_CHANNELS: dict[str, str] = {
+    "notion": "Notion page",
+    "googledocs": "Google Doc",
 }
 
 

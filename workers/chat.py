@@ -208,13 +208,30 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     reply, intents = "", []
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
+    payload["documents"] = {"search": {}, "read": {}}
     for round_no in range(1, MAX_ROUNDS + 1):
         out = await agent.chat(payload)
         reply, intents = out["reply"], out["intents"]
         lookups = [i for i in intents if i.get("intent") == "FindContact"]
         need = [i for i in intents if i.get("intent") == "NeedMore"]
-        if (not need and not lookups) or round_no == MAX_ROUNDS:
+        docq = [i for i in intents if i.get("intent") == "DocumentQuery"]
+        if (not need and not lookups and not docq) or round_no == MAX_ROUNDS:
             break
+        if docq and registry is not None:
+            try:
+                adapter = registry.get("composio")
+                handle = await adapter.connect(obs.user_id)
+                for q in docq:
+                    if q.get("op") == "search":
+                        res = await adapter.search_documents(handle, str(q.get("query") or ""), [q["service"]] if q.get("service") else None)
+                        payload["documents"]["search"][q["key"]] = res
+                    elif q.get("op") == "read":
+                        payload["documents"]["read"][q["key"]] = await adapter.read_document(handle, str(q.get("service")), str(q.get("id")))
+                log.info("chat.document_query", round=round_no, count=len(docq))
+            except Exception as e:  # noqa: BLE001
+                log.warning("chat.document_query_failed", error=str(e))
+            if not need and not lookups:
+                continue
         if lookups:
             names = {str(i.get("name") or "").strip() for i in lookups if i.get("name")}
             found: list[dict] = []
@@ -232,7 +249,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         payload["recent_observations"] = fresh + payload["recent_observations"]
         payload["message"] = text  # same question, more data
         log.info("chat.need_more", round=round_no, query=q.get("query"), added=len(fresh))
-    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact")]
+    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact", "DocumentQuery")]
 
 
 async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, final: bool = True) -> bool:

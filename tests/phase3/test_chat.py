@@ -90,6 +90,7 @@ async def test_need_more_bounded(conn, settings):
     await conn.execute("update observation set occurred_at = %s, payload = payload || '{\"subject\": \"contract draft v2\"}' where id = %s",
                        (now - timedelta(days=5), old.id))
     fresh = await observation_repo.insert(conn, gmail_obs("fresh"))
+    await conn.execute("update observation set occurred_at = %s where id = %s", (now - timedelta(hours=1), fresh.id))
     msg = await observation_repo.insert(conn, tg_text("400", "what about the contract?", now))
     agent, calls = scripted_agent([
         {"reply": "need data", "intents": [{"intent": "NeedMore", "query": "contract", "since_days": 7}]},
@@ -129,7 +130,7 @@ def test_chat_contract_and_tools():
         {"id": "2", "source": "calendar", "summary": "Standup", "occurred_at": "2026-09-10T07:00:00+00:00"},
     ], "memory_hits": [{"text": "Uses Postgres", "score": 0.9}, {"text": "Lives in Berlin", "score": 0.5}]}
     tools = {t.tool_name: t for t in make_tools(ctx, intents)}
-    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "connect_service", "set_profile", "confirm_learned", "delete_my_data", "need_more"}
+    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "connect_service", "set_profile", "confirm_learned", "search_documents", "read_document", "create_document", "delete_my_data", "need_more"}
     fn = {name: t._tool_func for name, t in tools.items()}
     assert [o["id"] for o in fn["search_observations"]("invoice mara")] == ["1"]
     assert [o["id"] for o in fn["search_observations"]("", "calendar")] == ["2"]
