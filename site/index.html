@@ -6,6 +6,7 @@
 <title>Peyk</title>
 <meta name="description" content="Peyk — a personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
 <meta name="theme-color" content="#0F2620">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
@@ -57,8 +58,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .nav{position:sticky;top:0;z-index:20;background:rgba(15,38,32,.82);backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line)}
 .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:1rem}
 .brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;font-weight:600;letter-spacing:-.01em}
-.brand__mark{width:26px;height:26px;border-radius:50%;background:var(--amber);position:relative;flex:none}
-.brand__mark::after{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--g9)}
+.brand__mark{width:30px;height:30px;flex:none;color:var(--ivory)}
 .brand small{font-weight:400;color:var(--sage);font-size:.85rem;margin-left:.2rem}
 .nav__links{display:flex;gap:1.4rem;align-items:center;font-size:.95rem}
 .nav__links a{text-decoration:none;color:var(--sage)}
@@ -111,7 +111,8 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .ph-back svg{width:13px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .ph-back__n{background:#007AFF;color:#fff;font-size:12px;font-weight:600;border-radius:999px;padding:0 6px;line-height:18px;min-width:18px;text-align:center}
 .ph-title{display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
-.ph-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(180deg,#5D8FF0 0%,#2C60C8 100%);color:#fff;font-weight:600;font-size:17px;display:grid;place-items:center;margin-bottom:3px}
+.ph-avatar{width:36px;height:36px;border-radius:50%;background:var(--g9);color:var(--ivory);display:grid;place-items:center;margin-bottom:3px;overflow:hidden}
+.ph-avatar svg{width:30px;height:30px;display:block}
 .ph-name{font-weight:600;font-size:16px;line-height:1.15;color:#000;white-space:nowrap}
 .ph-sub{font-size:13px;color:#8E8E93;line-height:1.2;transition:color .2s ease}
 .ph-sub.is-typing{color:#007AFF}
@@ -313,7 +314,8 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .onb-claim span{color:var(--muted)}
 
 /* ---------- footer ---------- */
-.foot{padding:1.8rem 0 2.6rem;border-top:1px solid var(--line);color:var(--sage-2);font-size:.85rem}
+.foot__logo{display:block;width:min(300px,70%);height:auto;margin:0 auto 1.6rem;color:var(--ivory)}
+.foot{padding:2.4rem 0 2.6rem;text-align:center;border-top:1px solid var(--line);color:var(--sage-2);font-size:.85rem}
 .foot .wrap{display:flex;flex-wrap:wrap;gap:1rem 2rem;justify-content:space-between;align-items:center}
 .foot a{color:var(--sage);text-decoration:none;border-bottom:1px solid var(--line)}
 .foot a:hover{border-color:var(--ivory)}
@@ -335,7 +337,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 
 <header class="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Peyk, top of page"><span class="brand__mark" aria-hidden="true"></span>Peyk</a>
+    <a class="brand" href="#top" aria-label="Peyk, top of page"><svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-28 32 34)"><ellipse cx="32" cy="34" rx="27" ry="10" fill="none" stroke="currentColor" stroke-width="2.5"/></g><circle cx="32" cy="34" r="13" fill="currentColor"/><g transform="rotate(-28 32 34)"><path d="M5 34A27 10 0 0 0 59 34" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="51" cy="41" r="5.5" fill="#F3B54A"/></g></svg>Peyk</a>
     <nav class="nav__links" aria-label="Page">
       <a class="hide-sm" href="#benefits">What it does</a>
       <a class="hide-sm" href="#cases">Use cases</a>
@@ -380,7 +382,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
           </span></div>
           <div class="ph-head">
             <span class="ph-back"><svg viewBox="0 0 13 22"><path d="M11 2 2 11l9 9"/></svg><span class="ph-back__n">3</span></span>
-            <span class="ph-title"><span class="ph-avatar">P</span><span class="ph-name">Peyk</span><span class="ph-sub" id="phSub">bot</span></span>
+            <span class="ph-title"><span class="ph-avatar" aria-label="Peyk"><svg viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-28 32 34)"><ellipse cx="32" cy="34" rx="27" ry="10" fill="none" stroke="currentColor" stroke-width="2.5"/></g><circle cx="32" cy="34" r="13" fill="currentColor"/><g transform="rotate(-28 32 34)"><path d="M5 34A27 10 0 0 0 59 34" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="51" cy="41" r="5.5" fill="#F3B54A"/></g></svg></span><span class="ph-name">Peyk</span><span class="ph-sub" id="phSub">bot</span></span>
             <span class="ph-actions"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle cx="7.5" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16.5" cy="12" r=".6" fill="currentColor"/></svg></span>
           </div>
           <div class="tg-chat"><span class="ph-date">Today</span><div class="tg-list" id="tgList"></div></div>
@@ -631,6 +633,7 @@ I'll tell you when it's linked.</div><div class="mini__b">Gmail connected. I'm w
 <!-- 10. Footer -->
 <footer class="foot">
   <div class="wrap">
+    <svg class="foot__logo" viewBox="0 0 520 200" role="img" aria-label="Peyk"><g transform="rotate(-9 260 108)"><ellipse cx="260" cy="108" rx="228" ry="62" fill="none" stroke="currentColor" stroke-width="2.5"/></g><path transform="translate(119.83 146)" d="M64.70400390625 -66.09918359375Q64.70400390625 -72.857578125 61.932814453125 -77.567974609375Q59.161625 -82.27837109375 52.857654296875 -84.723169921875Q46.55368359375 -87.16796875 35.89133984375 -87.16796875H22.06729296875L22.34891015625 -91.52H48.192195312500004Q60.17300390625 -91.52 67.533009765625 -88.217595703125Q74.893015625 -84.91519140625 78.29141796875001 -79.30878515625Q81.6898203125 -73.70237890625 81.6898203125 -66.77757421875Q81.6898203125 -59.699171875000005 78.189017578125 -53.7535703125Q74.68821484375 -47.80796875 67.296208984375 -44.27516796875Q59.904203125 -40.7423671875 48.192195312500004 -40.7423671875H22.34891015625L22.06729296875 -45.094398437500004H42.77765234375Q49.08804296875 -45.094398437500004 54.054431640625 -47.475197265625Q59.0208203125 -49.85599609375 61.862412109375 -54.54079296875Q64.70400390625 -59.22558984375 64.70400390625 -66.09918359375ZM32.128191406250004 -91.52V-4.73601171875L43.12336328125 -1.97120703125V0.0H4.08318359375V-1.97120703125L15.07835546875 -4.73601171875V-86.84798828125L4.08318359375 -89.5359921875V-91.52Z M113.3648359375 -66.9440078125Q120.52006250000001 -66.9440078125 125.72967578125 -64.038400390625Q130.9392890625 -61.13279296875 133.966494140625 -55.539181640625Q136.99369921875 -49.9455703125 137.5825 -41.84316015625H94.90728125000001V-45.9775859375H129.72325L123.14395312500001 -43.22557421875Q122.58075781250001 -50.4319921875 121.12796875000001 -54.860792968750005Q119.6751796875 -59.28959375 117.27519531250002 -61.350388671875Q114.87521093750001 -63.41118359375 111.36803125 -63.41118359375Q106.74726562500001 -63.41118359375 103.451291015625 -60.6976015625Q100.15531640625001 -57.98401953125 98.408130859375 -52.518435546875Q96.6609453125 -47.0528515625 96.6609453125 -38.80964453125Q96.6609453125 -28.364859375 99.310537109375 -21.875271484375002Q101.96012890625 -15.38568359375 107.05451562500001 -12.409689453125Q112.14890234375001 -9.4336953125 119.50888671875 -9.4336953125Q123.01608593750001 -9.4336953125 126.29287890625001 -10.3424921875Q129.569671875 -11.2512890625 132.51366992187502 -13.132886718750001Q135.45766796875 -15.014484375 137.80008203125 -17.93288671875L138.99049218750002 -17.036875000000002Q134.85608203125003 -10.17604296875 130.69607226562502 -6.137625Q126.53606250000001 -2.09920703125 121.97285156250001 -0.3455996093750001Q117.40964062500001 1.4080078125 111.98242578125002 1.4080078125Q103.29120312500001 1.4080078125 96.44319335937502 -2.3871953125Q89.59518359375001 -6.1823984375 85.67838085937501 -13.542400390625001Q81.76157812500001 -20.90240234375 81.76157812500001 -31.564796875Q81.76157812500001 -41.11359765625 85.44798242187501 -49.158400390625005Q89.13438671875001 -57.203203125 96.21279882812502 -62.07360546875Q103.29121093750001 -66.9440078125 113.3648359375 -66.9440078125Z M182.800140625 -14.2337109375 174.94086328125002 3.0208828125 143.35034765625002 -60.953597656250004 135.59357421875 -63.46240234375V-65.536H168.79694140625003V-63.424L160.02897265625 -61.20960546875ZM153.37287890625 29.6319921875Q149.0848671875 29.6319921875 146.28166015625 27.404783203125Q143.47845312500002 25.17757421875 143.47845312500002 20.97915625Q143.47845312500002 19.03355078125 144.14405468750002 17.72154296875Q144.80965625000002 16.40953515625 145.82725781250002 15.737529296875Q146.844859375 15.0655234375 147.75366015625002 15.0655234375Q148.52165234375002 15.0655234375 149.89765429687503 15.807921875000002Q151.27365625000002 16.550320312500002 153.30886328125 17.299119140625002Q155.3440703125 18.04791796875 157.968078125 18.04791796875Q161.09129296875003 18.04791796875 163.39530078125 17.241521484375Q165.69930859375 16.435125 167.5745078125 14.239939453125Q169.44970703125 12.04475390625 171.22889843750002 7.935984375L175.82405859375 -2.73910546875L179.75373437500002 -12.18567578125L196.26575000000003 -61.56800390625L187.292984375 -63.424V-65.536H209.39851953125003V-63.424L201.57774609375002 -61.5936015625L175.14575390625 8.230296875Q172.0353359375 16.38393359375 168.745724609375 21.043154296875002Q165.45611328125 25.702375 161.705703125 27.66718359375Q157.95529296875 29.6319921875 153.37287890625 29.6319921875Z M237.43857031250002 -38.6048359375 242.16189453125003 -43.161746093750004 275.09619140625 -3.75041015625 281.8801640625 -1.8048046875000001V0.0H249.25284765625003V-1.8048046875000001L257.09919140625004 -3.5456054687500003L231.2945703125 -34.29119921875H227.51850390625V-37.5808203125H231.8705625L261.46412890625004 -61.32479296875L251.85131640625002 -63.424V-65.536H277.42577734375004V-63.424L267.620953125 -61.20959375ZM230.65455859375 -3.7888085937500002 238.94890625000002 -1.8048046875000001V0.0H207.2048046875V-1.8048046875000001L215.62716015625 -3.7888085937500002V-82.2910859375Q214.79516015625 -82.76469140625001 213.297560546875 -83.6031015625Q211.7999609375 -84.44151171875001 209.7519609375 -85.59992578125001Q207.7039609375 -86.75833984375001 205.20796093750002 -88.19195703125V-89.53596875L230.104140625 -95.1040078125H230.65455859375V-83.916765625Z" fill="currentColor"/><g transform="rotate(-9 260 108)"><path d="M32 108A228 62 0 0 0 488 108" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="420" cy="151" r="11" fill="#F3B54A"/></g></svg>
     <p>Peyk · Built for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon · MIT</p>
     <p><a href="https://t.me/proactiveagent_bot" rel="noopener">@proactiveagent_bot</a> · <a href="#" id="githubLink" data-github-url="https://github.com/akcware/peyk">GitHub</a></p>
   </div>
