@@ -16,10 +16,13 @@ class DbUserDirectory:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    async def resolve_control(self, source: str, thread_key: str, *, display_name: str | None = None) -> UUID:
+    async def resolve_control(self, source: str, thread_key: str, *, display_name: str | None = None,
+                              language: str | None = None) -> UUID:
+        """New people start in the language their messaging client reports (fallback English) — never in the
+        operator's USER_LANGUAGE; the agent adjusts later from how they write (set_profile)."""
         async with db.connection() as conn:
             user, created = await user_repo.get_or_create_by_control(
-                conn, source, thread_key, display_name=display_name, language=self._settings.USER_LANGUAGE,
+                conn, source, thread_key, display_name=display_name, language=language or "en",
                 timezone=self._settings.TIMEZONE)
         if created:
             log.info("users.created", user_id=str(user["id"]), source=source, display_name=display_name)

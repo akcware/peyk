@@ -112,7 +112,8 @@ class TelegramAdapter:
                 if self._users is not None and obs.thread_key:
                     frm = (update.get("message") or update.get("callback_query") or {}).get("from") or {}
                     name = " ".join(x for x in (frm.get("first_name"), frm.get("last_name")) if x) or None
-                    obs.user_id = await self._users.resolve_control(self.id, obs.thread_key, display_name=name)
+                    lang = (frm.get("language_code") or "").split("-")[0].lower() or None   # Telegram client language
+                    obs.user_id = await self._users.resolve_control(self.id, obs.thread_key, display_name=name, language=lang)
                 yield obs
 
     async def backfill(self, conn: Connection, since: datetime) -> AsyncIterator[Observation]:

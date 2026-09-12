@@ -89,7 +89,7 @@ async def test_telegram_auto_registers_and_composio_maps_events(conn, settings):
             if payload.get("offset"):
                 return httpx.Response(200, json={"ok": True, "result": []})
             return httpx.Response(200, json={"ok": True, "result": [
-                {"update_id": 50, "message": {"message_id": 1, "date": 1, "chat": {"id": 555}, "from": {"first_name": "Yeni", "last_name": "Kişi"}, "text": "selam"}}]})
+                {"update_id": 50, "message": {"message_id": 1, "date": 1, "chat": {"id": 555}, "from": {"first_name": "Yeni", "last_name": "Kişi", "language_code": "de-DE"}, "text": "selam"}}]})
         return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
 
     s = settings.model_copy(update={"TELEGRAM_BOT_TOKEN": "t"})
@@ -102,6 +102,9 @@ async def test_telegram_auto_registers_and_composio_maps_events(conn, settings):
     user = await user_repo.get_by_control(conn, "telegram", "555")
     assert user is not None and got[0].user_id == user["id"] and user["display_name"] == "Yeni Kişi"
     assert user["composio_user_id"] == str(user["id"])
+    assert user["language"] == "de"                                  # from the Telegram client, not the operator's .env
+    other = await directory.resolve_control("telegram", "556", display_name="No Lang")
+    assert (await user_repo.get(conn, other))["language"] == "en"     # unknown client language -> English
 
     # Composio events: our uuid -> that user; legacy entity id -> bootstrap user; unknown -> dropped
     comp = ComposioAdapter(settings=settings, users=directory)

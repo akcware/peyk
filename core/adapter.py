@@ -23,7 +23,8 @@ class NotSupported(Exception):
 class UserDirectory(Protocol):
     """How adapters map external identities to our user ids. Implemented in workers/ (DB-backed) and tests."""
 
-    async def resolve_control(self, source: str, thread_key: str, *, display_name: str | None = None) -> UUID: ...
+    async def resolve_control(self, source: str, thread_key: str, *, display_name: str | None = None,
+                              language: str | None = None) -> UUID: ...
 
     async def resolve_composio(self, composio_user_id: str) -> UUID | None: ...
 
