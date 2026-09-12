@@ -1,7 +1,7 @@
 # Demo video script (≤ 5 min)
 
 Sahne yönergeleri Türkçe, söylenecekler İngilizce (jüri için). Ekranda: sol yarı Telegram (telefon ya da masaüstü), sağ yarı terminal (worker logları) — logların JSON olması iyi görünür; `LOG_LEVEL=INFO`.
-Hazırlık: worker çalışıyor, kota temiz (`make requeue-failed` değil; gerekiyorsa `sent_notification`'ı o güne ait temizle), takvime 18 dk sonrasına "Client standup" koy, bir arkadaş ikinci Telegram hesabıyla hazır beklesin.
+Hazırlık: üretim (Fly) çalışıyor, yerel worker KAPALI; kota temiz (`make requeue-failed` değil; gerekiyorsa `sent_notification`'ı o güne ait temizle), takvime 18 dk sonrasına "Client standup" koy, bir arkadaş ikinci Telegram hesabıyla hazır beklesin.
 
 ## 0:00–0:40 Problem
 [Ekran: gerçek Gmail inbox, 60+ okunmamış; ya da landing page'deki 60→4 animasyonu]
@@ -23,11 +23,11 @@ Hazırlık: worker çalışıyor, kota temiz (`make requeue-failed` değil; gere
 [Telegram: "write to Mara that we move the meeting to tomorrow" → taslak → Düzenle → "make it 3 pm" → yeni taslak → eski mesajdaki Gönder'e bas → red → yeni Gönder → ✅]
 "It drafts, I edit, and here's the part I care about: the old Send button carries the old content hash. It can't send the edited draft. Only the newest version goes out — to Gmail, through Composio."
 
-## 3:10–3:50 Live: onboarding by conversation + calendar
-[Arkadaşın telefonu: "hi" → ajan kendini tanıtır, soru sorar → "yes, connect gmail" → link → tıkla → "✅ Gmail connected"]
-"Anyone can use it. No commands: it introduces itself, asks one question, sends the login link, and starts watching."
-[Takvim bildirimi 15 dk kala gelirse göster]
-"Calendar was added with one mapping row and zero changes to the core — there's a test that proves it."
+## 3:10–3:50 Live: onboarding by conversation + Notion
+[Arkadaşın telefonu: Başlat → Peyk kendini tanıtır, linki gönderir → tıkla → Peyk kendi sesiyle "bağlandı" der → bir dakika sonra "şunları fark ettim, doğru mu?" önerisi → "evet doğru"]
+"Anyone can use it. No commands: it introduces itself, sends the login link, and once connected it gets to know you — from metadata only, and it stores nothing until you confirm."
+[Kendi telefonun: "Peyk, Notion'da Abschlussaufgabe 2 ne zaman bitiyor?" → cevap → "hatırlat" → öneri → "olur"]
+"It reads my Notion, finds the deadline, proposes a reminder time and sets it only when I agree."
 
 ## 3:50–4:30 Architecture
 [docs/ARCHITECTURE.md diyagramı]
