@@ -142,9 +142,10 @@ def test_chat_contract_and_tools():
     assert intents[2]["to"] == ["a@x.test", "b@x.test"] and intents[2]["thread_key"] == "th1"
     assert intents[3]["since_days"] == 14
 
-    msgs = to_messages([{"role": "assistant", "text": "dropped leading"}, {"role": "user", "text": "a"}, {"role": "user", "text": "b"},
+    msgs = to_messages([{"role": "assistant", "text": "kept leading"}, {"role": "user", "text": "a"}, {"role": "user", "text": "b"},
                         {"role": "assistant", "text": "c"}, {"role": "assistant", "text": ""}])
-    assert [m["role"] for m in msgs] == ["user", "assistant"] and msgs[0]["content"][0]["text"] == "a\nb"
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
+    assert msgs[1]["content"][0]["text"] == "kept leading" and msgs[2]["content"][0]["text"] == "a\nb"
 
 
 def test_agent_never_touches_db():
@@ -294,3 +295,17 @@ def test_prompts_know_the_assistant_is_named_peyk():
     caps = render_capabilities({"user_state": {"available": ["gmail"], "connected": [], "pending": []}})
     for text in (CHAT_SYSTEM_PROMPT, ACK_SYSTEM_PROMPT, LEARN_SYSTEM_PROMPT, TRIAGE_SYSTEM_PROMPT, caps):
         assert "proactive agent" not in text.lower()               # the old product name never reaches the model
+
+
+async def test_full_agent_sees_its_first_reflex(conn, settings):
+    seen = {}
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": "Hatırlatıcıyı ayarlıyorum."}
+        seen["reflex"] = payload.get("first_reflex")
+        return {"task": "chat", "reply": "24 Eylül'den bir gün önce, 23 Eylül 09:00'a kurayım mı?", "intents": []}
+    tg = FakeTelegram()
+    msg = await observation_repo.insert(conn, tg_text("800", "hatırlat", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
+    assert seen["reflex"] == "Hatırlatıcıyı ayarlıyorum."
+    assert [m["text"] for m in tg.sent] == ["Hatırlatıcıyı ayarlıyorum.", "24 Eylül'den bir gün önce, 23 Eylül 09:00'a kurayım mı?"]

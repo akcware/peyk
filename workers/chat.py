@@ -179,7 +179,8 @@ async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry
 
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                    embedder: Embedder, now: datetime | None = None, contact_search=None, registry=None,
-                   user: dict | None = None, state: dict | None = None, mode: str | None = None) -> tuple[str, list[dict[str, Any]]]:
+                   user: dict | None = None, state: dict | None = None, mode: str | None = None,
+                   first_reflex: str = "") -> tuple[str, list[dict[str, Any]]]:
     """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
     now = now or datetime.now(tz=UTC)
     from workers.commands import as_chat_text
@@ -206,6 +207,8 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
                "now_iso": now_local.isoformat(), "timezone": tz, "user": user or {}, "user_state": state or {}}
     if mode:
         payload["mode"] = mode
+    if first_reflex:
+        payload["first_reflex"] = first_reflex
     reply, intents = "", []
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
@@ -301,7 +304,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
                                         "user": user, "user_state": state})
         except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
             log.warning("chat.ack_failed", error=str(e))
+    first_reflex = ""
     if ack and ack["message"]:
+        first_reflex = ack["message"]
         mid = await send(ack["message"])
         await observation_repo.insert(conn, Observation(
             user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",
@@ -316,7 +321,8 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
 
     # Stage 2 — the real work (tools, memory, intents).
     reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
-                                    contact_search=contact_search, registry=registry, user=user, state=state)
+                                    contact_search=contact_search, registry=registry, user=user, state=state,
+                                    first_reflex=first_reflex)
     if state.get("is_new"):
         await user_repo.merge_state(conn, obs.user_id, {"greeted": True})
     if not reply:

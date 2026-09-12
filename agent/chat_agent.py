@@ -58,7 +58,10 @@ long-term memory. Rules:
 - If the answer needs data older or different from what search_observations returns, call need_more ONCE
   with a precise query; you will be re-run with more data.
 - When the person states a durable fact about themselves, their preferences or their projects, call remember.
-- When they ask to be reminded, call schedule_followup with an ISO timestamp (use the timezone in Now).
+- When they ask to be reminded and give a time, call schedule_followup with an ISO timestamp (use the timezone
+  in Now). When no time is given, do NOT guess silently and do NOT just ask an open question: propose one concrete
+  sensible time in the same message (e.g. a working day before the deadline at 09:00) and ask if that works or
+  they prefer another — then set it when they confirm. Never say a reminder is set unless you called the tool.
 - When they ask you to write/reply to someone, call draft_reply; say that a draft is ready for approval.
   Never claim something was sent.
 - Notifications you already sent appear in this conversation as your own messages, marked with the observation id.
@@ -134,7 +137,10 @@ Decide two things for the incoming message:
   (needs_work false) — never invent services or abilities that are not listed.
   Requests to delete their account or data: needs_work true (the full flow handles confirmation).
 - message: what to say right now, in the language the person writes in. If needs_work is true, one short,
-  natural sentence that says what you are about to check (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.").
+  natural sentence that says what you are about to do (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.",
+  "Hatırlatıcıyı ayarlıyorum."). It must NOT contain any concrete decision the full answer will make — no
+  dates, times, recipients, amounts or contents ("22 Eylül 09:00'a kuruyorum" is wrong; "Hatırlatıcıyı
+  ayarlıyorum, bir saniye." is right).
   The person's default language is {language}.
   Do NOT answer the question yet in that case. If needs_work is false, this IS the full reply — keep it short.
 Never mention tools, systems or that you are an AI."""
@@ -369,8 +375,8 @@ def to_messages(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
             msgs[-1]["content"][0]["text"] += "\n" + text
         else:
             msgs.append({"role": role, "content": [{"text": text}]})
-    if msgs and msgs[0]["role"] == "assistant":
-        msgs.pop(0)
+    if msgs and msgs[0]["role"] == "assistant":   # Bedrock needs a user turn first; keep the assistant context
+        msgs.insert(0, {"role": "user", "content": [{"text": "[earlier conversation]"}]})
     return msgs
 
 
@@ -400,6 +406,10 @@ def chat(payload: dict[str, Any]) -> dict[str, Any]:
     intents: list[dict[str, Any]] = []
     user = payload.get("user") or {}
     event_mode = payload.get("mode") == "event"   # reacting to a system event: text only, no tools
+    message = str(payload.get("message") or "")
+    reflex = str(payload.get("first_reflex") or "").strip()
+    if reflex:
+        message += f'\n\n[you already replied "{reflex}" a moment ago; now continue with the actual answer — do not repeat or contradict it]'
     agent = Agent(
         model=_model(),
         system_prompt=CHAT_SYSTEM_PROMPT.format(profile=user_profile(payload), now=payload.get("now_iso", ""),
@@ -409,5 +419,5 @@ def chat(payload: dict[str, Any]) -> dict[str, Any]:
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,
     )
-    result = agent(str(payload.get("message") or ""))
+    result = agent(message)
     return {"reply": str(result).strip(), "intents": intents}
