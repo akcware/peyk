@@ -96,6 +96,8 @@ async def ensure_bootstrap(conn: psycopg.AsyncConnection, *, user_id: UUID, cont
     existing = await get(conn, user_id) or await get_by_control(conn, control_source, control_thread_key)
     if existing:
         return existing
+    if profile.lower().startswith("synthetic"):   # never seed a person with an example profile
+        profile = ""
     return await create(conn, control_source=control_source, control_thread_key=control_thread_key, user_id=user_id,
                         composio_user_id=composio_user_id or str(user_id), profile=profile, language=language, timezone=timezone)
 

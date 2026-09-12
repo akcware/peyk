@@ -128,3 +128,17 @@ async def test_pending_learn_skips_fast_reflex(conn, settings):
     assert calls == ["chat"] and await memory_repo.count(conn, user["id"]) == 1
     u = await user_repo.get(conn, user["id"])
     assert u["profile"] == "Karlsruhe'de öğrenci" and u["state"].get("pending_learn") is None
+
+
+def test_learn_prompt_does_not_trust_prior_profile():
+    from agent.learn_agent import LEARN_SYSTEM_PROMPT
+    assert "treat it as a hint" in LEARN_SYSTEM_PROMPT and "traceable to the sampled metadata" in LEARN_SYSTEM_PROMPT
+
+
+async def test_bootstrap_ignores_synthetic_profile(conn, settings):
+    from uuid import uuid4
+
+    from core.repo import user_repo
+    row = await user_repo.ensure_bootstrap(conn, user_id=uuid4(), control_source="telegram", control_thread_key="4242",
+                                           composio_user_id="x", profile="Synthetic profile: developer in Berlin", language="tr", timezone="UTC")
+    assert row["profile"] == ""
