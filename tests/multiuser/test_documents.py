@@ -29,7 +29,13 @@ def fake_execute(calls):
         if slug == "NOTION_SEARCH_NOTION_PAGE":
             return {"successful": True, "data": {"results": [NOTION_PAGE]}}
         if slug == "NOTION_GET_PAGE_MARKDOWN":
-            return {"successful": True, "data": {"markdown": "# Apartment hunt\n- call landlord", "title": "Apartment hunt"}}
+            return {"successful": True, "data": {"markdown": "# Apartment hunt\n- call landlord"}}
+        if slug == "NOTION_FETCH_ROW":
+            return {"successful": True, "data": {"url": "https://notion.so/p1", "properties": {
+                "Name": {"type": "title", "title": [{"plain_text": "Apartment hunt"}]},
+                "Datum": {"type": "date", "date": {"start": "2026-08-26", "end": "2026-09-24"}},
+                "Status": {"type": "status", "status": {"name": "Not started"}},
+                "Ort": {"type": "rich_text", "rich_text": []}}}}
         if slug == "NOTION_CREATE_NOTION_PAGE":
             return {"successful": True, "data": {"id": "p_new", "url": "https://notion.so/p_new"}}
         if slug == "NOTION_FETCH_DATA":
@@ -75,7 +81,8 @@ async def test_search_read_create(settings):
     only = await a.search_documents(conn, "plan", ["notion"])
     assert [r["service"] for r in only] == ["notion"]
     doc = await a.read_document(conn, "notion", "p1")
-    assert doc["text"].startswith("# Apartment hunt") and doc["title"] == "Apartment hunt"
+    assert doc["title"] == "Apartment hunt" and "Datum: 2026-08-26 → 2026-09-24" in doc["text"] and "Status: Not started" in doc["text"]
+    assert "Ort:" not in doc["text"] and doc["text"].endswith("- call landlord")
     gd = await a.read_document(conn, "googledocs", "d1")
     assert gd["text"] == "Plan: ship by Monday" and gd["url"].endswith("/d1/edit")
     created = await a.create_document(conn, "notion", "Notes", "- a\n- b", parent="p1")

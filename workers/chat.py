@@ -23,7 +23,8 @@ log = get_logger("workers.chat")
 HISTORY_TURNS = 10
 RECENT_HOURS = 48
 RECENT_LIMIT = 50
-MAX_ROUNDS = 2
+MAX_ROUNDS = 2            # NeedMore / FindContact rounds
+MAX_DOC_ROUNDS = 4        # document search -> read -> answer needs more hops; each hop is one API call
 STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, restart) is not answered
 
 
@@ -209,14 +210,20 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
     payload["documents"] = {"search": {}, "read": {}}
-    for round_no in range(1, MAX_ROUNDS + 1):
+    data_rounds = 0
+    for round_no in range(1, MAX_DOC_ROUNDS + 1):
         out = await agent.chat(payload)
         reply, intents = out["reply"], out["intents"]
         lookups = [i for i in intents if i.get("intent") == "FindContact"]
         need = [i for i in intents if i.get("intent") == "NeedMore"]
         docq = [i for i in intents if i.get("intent") == "DocumentQuery"]
-        if (not need and not lookups and not docq) or round_no == MAX_ROUNDS:
+        if not need and not lookups and not docq:
             break
+        if (need or lookups) and data_rounds >= MAX_ROUNDS - 1:
+            break                       # NeedMore/FindContact stay bounded to MAX_ROUNDS agent calls
+        if docq and not need and not lookups and round_no == MAX_DOC_ROUNDS:
+            break
+        data_rounds += 1
         if docq and registry is not None:
             try:
                 adapter = registry.get("composio")

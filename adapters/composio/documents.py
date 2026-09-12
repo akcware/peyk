@@ -60,13 +60,31 @@ def _first(d: dict[str, Any], *keys: str, default: str = "") -> str:
 
 # ---------------- search ----------------
 
+def _terms(query: str) -> list[str]:
+    return [t for t in query.lower().replace("–", " ").replace("-", " ").split() if t]
+
+
+def _rank(title: str, terms: list[str]) -> int:
+    t = title.lower()
+    return sum(1 for term in terms if term in t)
+
+
 def search_notion(execute: ExecuteFn, uid: str | None, query: str, *, limit: int = 8) -> list[dict[str, Any]]:
-    data = _data(execute("NOTION_SEARCH_NOTION_PAGE", {"query": query, "page_size": limit, "filter_value": "page", "filter_property": "object"}, uid))
-    out = []
-    for p in _items(data, "results", "pages", "items")[:limit]:
-        out.append({"service": "notion", "id": _first(p, "id"), "title": _notion_title(p), "url": _first(p, "url", "public_url"),
-                    "updated": _first(p, "last_edited_time", "updated_at")[:10], "snippet": ""})
-    return out
+    """Notion's search matches short tokens (like "2") against everything, so we query with the meaningful words,
+    then rank the union locally by how many query words appear in the title."""
+    terms = _terms(query)
+    strong = [t for t in terms if len(t) >= 4 and not t.isdigit()]
+    queries = [" ".join(strong) or query] + ([strong[-1]] if len(strong) > 1 else [])
+    seen: dict[str, dict[str, Any]] = {}
+    for q in dict.fromkeys(queries):
+        data = _data(execute("NOTION_SEARCH_NOTION_PAGE", {"query": q, "page_size": 20, "filter_value": "page", "filter_property": "object"}, uid))
+        for p in _items(data, "results", "pages", "items"):
+            pid = _first(p, "id")
+            if pid and pid not in seen:
+                seen[pid] = {"service": "notion", "id": pid, "title": _notion_title(p), "url": _first(p, "url", "public_url"),
+                             "updated": _first(p, "last_edited_time", "updated_at")[:10], "snippet": ""}
+    ranked = sorted(seen.values(), key=lambda r: (-_rank(r["title"], terms), r["updated"]))
+    return ranked[:limit]
 
 
 def search_googledrive(execute: ExecuteFn, uid: str | None, query: str, *, limit: int = 8) -> list[dict[str, Any]]:
@@ -95,11 +113,62 @@ SEARCHERS = {"notion": search_notion, "googledrive": search_googledrive, "google
 
 # ---------------- read ----------------
 
+def _rich(v: Any) -> str:
+    if isinstance(v, list):
+        return "".join(x.get("plain_text", "") for x in v if isinstance(x, dict))
+    return ""
+
+
+def render_notion_properties(props: dict[str, Any]) -> tuple[str, str]:
+    """(title, 'Key: value' lines) for database-row pages: dates, selects, status, text, people, numbers."""
+    title, lines = "", []
+    for name, v in (props or {}).items():
+        if not isinstance(v, dict):
+            continue
+        t = v.get("type")
+        val = v.get(t)
+        if t == "title":
+            title = _rich(val)
+            continue
+        if t == "rich_text":
+            txt = _rich(val)
+        elif t == "date" and isinstance(val, dict):
+            txt = val.get("start") or ""
+            if val.get("end"):
+                txt += f" → {val['end']}"
+        elif t in ("select", "status") and isinstance(val, dict):
+            txt = val.get("name") or ""
+        elif t == "multi_select" and isinstance(val, list):
+            txt = ", ".join(x.get("name", "") for x in val if isinstance(x, dict))
+        elif t == "number":
+            txt = "" if val is None else str(val)
+        elif t == "checkbox":
+            txt = "yes" if val else "no"
+        elif t in ("url", "email", "phone_number"):
+            txt = str(val or "")
+        elif t == "people" and isinstance(val, list):
+            txt = ", ".join(x.get("name", "") for x in val if isinstance(x, dict))
+        else:
+            continue
+        if txt:
+            lines.append(f"{name}: {txt}")
+    return title, "\n".join(lines)
+
+
 def read_notion(execute: ExecuteFn, uid: str | None, doc_id: str) -> dict[str, Any]:
+    """Body as markdown plus the page's properties (database rows keep dates/status there, not in the body)."""
     data = _data(execute("NOTION_GET_PAGE_MARKDOWN", {"page_id": doc_id}, uid))
-    text = _first(data, "markdown", "content", "text") if isinstance(data, dict) else str(data)
-    return {"service": "notion", "id": doc_id, "title": _first(data, "title", default="") if isinstance(data, dict) else "",
-            "url": _first(data, "url") if isinstance(data, dict) else "", "text": text[:MAX_TEXT]}
+    body = _first(data, "markdown", "content", "text") if isinstance(data, dict) else str(data)
+    title, props_text, url = "", "", ""
+    try:
+        row = _data(execute("NOTION_FETCH_ROW", {"page_id": doc_id}, uid))
+        if isinstance(row, dict):
+            title, props_text = render_notion_properties(row.get("properties") or (row.get("page") or {}).get("properties") or {})
+            url = _first(row, "url", "public_url")
+    except Exception:  # noqa: BLE001 - properties are a bonus
+        pass
+    text = "\n\n".join(part for part in (props_text, body.strip()) if part)
+    return {"service": "notion", "id": doc_id, "title": title, "url": url, "text": text[:MAX_TEXT]}
 
 
 def read_googledocs(execute: ExecuteFn, uid: str | None, doc_id: str) -> dict[str, Any]:
