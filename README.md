@@ -1,98 +1,87 @@
 # Peyk
 
-*Peyk* (Turkish, from Persian *peyk*): messenger, courier — the runner who carried only what mattered.
+**Peyk** (Turkish, from Persian *peyk*: messenger, courier — the runner who carried only what mattered) is a
+personal agent that watches your inbox, calendar and documents, interrupts you only when it matters, and never
+sends anything you didn't approve. You talk to it on Telegram, like a good secretary.
 
-Peyk is a personal agent that *watches* your channels (Gmail, Calendar, Telegram) and interrupts you only when it matters.
-Built for the [Agents for Humans](https://agentsforhumans.devpost.com/) hackathon with Strands Agents on Amazon Bedrock.
+- Product page: **https://peyk.chat** (mirror: https://akcware.github.io/peyk/)
+- Try it: **https://t.me/proactiveagent_bot** — say hi, it takes it from there.
+- Built for the AWS [Agents for Humans](https://agentsforhumans.devpost.com/) hackathon with the Strands Agents SDK on Amazon Bedrock.
 
-> Status: phases 0–4 implemented and unit-tested (`make gate-0` … `gate-4`). Phase-0 manual tests recorded below; phase 1–4 manual tests are pending Bedrock model access (Anthropic use-case form).
+## Why not just a chatbot?
 
-## How it works (phase 0)
+A generic assistant waits for you to ask. Your inbox does not wait: sixty things a day, all with the same red badge,
+and the one that matters — a client whose checkout is down, the landlord, the school nurse — is buried between a
+newsletter and a receipt. Peyk starts from the other end.
 
-```
-Composio trigger (Gmail)  ──ws / webhook──▶  observation table  ──claim_next()──▶  notify worker ──▶ Telegram
-Telegram getUpdates       ──long-poll─────▶  (Postgres queue: FOR UPDATE SKIP LOCKED, dedup by unique key)
-```
+| Generic AI assistant | Peyk |
+|---|---|
+| Answers when asked | **Watches** your mail, calendar and documents and comes to you |
+| Every notification looks the same | Rates urgency, then a **daily interruption budget** decides whether to knock at all — the rest waits for the morning brief |
+| Talks about your data from a paste | Reads your **real** observations; remembers what it already told you ("that mail" works) |
+| "Send" means gone | Every outgoing mail, reminder or document is a **draft you approve**; an edited draft can never be sent by an old button |
+| Knows nothing about you, or everything | Asks once who you are, learns from **metadata only**, and stores **nothing until you confirm** |
+| One user, one API key | Anyone can message it; onboarding is a **conversation**, not commands |
 
-- `core/` — config, DB pool, models, `SourceAdapter` protocol + registry, identity normalization, all SQL (`core/repo`), the queue.
-- `adapters/composio/` — the only place the `composio` SDK is imported. `mappings.py` turns trigger payloads into observations declaratively.
-- `adapters/telegram/` — Bot API over `httpx`, four endpoints, no library.
-- `gateway/` — FastAPI: `/health`, `POST /webhook/composio` (HMAC verify → insert → 200).
-- `workers/` — long-lived asyncio loops: ingest (per adapter), notify, stale-claim recovery.
-- `agent/` — (phase 1) the only package deployed to AgentCore. It never touches the DB.
+## What it does
 
-## Quickstart
+**Interrupts on a budget.** Each mail or event gets an urgency 1–5 and a one-line summary in your language. A
+deterministic gate then applies your budget: a daily quota (default 5), a per-thread cooldown, quiet hours,
+mutes — with slots reserved for real emergencies so a busy morning cannot starve an afternoon crisis. Sixty
+mails a day become three or four knocks; everything else lands in the 08:00 brief.
+
+**Talks like a secretary.** Ask "who wrote today?", "when is the deadline in my Notion page?", "did I answer
+Mara?". Peyk answers first with a natural reflex ("Sure, checking today's mail…"), then with facts from your
+data. It looks up contacts itself, reads the document instead of guessing from its title, and proposes a time
+before it sets a reminder.
+
+**Drafts, you decide.** "Write to Mara that we move the meeting to tomorrow" → a draft with ✅ Send · ✏️ Edit ·
+❌ Cancel. Edit changes the draft's content hash; the Send button of an older version is refused. The same
+approval flow creates Notion pages and Google Docs.
+
+**Gets to know you — with consent.** Right after you connect a service Peyk reads the last 30 days of
+*metadata* (senders, subjects, document titles, never bodies), then says what it noticed and asks you to confirm
+or correct. Only confirmed facts go into memory; sensitive situations are asked about, never inferred.
+
+**Yours to delete.** Say "delete my account": Peyk asks twice, then revokes the service connections and erases
+everything it holds about you.
+
+## Works with
+
+| Service | What Peyk does with it |
+|---|---|
+| Gmail | watches new mail, summarizes, drafts replies and new mails for approval |
+| Google Calendar | knows your day, pings you 15 minutes before an event |
+| Notion, Google Docs, Google Drive | finds and reads your documents; writes pages and docs for you (approved first) |
+| Telegram | where you talk to Peyk (WhatsApp next — the control channel is an adapter) |
+
+Auth and triggers go through [Composio](https://composio.dev); Peyk never sees your Google or Notion password.
+
+## Under the hood (short version)
+
+- **Strands Agents SDK** on **Amazon Bedrock**: Claude Haiku 4.5 rates and summarizes (structured output),
+  Claude Sonnet 4.6 chats with tools, Titan Embeddings v2 backs the memory. The agent package never touches the
+  database: tools return data or *intents*, workers apply side effects — which is what lets it run isolated on
+  Bedrock AgentCore Runtime (configuration in `agentcore/`).
+- **Postgres + pgvector** is both the database and the queue (`FOR UPDATE SKIP LOCKED`); every event from every
+  source is one observation row, deduplicated by its natural id, so replays and reconciles are safe.
+- **Adding a source is a data change**: Google Calendar was added with one mapping row and no change to the core
+  — a test enforces it.
+- Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · deployment: [docs/DEPLOY.md](docs/DEPLOY.md) ·
+  test record: [docs/ENGINEERING.md](docs/ENGINEERING.md).
+
+## Run it yourself
 
 ```bash
-cp .env.example .env            # fill TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, COMPOSIO_API_KEY, COMPOSIO_USER_ID
+cp .env.example .env        # Telegram bot token, Composio API key, Bedrock model ids (see docs/SETUP-CHECKLIST.md)
 uv sync --group dev
-make migrate                    # starts postgres (compose, port 5433) and applies db/migrations
-uv run python scripts/composio_setup.py --toolkit gmail    # OAuth link + enables GMAIL_NEW_GMAIL_MESSAGE
-make run-workers                # terminal 1
-make run-gateway                # terminal 2 (only needed for webhook delivery)
+make migrate                # local Postgres via docker compose
+make run-workers            # then message your bot on Telegram
+make test                   # 120+ tests, no model calls
 ```
 
-Delivery mode: `COMPOSIO_DELIVERY=ws` (local, no public URL) or `webhook` (set the URL with
-`scripts/composio_setup.py --webhook https://<host>/webhook/composio` and put the dashboard secret in `COMPOSIO_WEBHOOK_SECRET`).
-
-## Gates
-
-Each phase closes with `make gate-N`; the next phase's branch starts from tag `phase-N`.
-
-```bash
-make gate-0     # tests/phase0 against TEST_DATABASE_URL (compose db, database agent_test)
-```
-
-### Phase 0 — manual checklist
-
-Record results here before tagging `phase-0`.
-
-- [x] Send yourself a mail → Composio trigger log shows it → raw notification in Telegram. Measured latency (2026-09-10, trigger interval 1 min): mail sent 16:28:20Z → observation 16:29:08Z → Telegram 16:29:09Z = **49 s**; earlier two mails: 11 s and 38 s. Bounded by Composio's polling interval, not by us.
-- [x] Disable the trigger in Composio → send a mail → re-enable. Outcome: **event never arrived** (trigger disabled 16:30:16Z, mail sent while disabled, re-enabled 16:33:27Z, nothing within 4 min; Composio's poller restarts from "now" on enable and does not replay). Phase 2's `reconcile` job (`GMAIL_FETCH_EMAILS` since last cursor, `ON CONFLICT DO NOTHING`) exists exactly for this.
-- [x] Workers stopped (Ctrl+C 16:38:07Z) → mail sent 16:38:20Z → workers restarted 16:38:26Z → observation 16:39:26Z, notified. **No loss for a short outage** because Composio's poll fired after the restart. Caveat: an outage that spans a poll tick (≥ 1 min) almost certainly loses the pushed event (websocket delivery has no replay; see test 2). Phase 2 `reconcile` closes that gap; re-run this test with a ≥ 2 min outage after phase 2 to confirm.
-
-### Phase 1 — triage eval (real model)
-
-`make gate-1-llm` on 2026-09-10, Bedrock `us.anthropic.claude-haiku-4-5-20251001-v1:0`, 60 synthetic labeled mails
-(`tests/fixtures/labeled_triage.jsonl`): within-1 accuracy **59/60 (98%)**, label-5 recall **6/6 (100%)**, 85 s wall clock.
-Only miss: "Appointment confirmation" rated 4 vs label 2 (model read "today at 10:00" as time-critical).
-
-## Live
-
-- Product page: https://akcware.github.io/peyk/
-- Bot: https://t.me/proactiveagent_bot (display name "Peyk")
-- Runtime: one Fly.io machine (`workers`, `iad`) + Neon Postgres; models on Amazon Bedrock (Claude Haiku 4.5 for
-  triage, Claude Sonnet 4.6 for chat, Titan Embeddings v2). See [docs/DEPLOY.md](docs/DEPLOY.md) — including why
-  the worker is not on AWS compute (the hackathon account's organization policy denies it) and how the
-  AgentCore configuration in `agentcore/` is used on an unrestricted account.
-
-## Multi-user and onboarding
-
-Anyone can message the bot. The first message from an unknown chat creates an `app_user` row; the chat agent
-greets, asks who they are (saved via `set_profile`), and offers to connect Gmail / Google Calendar. When the
-person agrees, the agent's `connect_service` intent makes the worker create a Composio OAuth link, send it, and
-poll (`await_connection` job, every 20 s, 15 min limit) until the account is ACTIVE — then the triggers for that
-person are enabled and the agent confirms. No slash commands; the person can ask to connect anything later.
-
-**Document services.** Notion, Google Drive and Google Docs are connectable too (agent-driven, same link
-flow). In chat the agent can search and read the person's documents (two-round tool calls resolved by the
-worker) and write Notion pages or Google Docs for them — creation is a draft with ✅ Create / ✏️ Edit / ❌ Cancel,
-through the same approval machine as mail. No triggers on purpose: edits to one's own documents are not worth
-an interruption.
-
-**First-learn.** Right after a service is connected, a detached job samples the last 30 days of metadata
-(senders, subjects, document titles — never bodies), registers the people in it, and lets the agent propose
-3–6 facts plus a profile: "I looked at senders and subjects, not content. You mostly deal with X about Y —
-correct me?" Nothing is stored until the person confirms or corrects it (`confirm_learned`). Sensitive life
-situations are only ever asked about, never inferred into memory.
-
-Every table carries `user_id`; queue, budget, mutes, memory, jobs and timezone are per user. Composio events are
-routed by their entity user id (our uuid), Telegram messages by chat id. The control channel is an adapter
-(`Content.choices`, `ControlEvent`), so a WhatsApp client can replace Telegram without touching workers.
-
-## Layout
-
-Architecture and the decisions behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Setup checklist: [docs/SETUP-CHECKLIST.md](docs/SETUP-CHECKLIST.md). Migrations are numbered SQL files in `db/migrations/`, applied by `db/migrate.py`.
+Production runs as one container (`make deploy` → Fly.io) with Neon Postgres and Bedrock; see
+[docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## License
 
