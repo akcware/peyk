@@ -72,7 +72,7 @@ Auth and triggers go through [Composio](https://composio.dev); Peyk never sees y
 ## Run it yourself
 
 ```bash
-cp .env.example .env        # Telegram bot token, Composio API key, Bedrock model ids (see docs/SETUP-CHECKLIST.md)
+cp .env.example .env        # Telegram bot token, Composio API key, Bedrock model ids (see docs/SETUP.md)
 uv sync --group dev
 make migrate                # local Postgres via docker compose
 make run-workers            # then message your bot on Telegram
