@@ -61,7 +61,7 @@ reset-user:
 	uv run python scripts/reset_user.py --chat $(CHAT)
 
 deploy:
-	scripts/deploy_lightsail.sh
+	scripts/deploy_fly.sh
 
 deploy-logs:
-	scripts/deploy_lightsail.sh --logs
+	scripts/deploy_fly.sh --logs

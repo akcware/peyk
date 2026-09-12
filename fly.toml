@@ -1,0 +1,35 @@
+# Peyk workers on Fly.io — one always-on machine (Telegram polling + Composio realtime are single-consumer).
+app = "peyk"
+primary_region = "iad"          # us-east: close to Bedrock us-east-1 and the Neon DB (us-east-2)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HEALTH_PORT = "8080"
+  LOG_LEVEL = "INFO"
+  COMPOSIO_DELIVERY = "ws"
+  AGENT_MODE = "local"
+  AWS_PROFILE = ""
+
+[processes]
+  workers = "workers"
+
+[[vm]]
+  processes = ["workers"]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+[http_service]
+  processes = ["workers"]
+  internal_port = 8080
+  auto_stop_machines = "off"     # never scale to zero: the agent must keep listening
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health"
