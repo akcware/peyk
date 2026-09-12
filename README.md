@@ -1,8 +1,7 @@
 # Peyk
 
 **Peyk** (Turkish, from Persian *peyk*: messenger, courier — the runner who carried only what mattered) is a
-personal agent that watches your inbox, calendar and documents, interrupts you only when it matters, and never
-sends anything you didn't approve. You talk to it on Telegram, like a good secretary.
+personal agent that watches everything that comes at you — mail, calendar, documents, messages — interrupts you only when it matters, and never sends anything you didn't approve. You talk to it on Telegram, like a good secretary.
 
 - Product page: **https://peyk.chat** (mirror: https://akcware.github.io/peyk/)
 - Try it: **https://t.me/proactiveagent_bot** — say hi, it takes it from there.
