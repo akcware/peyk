@@ -89,7 +89,8 @@ async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
         from workers import chat
 
         sent = await chat.react_to_event(conn, obs.user_id, brief_event_text(items, now), settings=ctx.settings, agent=ctx.agent,
-                                         notifier=notifier, embedder=ctx.embedder, registry=ctx.registry, fallback=fallback)
+                                         notifier=notifier, embedder=ctx.embedder, registry=ctx.registry, fallback=fallback,
+                                         instruction="write the brief now")
         if sent:
             return
     await notifier.send_text(fallback)

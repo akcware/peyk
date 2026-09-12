@@ -326,7 +326,8 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
 
 
 async def react_to_event(conn: psycopg.AsyncConnection, user_id: UUID, event_text: str, *, settings: Settings, agent: AgentClient,
-                         notifier, embedder: Embedder, registry=None, fallback: str | None = None) -> str:
+                         notifier, embedder: Embedder, registry=None, fallback: str | None = None,
+                         instruction: str = "tell the person now, in one or two sentences") -> str:
     """Let the agent phrase a system event (a service got connected, a link expired) in its own voice and the
     person's language, with the conversation context. Falls back to `fallback` text if the agent fails."""
     user_row = await user_repo.get(conn, user_id)
@@ -335,7 +336,7 @@ async def react_to_event(conn: psycopg.AsyncConnection, user_id: UUID, event_tex
     thread_key = user_row["control_thread_key"]
     pseudo = Observation(user_id=user_id, source=user_row["control_source"], source_key=f"event:{datetime.now(tz=UTC).timestamp()}",
                          kind="message_in", occurred_at=datetime.now(tz=UTC), thread_key=thread_key,
-                         payload={"control": {"text": f"[system event: {event_text} — tell the person now, in one or two sentences]"}})
+                         payload={"control": {"text": f"[system event: {event_text} — {instruction}]"}})
     try:
         user, state = await user_payload(conn, pseudo, registry)
         reply, intents = await converse(conn, pseudo, settings=settings, agent=agent, embedder=embedder, registry=registry,

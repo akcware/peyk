@@ -165,7 +165,7 @@ async def test_morning_brief_is_agent_written_when_agent_available(conn, setting
     from core.repo import user_repo
 
     user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "777", language="tr")
-    o = await observation_repo.insert(conn, Observation(**{**gmail_obs("mb").model_dump(), "user_id": user["id"]}))
+    o = await observation_repo.insert(conn, Observation(**{**gmail_obs("mb").model_dump(), "user_id": user["id"], "occurred_at": datetime.now(tz=UTC)}))
     await budget_repo.insert_triage(conn, o.id, urgency=4, category="person", reason="r", model_id="m", latency_ms=1, summary="Mara faturayı bekliyor")
     seen = []
     def voice(payload):
