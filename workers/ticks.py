@@ -66,10 +66,33 @@ def render_brief(items: list[dict], now: datetime) -> str:
     return "\n".join(lines)
 
 
+def brief_event_text(items: list[dict], now: datetime) -> str:
+    """The system event handed to the agent: the important observations of the last 24h, compactly."""
+    if not items:
+        return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — give the person a one-line good-morning brief saying it is quiet"
+    lines = [f"it is morning ({now:%a %d %b}); write the person's morning brief from these {len(items)} items of the last 24h (urgency 1-5):"]
+    for it in items:
+        p = it["payload"]
+        who = p.get("from") or p.get("summary") or it["source"]
+        subject = p.get("subject") or p.get("summary") or ""
+        lines.append(f"- [{it['source']}] u{it['urgency']} {who} — {subject}: {it.get('summary') or it['reason']}")
+    lines.append("Group by what needs action today vs. what can wait; 4-8 short lines; no bullets with raw headers; end with one sentence on what you would do first")
+    return "\n".join(lines)
+
+
 async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
     now = datetime.now(tz=UTC)
     items = await brief_items(conn, obs.user_id, now - timedelta(hours=24))
-    await (await ctx.notifier_for(conn, obs.user_id)).send_text(render_brief(items, now))
+    notifier = await ctx.notifier_for(conn, obs.user_id)
+    fallback = render_brief(items, now)
+    if ctx.agent is not None and ctx.embedder is not None:
+        from workers import chat
+
+        sent = await chat.react_to_event(conn, obs.user_id, brief_event_text(items, now), settings=ctx.settings, agent=ctx.agent,
+                                         notifier=notifier, embedder=ctx.embedder, registry=ctx.registry, fallback=fallback)
+        if sent:
+            return
+    await notifier.send_text(fallback)
 
 
 # ---------- followup ----------

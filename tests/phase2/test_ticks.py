@@ -157,3 +157,25 @@ async def test_reconcile_bootstrap_sets_cursor_without_replay(conn, settings):
     assert await cursor_repo.get(conn, USER_ID, "composio") is not None
     await ticks.handle_tick(conn, await _tick(conn, "reconcile"), ctx)       # second run replays since cursor - lookback
     assert calls and await observation_repo.count(conn, USER_ID, source="gmail") == 3
+
+
+async def test_morning_brief_is_agent_written_when_agent_available(conn, settings):
+    from agent.client import AgentClient
+    from core.embeddings import FakeEmbedder
+    from core.repo import user_repo
+
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "777", language="tr")
+    o = await observation_repo.insert(conn, Observation(**{**gmail_obs("mb").model_dump(), "user_id": user["id"]}))
+    await budget_repo.insert_triage(conn, o.id, urgency=4, category="person", reason="r", model_id="m", latency_ms=1, summary="Mara faturayı bekliyor")
+    seen = []
+    def voice(payload):
+        if payload["task"] == "chat":
+            seen.append(payload["message"]); return {"task": "chat", "reply": "Günaydın! Bugün tek önemli şey: Mara faturayı bekliyor.", "intents": []}
+        return {"task": "chat_ack", "needs_work": True, "message": ""}
+    tg = FakeTelegram()
+    ctx = ticks.TickContext(settings=settings, registry=None, notifier=triage.Notifier(tg, "777", user["id"]),
+                            agent=AgentClient("local", handle_fn=voice), embedder=FakeEmbedder())
+    job = await job_repo.create(conn, user["id"], run_at=datetime.now(tz=UTC), kind="morning_brief", created_by="system")
+    await ticks.handle_tick(conn, await observation_repo.insert(conn, scheduler.tick_observation(job)), ctx)
+    assert seen and "morning brief" in seen[0] and "Mara faturayı bekliyor" in seen[0]
+    assert tg.sent[-1]["text"].startswith("Günaydın!")
