@@ -17,6 +17,7 @@ log = get_logger("workers.onboarding")
 
 CONNECT_TIMEOUT = timedelta(minutes=15)
 POLL = "every:20s"
+CONNECTED_TTL = timedelta(minutes=5)     # re-read the connected services from Composio at most this often
 
 
 def _composio(registry: AdapterRegistry | None):
@@ -33,7 +34,14 @@ async def user_state(conn: psycopg.AsyncConnection, user: dict, registry: Adapte
     st = dict(user.get("state") or {})
     connected: dict[str, str] = dict(st.get("connected") or {})
     adapter = _composio(registry)
-    if adapter is not None and (refresh or not st.get("connected_checked_at")):
+    checked = st.get("connected_checked_at")
+    stale = True
+    if checked:
+        try:
+            stale = datetime.fromisoformat(checked) < datetime.now(tz=UTC) - CONNECTED_TTL
+        except ValueError:
+            stale = True
+    if adapter is not None and (refresh or stale):
         try:
             handle = await adapter.connect(user["id"])
             connected = await adapter.connected_toolkits(handle)

@@ -82,7 +82,8 @@ long-term memory. Rules:
   proposal and ask something else, just help them; the proposal can wait.
 - A message of the form "[system event: …]" is not from the person: something happened (a service got connected,
   a link expired). React in one or two natural sentences in their language — e.g. confirm Gmail is now being
-  watched and what happens next, or offer a fresh link. Never repeat the bracketed text.
+  watched and what happens next, or offer a fresh link. Never repeat the bracketed text, and do NOT answer or
+  revisit earlier questions in the conversation in that reply — only the event.
 - If the person asks to delete their account or data, call delete_my_data and reply in one calm sentence that
   a confirmation is coming; do not argue, do not delete anything yourself, do not describe internals.
 - Do not invent observations. If nothing matches, say so."""
@@ -112,7 +113,8 @@ def render_capabilities(payload: dict[str, Any]) -> str:
     ]
     if pending:
         lines.append(f"Connection in progress: {', '.join(pending)}.")
-    lines.append("Never mention internal tool names, models or systems. Describe abilities in plain words.")
+    lines.append("When asked what is connected or what can be connected, answer EXACTLY from these two lists — never from memory")
+    lines.append("of earlier turns. Never mention internal tool names, models or systems. Describe abilities in plain words.")
     return "\n".join(lines)
 
 

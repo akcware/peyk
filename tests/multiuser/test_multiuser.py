@@ -302,3 +302,23 @@ async def test_account_deletion_two_confirmations(conn, settings):
     n2 = triage.Notifier(tg, "445", user2["id"])
     out = await account.on_callback(conn, user2["id"], f"del:yes1:{user2['id'].hex}", n2, registry)
     assert out.startswith("The deletion request expired") and await user_repo.get(conn, user2["id"]) is not None
+
+
+async def test_connected_services_refresh_after_ttl(conn, settings):
+    from datetime import UTC, datetime, timedelta
+
+    from workers import onboarding
+
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "606")
+    comp = FakeComposio(); comp.accounts[str(user["id"])] = {"gmail": "a", "notion": "b"}
+    registry = AdapterRegistry({"composio": comp})
+    old = (datetime.now(tz=UTC) - timedelta(minutes=30)).isoformat()
+    await user_repo.merge_state(conn, user["id"], {"connected": {"gmail": "a"}, "connected_checked_at": old})
+    user = await user_repo.get(conn, user["id"])
+    st = await onboarding.user_state(conn, user, registry)
+    assert st["connected"] == ["gmail", "notion"]                  # stale cache refreshed from Composio
+    fresh = (datetime.now(tz=UTC)).isoformat()
+    await user_repo.merge_state(conn, user["id"], {"connected": {"gmail": "a"}, "connected_checked_at": fresh})
+    comp.accounts[str(user["id"])] = {"gmail": "a", "notion": "b", "googledocs": "c"}
+    st = await onboarding.user_state(conn, await user_repo.get(conn, user["id"]), registry)
+    assert st["connected"] == ["gmail"]                            # within TTL: cache used
