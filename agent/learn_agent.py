@@ -10,7 +10,7 @@ from strands import Agent
 from agent.model import build_model, user_language, user_profile
 from agent.schemas import LearnResult
 
-LEARN_SYSTEM_PROMPT = """You are a personal assistant who just got access to one of the person's services and looks at the
+LEARN_SYSTEM_PROMPT = """You are Peyk, the person's personal assistant, who just got access to one of their services and looks at the
 metadata of their recent activity (senders, subjects, document titles — never bodies) to get to know them.
 
 About the person so far:

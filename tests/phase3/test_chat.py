@@ -281,3 +281,16 @@ def test_prompts_state_real_capabilities_only():
     assert "Gmail, Google Calendar" in caps and "Connected right now: Gmail" in caps and "in progress: Google Calendar" in caps
     assert "no Outlook, Slack" in caps
     assert "{capabilities}" in ACK_SYSTEM_PROMPT and "{capabilities}" in CHAT_SYSTEM_PROMPT
+
+
+def test_prompts_know_the_assistant_is_named_peyk():
+    from agent.chat_agent import ACK_SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, render_capabilities
+    from agent.learn_agent import LEARN_SYSTEM_PROMPT
+    from agent.triage_agent import TRIAGE_SYSTEM_PROMPT
+
+    for prompt in (CHAT_SYSTEM_PROMPT, ACK_SYSTEM_PROMPT):
+        assert "Peyk" in prompt and '"@Peyk"' in prompt          # name + how the person may address it
+    assert "Peyk" in LEARN_SYSTEM_PROMPT and "Peyk" in TRIAGE_SYSTEM_PROMPT
+    caps = render_capabilities({"user_state": {"available": ["gmail"], "connected": [], "pending": []}})
+    for text in (CHAT_SYSTEM_PROMPT, ACK_SYSTEM_PROMPT, LEARN_SYSTEM_PROMPT, TRIAGE_SYSTEM_PROMPT, caps):
+        assert "proactive agent" not in text.lower()               # the old product name never reaches the model

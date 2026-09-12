@@ -1,8 +1,8 @@
 # Devpost submission text (draft)
 
-**Project name:** Proactive Agent  
+**Project name:** Peyk  
 **Track:** Everyday Agents  
-**One-liner:** A personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.
+**One-liner:** Peyk (Turkish: messenger, courier) is a personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.
 
 ## Inspiration
 Notifications treat a newsletter and a client's "production is down" the same way. We wanted an assistant that behaves like a good secretary: reads everything, brings you the three things that matter, drafts the reply, and waits for your nod.

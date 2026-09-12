@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
-    app = FastAPI(title="proactive-agent gateway", lifespan=lifespan)
+    app = FastAPI(title="Peyk gateway", lifespan=lifespan)
     app.state.database_url = database_url
 
     @app.get("/health")

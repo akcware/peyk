@@ -1,6 +1,6 @@
 # Architecture
 
-One idea: **observe everything, interrupt rarely, act only with approval.** Every input (mail, calendar
+Peyk is built on one idea: **observe everything, interrupt rarely, act only with approval.** Every input (mail, calendar
 event, Telegram message, scheduler tick) becomes an `observation` row; one worker loop consumes the queue;
 the model decides *importance*, a deterministic gate decides *interruption*; every outbound action is a
 hash-checked draft the user approves in Telegram.

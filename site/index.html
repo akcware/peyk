@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Proactive Agent</title>
-<meta name="description" content="A personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
+<title>Peyk</title>
+<meta name="description" content="Peyk — a personal agent that watches your inbox and calendar, interrupts you only when it matters, and never sends anything you didn't approve.">
 <meta name="theme-color" content="#0F2620">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -85,6 +85,19 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .hero__note a{color:var(--ivory)}
 .hero__phone{display:flex;justify-content:center}
 @media (min-width:900px){.hero__phone{justify-content:flex-end}}
+
+/* dictionary entry */
+.lex{margin-top:.25rem;padding-top:1.1rem;border-top:1px solid var(--line);max-width:34rem;color:var(--sage);font-size:.95rem;line-height:1.5}
+.lex__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .65rem;margin-bottom:.5rem}
+.lex__hw{font-family:var(--serif);font-weight:500;font-size:1.65rem;line-height:1;letter-spacing:-.01em;color:var(--ivory)}
+.lex__ipa{font-family:var(--serif);font-style:italic;color:var(--sage)}
+.lex__pos,.lex__ety{font-family:var(--sans);font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--sage)}
+.lex__pos::after{content:'·';margin-left:.65rem;letter-spacing:0}
+.lex__ety [lang=fa]{font-size:1.05rem;letter-spacing:0;text-transform:none;color:var(--ivory-2);margin-left:.15rem}
+.lex__senses{margin:0;padding-left:1.35rem;display:grid;gap:.15rem}
+.lex__senses li{padding-left:.2rem}
+.lex__senses li::marker{font-family:var(--serif);font-weight:500;color:var(--amber)}
+.lex__ex{margin-top:.55rem;font-family:var(--serif);font-style:italic;color:var(--ivory-2)}
 
 /* ---------- phone (Telegram iOS, light) ---------- */
 .phone{width:min(320px,100%);max-width:100%;background:#0B1512;border-radius:44px;padding:12px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06) inset;position:relative}
@@ -322,7 +335,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 
 <header class="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Proactive Agent, top of page"><span class="brand__mark" aria-hidden="true"></span>Proactive Agent</a>
+    <a class="brand" href="#top" aria-label="Peyk, top of page"><span class="brand__mark" aria-hidden="true"></span>Peyk</a>
     <nav class="nav__links" aria-label="Page">
       <a class="hide-sm" href="#benefits">What it does</a>
       <a class="hide-sm" href="#cases">Use cases</a>
@@ -348,6 +361,14 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         <a class="btn btn--ghost" href="#benefits">See what it does</a>
       </div>
       <p class="hero__note">Free and open source. Your mail stays yours: it reads, it asks, it never sends on its own.</p>
+      <aside class="lex" aria-label="Dictionary entry: peyk">
+        <p class="lex__head"><span class="lex__hw">peyk</span> <span class="lex__ipa">/peɪk/</span> <span class="lex__pos">noun</span> <span class="lex__ety">Turkish, from Persian <span lang="fa" dir="rtl">پیک</span></span></p>
+        <ol class="lex__senses">
+          <li>messenger, courier; historically a runner who carried the ruler's messages.</li>
+          <li>satellite; one that attends and keeps watch.</li>
+        </ol>
+        <p class="lex__ex">— "Peyk brings you only what matters."</p>
+      </aside>
     </div>
     <div class="hero__phone">
       <div class="phone" id="phone" aria-hidden="true">
@@ -359,7 +380,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
           </span></div>
           <div class="ph-head">
             <span class="ph-back"><svg viewBox="0 0 13 22"><path d="M11 2 2 11l9 9"/></svg><span class="ph-back__n">3</span></span>
-            <span class="ph-title"><span class="ph-avatar">P</span><span class="ph-name">Proactive Agent</span><span class="ph-sub" id="phSub">bot</span></span>
+            <span class="ph-title"><span class="ph-avatar">P</span><span class="ph-name">Peyk</span><span class="ph-sub" id="phSub">bot</span></span>
             <span class="ph-actions"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle cx="7.5" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16.5" cy="12" r=".6" fill="currentColor"/></svg></span>
           </div>
           <div class="tg-chat"><span class="ph-date">Today</span><div class="tg-list" id="tgList"></div></div>
@@ -372,7 +393,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
           <div class="ph-home"><span></span></div>
         </div>
       </div>
-      <p class="sr-only">Example Telegram conversation. The agent sends a notification: Mara Lindqvist wants to move Thursday's review and needs an answer before 5 pm, with buttons useful, noise, and mute thread under it. You ask who mailed you today; the agent says "Sure, checking today's mail" and lists three items worth your time. You ask it to write to Mara that the meeting moves to tomorrow; it shows a draft with Send, Edit and Cancel buttons. You tap Edit and say "make it 3 pm"; it shows a new draft. You tap Send; the agent confirms "Sent to Mara".</p>
+      <p class="sr-only">Example Telegram conversation. Peyk sends a notification: Mara Lindqvist wants to move Thursday's review and needs an answer before 5 pm, with buttons useful, noise, and mute thread under it. You ask who mailed you today; Peyk says "Sure, checking today's mail" and lists three items worth your time. You ask it to write to Mara that the meeting moves to tomorrow; it shows a draft with Send, Edit and Cancel buttons. You tap Edit and say "make it 3 pm"; it shows a new draft. You tap Send; Peyk confirms "Sent to Mara".</p>
     </div>
   </div>
 </section>
@@ -393,7 +414,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         <div class="kept__slot"><span class="kept__ring"></span><span class="kept__label">Landlord: viewing tomorrow 17:00</span></div>
         <div class="kept__slot"><span class="kept__ring"></span><span class="kept__label">School: Leo is unwell, call</span></div>
       </div>
-      <p class="swarm-after">Proactive Agent reads all sixty and knocks for the few that need you today. The rest waits for tomorrow's morning brief.</p>
+      <p class="swarm-after">Peyk reads all sixty and knocks for the few that need you today. The rest waits for tomorrow's morning brief.</p>
     </div>
   </div>
 </section>
@@ -543,7 +564,7 @@ Alex</textarea>
   <div class="wrap">
     <div class="sec-head rv">
       <h2 id="h-integ">Works with what you already use.</h2>
-      <p class="lede">Connect a service in one tap. The agent reads, summarizes and drafts. It only writes anything after you approve.</p>
+      <p class="lede">Connect a service in one tap. Peyk reads, summarizes and drafts. It only writes anything after you approve.</p>
     </div>
     <h3 class="integ-h rv">Connected today</h3>
     <ul class="integ" aria-label="Connected services">
@@ -594,7 +615,7 @@ Alex</textarea>
     </div>
     <ol class="steps" aria-label="Onboarding steps">
       <li class="step rv"><span class="step__n" aria-hidden="true">1</span><h3>Say hi</h3><p>Message the bot. It introduces itself and asks who you are.</p>
-        <div class="mini"><div class="mini__q">hi</div><div class="mini__b">Hi, I'm your proactive agent. I watch your mail and calendar and only interrupt when it matters. Who am I talking to?</div></div></li>
+        <div class="mini"><div class="mini__q">hi</div><div class="mini__b">Hi, I'm Peyk. I watch your mail and calendar and only interrupt when it matters. Who am I talking to?</div></div></li>
       <li class="step rv" style="--d:100ms"><span class="step__n" aria-hidden="true">2</span><h3>Answer one question</h3><p>Your name and where you are. That sets your timezone, your budget and your own memory.</p>
         <div class="mini"><div class="mini__q">Alex, in Berlin</div><div class="mini__b">Nice to meet you, Alex. Berlin time it is. Want me to connect your Gmail and Google Calendar?</div></div></li>
       <li class="step rv" style="--d:200ms"><span class="step__n" aria-hidden="true">3</span><h3>Tap the link</h3><p>It sends a Google sign-in link and waits until the account is connected. Nothing is typed into the chat.</p>
@@ -610,8 +631,8 @@ I'll tell you when it's linked.</div><div class="mini__b">Gmail connected. I'm w
 <!-- 10. Footer -->
 <footer class="foot">
   <div class="wrap">
-    <p>Open source under MIT · <a href="#" id="githubLink" data-github-url="">GitHub</a> · Built for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon</p>
-    <p><a href="https://t.me/proactiveagent_bot" rel="noopener">@proactiveagent_bot</a></p>
+    <p>Peyk · Built for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon · MIT</p>
+    <p><a href="https://t.me/proactiveagent_bot" rel="noopener">@proactiveagent_bot</a> · <a href="#" id="githubLink" data-github-url="">GitHub</a></p>
   </div>
 </footer>
 

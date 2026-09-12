@@ -9,7 +9,7 @@ Hazırlık: worker çalışıyor, kota temiz (`make requeue-failed` değil; gere
 
 ## 0:40–1:10 What it is
 [Ekran: landing page hero]
-"Proactive Agent watches your mail and calendar, decides what's actually urgent, and interrupts you only within a daily budget. It talks like a secretary, drafts replies you approve, and never sends anything on its own. Built with the Strands Agents SDK on Amazon Bedrock."
+"Peyk — it means messenger in Turkish — watches your mail and calendar, decides what's actually urgent, and interrupts you only within a daily budget. It talks like a secretary, drafts replies you approve, and never sends anything on its own. Built with the Strands Agents SDK on Amazon Bedrock."
 
 ## 1:10–2:10 Live: triage + budget
 [Kendinize iki mail atın: biri "Weekly digest" tarzı, biri "Invoice #2041 due Friday — please confirm today" (başka bir hesaptan ya da kendinize)]

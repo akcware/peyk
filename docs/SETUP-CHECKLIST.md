@@ -10,6 +10,7 @@ Tamamlananları `[x]` işaretleyin; ben `.env`'e bakarak hangi fazın elle testi
 
 ### A1. Telegram botu
 - [ ] Telegram'da **@BotFather** → `/newbot` → isim ve kullanıcı adı ver → token'ı kopyala.
+- [ ] Botun görünen adı: @BotFather → `/setname` → **Peyk**; isteğe bağlı `/setdescription` → "Peyk — brings you only what matters."
 - [ ] Bota bir kez `/start` yaz (bot sana mesaj atabilsin diye şart).
 - [ ] `chat_id`'ni öğren (TOKEN'ı kendi token'ınla değiştir):
   ```bash

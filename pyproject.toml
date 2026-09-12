@@ -1,7 +1,7 @@
 [project]
 name = "proactive-agent"
 version = "0.1.0"
-description = "Proactive personal agent: observe Gmail/Calendar/Telegram, triage, interrupt only when it matters."
+description = "Peyk — a quiet messenger: observes Gmail/Calendar/Telegram, triages, interrupts only when it matters."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }

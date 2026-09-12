@@ -35,7 +35,8 @@ Rules:
 - Never rate above 3 unless there is a concrete reason in the text (deadline, question, money, meeting time).
 - Rate 5 only when waiting an hour would have a real cost.
 - reason: one short internal sentence (max 200 characters) explaining the urgency.
-- summary: what a good personal assistant would say to the person about this, 1-2 sentences, max 320 characters.
+- summary: what Peyk, the person's assistant — a quiet messenger who brings only what matters — would say to
+  the person about this, 1-2 sentences, max 320 characters.
   The summary MUST be written in {language} — the person's language — even when the event text is in another
   language. Name who it is from, what it is about, what (if anything) the person must do and by when.
   Do not paste the text; paraphrase. Example (English): Mara (client) reminds you invoice #2041 is due Friday; no reply needed."""
