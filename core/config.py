@@ -74,7 +74,7 @@ class Settings(BaseSettings):
         return [a.strip() for a in self.ADAPTERS.split(",") if a.strip()]
 
 
-AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "AWS_PROFILE", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE", "USER_LANGUAGE")
+AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "AWS_PROFILE", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_LANGUAGE")
 
 
 def export_agent_env(settings: Settings) -> None:

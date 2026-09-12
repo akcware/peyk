@@ -52,6 +52,7 @@ def user_language(code: str | None = None) -> str:
 
 
 def user_profile(payload: dict | None = None) -> str:
-    """Profile from the request payload (multi-user) or the USER_PROFILE env (single-user fallback)."""
+    """Profile from the request payload only. Never fall back to the process environment: in a multi-user
+    deployment that would show one person's profile to another."""
     u = (payload or {}).get("user") or {}
-    return (u.get("profile") or os.environ.get("USER_PROFILE") or "(no profile provided)").strip()
+    return (u.get("profile") or "").strip() or "(no profile yet — the person has not told you about themselves)"

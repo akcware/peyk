@@ -331,3 +331,10 @@ async def test_burst_merging(conn, settings):
     # the merged text reached the ack stage as one message
     hist = await chat.build_history(conn, await observation_repo.insert(conn, tg_text("903", "next", datetime.now(tz=UTC))))
     assert any(h["role"] == "assistant" and h["text"] == "Selam!" for h in hist)
+
+
+def test_profile_never_leaks_from_env(monkeypatch):
+    from agent.model import user_profile
+    monkeypatch.setenv("USER_PROFILE", "someone else's profile")
+    assert "someone else" not in user_profile({"user": {"profile": ""}})
+    assert user_profile({"user": {"profile": "Student in Karlsruhe"}}) == "Student in Karlsruhe"
