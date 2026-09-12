@@ -89,3 +89,27 @@ async def count_from_sender(conn: psycopg.AsyncConnection, user_id: UUID, sender
         (user_id, f"%{sender_email}%"),
     )
     return (await cur.fetchone())["n"]
+
+
+async def claim_followups(
+    conn: psycopg.AsyncConnection, obs: Observation, *, kinds: tuple[str, ...] = ("message_in",)
+) -> list[Observation]:
+    """Take (mark done) the newer, still-unprocessed messages in the same thread from the same user so they
+    can be merged into the current turn instead of being answered one by one."""
+    async with conn.transaction():
+        cur = await conn.execute(
+            f"""
+            update observation set status = 'done', claimed_at = now(), attempts = attempts + 1
+            where id in (
+              select id from observation
+              where user_id = %s and source = %s and thread_key = %s and kind = any(%s)
+                and status = 'new' and received_at > %s
+              order by received_at
+              for update skip locked
+            )
+            returning {_COLS}
+            """,
+            (obs.user_id, obs.source, obs.thread_key, list(kinds), obs.received_at),
+        )
+        rows = await cur.fetchall()
+    return sorted((_row(r) for r in rows), key=lambda o: o.received_at)

@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     RECONCILE_EVERY: str = "10m"               # empty string disables the reconcile job
     RECONCILE_LOOKBACK_MINUTES: int = 15
 
+    CHAT_DEBOUNCE_S: float = 2.5               # merge messages a person sends within this window into one turn
     HEALTH_PORT: int = 8080                    # workers' HTTP health endpoint (0 = disabled)
 
     LOG_LEVEL: str = "INFO"

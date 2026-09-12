@@ -3,6 +3,7 @@ The agent gets data in the payload (it has no DB); if it returns a NeedMore inte
 call again — at most MAX_ROUNDS rounds. Side-effect intents are applied here."""
 from __future__ import annotations
 
+import asyncio
 import html
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -16,7 +17,7 @@ from core.embeddings import Embedder
 from core.log import get_logger
 from core.models import Observation
 from core.repo import job_repo, memory_repo, observation_repo, user_repo
-from core.routing import control_text
+from core.routing import control_event, control_text
 
 log = get_logger("workers.chat")
 
@@ -272,6 +273,33 @@ async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, f
     return await cur.fetchone() is not None
 
 
+async def collect_burst(conn: psycopg.AsyncConnection, obs: Observation, settings: Settings) -> tuple[str, list[Observation]]:
+    """People type in bursts ("he" / "y", or a question split over three lines). Wait a short debounce after the
+    message arrived, then absorb newer unprocessed plain messages from the same thread into this turn.
+    Returns (merged text, absorbed observations)."""
+    from workers.commands import as_chat_text, is_remind
+
+    debounce = float(getattr(settings, "CHAT_DEBOUNCE_S", 0) or 0)
+    received = obs.received_at or obs.occurred_at
+    wait = debounce - (datetime.now(tz=UTC) - received).total_seconds()
+    if wait > 0:
+        await asyncio.sleep(wait)
+    parts = [as_chat_text(control_text(obs))]
+    absorbed: list[Observation] = []
+    if debounce > 0:
+        for extra in await observation_repo.claim_followups(conn, obs):
+            ev = control_event(extra)
+            if ev.callback is not None or not ev.text or is_remind(ev.text):
+                # not a plain message: give it back to the queue untouched
+                await conn.execute("update observation set status = 'new', claimed_at = null, attempts = attempts - 1 where id = %s", (extra.id,))
+                continue
+            parts.append(as_chat_text(ev.text))
+            absorbed.append(extra)
+    if absorbed:
+        log.info("chat.burst_merged", observation_id=str(obs.id), absorbed=len(absorbed))
+    return "\n".join(p for p in parts if p), absorbed
+
+
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                          notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None,
                          registry=None) -> str:
@@ -287,9 +315,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if typing:
         await typing()
     send = getattr(notifier, "send_rich", None) or notifier.send_text
-    from workers.commands import as_chat_text
-
-    text = as_chat_text(control_text(obs))
+    text, absorbed = await collect_burst(conn, obs, settings)
+    if absorbed:   # the merged turn is what the agent sees and what history records
+        obs = obs.model_copy(update={"payload": {**obs.payload, "control": {"text": text}}})
 
     user, state = await user_payload(conn, obs, registry)
     # The full agent must run (no fast reflex) when the reply may need a tool: first conversation (greet + connect),

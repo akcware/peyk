@@ -309,3 +309,25 @@ async def test_full_agent_sees_its_first_reflex(conn, settings):
     await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
     assert seen["reflex"] == "Hatırlatıcıyı ayarlıyorum."
     assert [m["text"] for m in tg.sent] == ["Hatırlatıcıyı ayarlıyorum.", "24 Eylül'den bir gün önce, 23 Eylül 09:00'a kurayım mı?"]
+
+
+async def test_burst_merging(conn, settings):
+    """'he' then 'y' within the debounce window become one turn; the second message is not answered separately."""
+    fast = settings.model_copy(update={"CHAT_DEBOUNCE_S": 0.3})
+    t = datetime.now(tz=UTC)
+    first = await observation_repo.insert(conn, tg_text("900", "he", t))
+    second = await observation_repo.insert(conn, tg_text("901", "y", t))
+    cmd = await observation_repo.insert(conn, tg_text("902", "/remind 1h x", t))     # not merged: stays queued
+    seen = []
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": False, "message": "Selam!"}
+        seen.append(payload["message"]); return {"task": "chat", "reply": "ok", "intents": []}
+    tg = FakeTelegram()
+    await chat.handle_message(conn, first, settings=fast, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["Selam!"]
+    assert (await observation_repo.get(conn, second.id)).status == "done"          # absorbed
+    assert (await observation_repo.get(conn, cmd.id)).status == "new"              # given back
+    # the merged text reached the ack stage as one message
+    hist = await chat.build_history(conn, await observation_repo.insert(conn, tg_text("903", "next", datetime.now(tz=UTC))))
+    assert any(h["role"] == "assistant" and h["text"] == "Selam!" for h in hist)

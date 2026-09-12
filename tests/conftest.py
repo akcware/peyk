@@ -51,6 +51,7 @@ def settings(test_db_url: str) -> Settings:
         COMPOSIO_USER_ID="default",
         COMPOSIO_DELIVERY="ws",
         TELEGRAM_BOT_TOKEN="",
+        CHAT_DEBOUNCE_S=0,          # tests: no burst wait (test_burst_merging opts in explicitly)
     )
 
 
