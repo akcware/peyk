@@ -81,7 +81,7 @@ def export_agent_env(settings: Settings) -> None:
 
     for key in AGENT_ENV_KEYS:
         value = getattr(settings, key, "")
-        if value and not os.environ.get(key):
+        if value and not os.environ.get(key):   # an empty env value counts as unset
             os.environ[key] = str(value)
 
 
