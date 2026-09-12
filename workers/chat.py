@@ -292,7 +292,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     text = as_chat_text(control_text(obs))
 
     user, state = await user_payload(conn, obs, registry)
-    onboarding_needed = bool(state.get("is_new"))   # first conversation: the full agent greets and offers connections
+    # The full agent must run (no fast reflex) when the reply may need a tool: first conversation (greet + connect),
+    # or an unconfirmed learn proposal is waiting (the person's "evet doğru" must reach confirm_learned).
+    onboarding_needed = bool(state.get("is_new") or state.get("pending_learn"))
 
     # Stage 1 — first reflex (fast model): a natural "let me check…" or, for simple things, the answer itself.
     # Skipped while onboarding: the full agent must run so it can greet, ask and connect.

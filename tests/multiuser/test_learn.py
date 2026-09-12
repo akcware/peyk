@@ -99,3 +99,32 @@ def test_adapter_sample_dispatch(settings):
     assert any(f["kind"] == "contact" for f in facts)
     assert asyncio.run(a.sample_for_profile(Connection(adapter_id="composio", user_id=settings.USER_ID, data={"composio_user_id": "x"}), "nothing")) == []
     assert Observation(user_id=settings.USER_ID, source="x", source_key="k", kind="tick", occurred_at=datetime.now(tz=UTC)).status == "new"
+
+
+async def test_pending_learn_skips_fast_reflex(conn, settings):
+    from datetime import UTC, datetime
+
+    from agent.client import AgentClient
+    from core.embeddings import FakeEmbedder
+    from core.repo import memory_repo, observation_repo, user_repo
+    from tests.multiuser.test_multiuser import tg_text
+    from tests.phase1.test_worker_flow import FakeTelegram
+    from workers import chat, triage
+
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "901", language="tr")
+    await user_repo.merge_state(conn, user["id"], {"pending_learn": {"toolkit": "notion", "facts": ["Tesseract adlı ürün üzerinde çalışıyor"],
+                                                                     "profile_suggestion": "Karlsruhe'de öğrenci", "at": datetime.now(tz=UTC).isoformat()}})
+    calls = []
+    def handle(payload):
+        calls.append(payload["task"])
+        if payload["task"] == "chat_ack":
+            raise AssertionError("fast reflex must be skipped while a learn proposal is pending")
+        assert payload["user_state"]["pending_learn"]["facts"] == ["Tesseract adlı ürün üzerinde çalışıyor"]
+        return {"task": "chat", "reply": "Kaydettim.", "intents": [{"intent": "LearnConfirm", "facts": ["Tesseract adlı ürün üzerinde çalışıyor"], "profile": "Karlsruhe'de öğrenci"}]}
+    tg = FakeTelegram()
+    msg = await observation_repo.insert(conn, tg_text("901", "1", "evet doğru", user["id"]))
+    await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "901", user["id"]),
+                              embedder=FakeEmbedder())
+    assert calls == ["chat"] and await memory_repo.count(conn, user["id"]) == 1
+    u = await user_repo.get(conn, user["id"])
+    assert u["profile"] == "Karlsruhe'de öğrenci" and u["state"].get("pending_learn") is None
