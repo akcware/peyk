@@ -57,6 +57,15 @@ Record results here before tagging `phase-0`.
 (`tests/fixtures/labeled_triage.jsonl`): within-1 accuracy **59/60 (98%)**, label-5 recall **6/6 (100%)**, 85 s wall clock.
 Only miss: "Appointment confirmation" rated 4 vs label 2 (model read "today at 10:00" as time-critical).
 
+## Live
+
+- Product page: https://akcware.github.io/peyk/
+- Bot: https://t.me/proactiveagent_bot (display name "Peyk")
+- Runtime: one Fly.io machine (`workers`, `iad`) + Neon Postgres; models on Amazon Bedrock (Claude Haiku 4.5 for
+  triage, Claude Sonnet 4.6 for chat, Titan Embeddings v2). See [docs/DEPLOY.md](docs/DEPLOY.md) — including why
+  the worker is not on AWS compute (the hackathon account's organization policy denies it) and how the
+  AgentCore configuration in `agentcore/` is used on an unrestricted account.
+
 ## Multi-user and onboarding
 
 Anyone can message the bot. The first message from an unknown chat creates an `app_user` row; the chat agent

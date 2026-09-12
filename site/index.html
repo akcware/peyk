@@ -214,12 +214,16 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 /* ---------- benefits ---------- */
 .benefits{display:grid;gap:1.25rem}
 @media (min-width:640px){.benefits{grid-template-columns:repeat(2,1fr);gap:1.5rem}}
-@media (min-width:1000px){.benefits{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:1000px){.benefits{grid-template-columns:repeat(2,1fr);gap:1.75rem}}
 .benefit{display:grid;gap:.8rem;align-content:start;padding:1.5rem 1.4rem 1.6rem;border-radius:14px;border:1px solid var(--line);background:var(--bg-2)}
 .benefit__icon{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;border:1px solid var(--line);color:var(--amber)}
 .benefit__icon svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .benefit h3{font-family:var(--serif);font-weight:500;font-size:1.4rem;letter-spacing:-.01em;line-height:1.15}
 .benefit p{color:var(--muted);font-size:.95rem;line-height:1.5}
+.benefit .mini{margin-top:.4rem}
+.mini__grp{display:flex;flex-direction:column;gap:4px;max-width:88%;width:fit-content;align-self:flex-start}
+.mini__grp .mini__b{max-width:none;align-self:stretch}
+.mini .tg-btn{font-size:13px;padding:8px 4px;border-radius:13px}
 
 /* ---------- integrations ---------- */
 .integ-h{font-family:var(--serif);font-weight:400;font-size:1.35rem;color:var(--muted);margin:0 0 1rem}
@@ -411,7 +415,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
           <div class="ph-home"><span></span></div>
         </div>
       </div>
-      <p class="sr-only">Example Telegram conversation. Peyk sends a notification: Mara Lindqvist wants to move Thursday's review and needs an answer before 5 pm, with buttons useful, noise, and mute under it. You ask who mailed you today; Peyk says "Sure, checking today's mail" and lists three items worth your time. You ask it to write to Mara that the meeting moves to tomorrow; it shows a draft with Send, Edit and Cancel buttons. You tap Edit and say "make it 3 pm"; it shows a new draft. You tap Send; Peyk confirms "Sent to Mara".</p>
+      <p class="sr-only">Example Telegram conversation. Peyk sends a notification: Mara Lindqvist wants to move Thursday's review and needs an answer before 5 pm, with buttons useful, noise, and mute thread under it. You ask who mailed you today; Peyk says "Sure, checking today's mail" and lists three items worth your time. You ask it to write to Mara that the meeting moves to tomorrow; it shows a draft with Send, Edit and Cancel buttons. You tap Edit and say "make it 3 pm"; it shows a new draft. You tap Send; Peyk confirms "Sent to Mara".</p>
     </div>
   </div>
 </section>
@@ -449,21 +453,57 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></svg></span>
         <h3>Fewer interruptions</h3>
         <p>You decide how many times a day it may knock. Everything else waits for your morning brief at eight. Emergencies always get through.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__quiet">Quiet hours 22:00–07:00 · nothing knocked</div>
+<div class="mini__b">☀️ Morning, Alex. Quiet night, nothing knocked.
+
+<b>Today:</b> Halden &amp; Co’s invoice #2041 is due, 1,850 €. Mara moved the design review to 14:00 and booked room 3B.
+
+<b>Can wait:</b> Dr. Okafor’s grant report, Monday. Two receipts and the Figma newsletter are filed for later.
+
+I’d pay the invoice first, then prep for 14:00.<span class="msg__meta">08:00</span></div>
+        </div>
       </article>
       <article class="benefit rv" style="--d:80ms">
         <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
         <h3>A secretary you can talk to</h3>
         <p>Ask what came in, who wrote, what's due. It answers from your real mail and calendar, and remembers what it told you, so "that mail" just works.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__q">what's due this week?<span class="msg__meta">17:02<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Two things. Invoice #2041 to Halden &amp; Co, Friday. The grant report to Dr. Okafor, Monday 09:00; you asked me to remind you Sunday evening.<span class="msg__meta">17:02</span></div>
+<div class="mini__q">who wrote about the invoice?<span class="msg__meta">17:03<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Jonas Halden, Tuesday 16:12, subject “Invoice #2041 — payment terms”. He asks for 14-day terms. Want a reply drafted?<span class="msg__meta">17:03</span></div>
+        </div>
       </article>
       <article class="benefit rv" style="--d:160ms">
         <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/><path d="M13 20h7"/></svg></span>
         <h3>Drafts you approve</h3>
         <p>Mail replies, notes, documents. It writes the draft, you tap Send, Edit or Cancel. Nothing is sent or created without your OK.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__q">tell Jonas 14 days is fine<span class="msg__meta">17:04<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__grp"><div class="mini__b">📝 Draft (reply in thread)
+To: jonas@halden.co
+
+Hi Jonas, 14-day terms are fine on our side. I'll confirm as soon as the invoice is in.
+
+Best,
+Alex<span class="msg__hash">#8b12e4a0 · v2f7c…</span><span class="msg__meta">17:04</span></div><div class="tg-kb"><span class="tg-btn">✅ Send</span><span class="tg-btn">✏️ Edit</span><span class="tg-btn">❌ Cancel</span></div></div>
+<div class="mini__quiet">Nothing leaves until you tap Send</div>
+        </div>
       </article>
       <article class="benefit rv" style="--d:240ms">
         <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><path d="M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span>
         <h3>It gets to know you</h3>
         <p>It asks once who you are, learns from what you connect, and keeps only what you confirm. Your name, your city, your time zone, your people.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__b">Gmail connected. From the last weeks’ headers, not the content, I’d guess:
+• Halden &amp; Co is a client; invoices matter.
+• Mara Lindqvist writes most often. A client?
+• Newsletters: Substack, Figma, Notion.
+Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</span></div>
+<div class="mini__q">right, but Mara is a colleague, not a client<span class="msg__meta">09:14<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Noted. Mara Lindqvist: colleague. Halden &amp; Co: client. Newsletters wait for the morning brief.<span class="msg__meta">09:14</span></div>
+        </div>
       </article>
     </div>
   </div>
@@ -728,7 +768,7 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   }
   function notifNode(s){
     return group('ph-group--notif', bubbleHtml('bot', '<b>' + esc(s.head.split('\n')[0]) + '</b>\n' + esc(s.head.split('\n')[1]) + '\n\n' + esc(s.text), s.at),
-      [['useful','👍 useful'],['noise','👎 noise'],['mute','🔇 mute']]);
+      [['useful','👍 useful'],['noise','👎 noise'],['mute','🔇 mute thread']]);
   }
   function draftNode(s){
     return group('ph-group--draft', bubbleHtml('bot', '📝 Draft (reply in thread)\nTo: mara@lindqvist.se\n\n' + esc(s.body) + '<span class="msg__hash">#3f2a91c0 · ' + s.ver + '</span>', s.at),
