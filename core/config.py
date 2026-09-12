@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     MODEL_PROVIDER: Literal["bedrock", "anthropic"] = "bedrock"
     AWS_REGION: str = "us-east-1"
+    AWS_PROFILE: str = ""                      # named profile with a long-lived key (see docs/DEPLOY.md); empty = default chain
     TRIAGE_MODEL_ID: str = ""
     CHAT_MODEL_ID: str = ""
     ANTHROPIC_API_KEY: str = ""
@@ -70,7 +71,7 @@ class Settings(BaseSettings):
         return [a.strip() for a in self.ADAPTERS.split(",") if a.strip()]
 
 
-AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE", "USER_LANGUAGE")
+AGENT_ENV_KEYS = ("MODEL_PROVIDER", "AWS_REGION", "AWS_PROFILE", "TRIAGE_MODEL_ID", "CHAT_MODEL_ID", "ANTHROPIC_API_KEY", "USER_PROFILE", "USER_LANGUAGE")
 
 
 def export_agent_env(settings: Settings) -> None:
