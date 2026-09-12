@@ -137,8 +137,6 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .ph-input.is-typing .ph-send{display:grid}
 .ph-home{flex:none;height:22px;background:#fff;display:grid;place-items:center}
 .ph-home span{width:118px;height:5px;border-radius:3px;background:#000}
-.urg{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--amber-soft);color:var(--amber-ink);white-space:nowrap}
-.urg::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber)}
 .tg-kb{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px;width:100%}
 .tg-kb--2{grid-template-columns:repeat(2,1fr)}
 .tg-btn{background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.06);border-radius:10px;padding:8px 6px;font-size:12.5px;font-weight:500;text-align:center;color:#2E4F86;transition:background .15s ease,transform .15s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--ui)}
@@ -172,31 +170,37 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .swarm-stage.is-collapsed .n--after{opacity:1}
 .swarm-after{max-width:56ch;color:var(--muted);font-size:1.05rem}
 
-/* ---------- flow ---------- */
-.flow{position:relative;display:grid;gap:1.4rem;padding-left:2.6rem}
-.flow__track{position:absolute;left:1rem;top:1rem;bottom:1rem;width:2px;background:var(--line)}
-.flow__pulse{position:absolute;left:calc(1rem - 6px);top:0;width:14px;height:14px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 6px var(--amber-soft);transition:transform .7s cubic-bezier(.4,0,.2,1);will-change:transform;z-index:2}
-.stage{position:relative;display:grid;gap:.35rem;padding:1rem 1.1rem;border:1px solid var(--line);border-radius:var(--r-card);background:var(--bg-2);transition:border-color .4s ease,background .4s ease}
-.stage::before{content:"";position:absolute;left:-1.6rem;top:50%;width:1rem;height:2px;background:var(--line);transform:translateY(-50%)}
-.stage.is-active{border-color:var(--amber)}
-.stage__top{display:flex;align-items:center;gap:.6rem}
-.stage__icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line);color:var(--sage);flex:none;transition:color .4s ease,border-color .4s ease}
-.stage.is-active .stage__icon{color:var(--amber);border-color:var(--amber)}
-.stage__icon svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.stage__n{font-family:var(--serif);color:var(--muted);font-size:1rem;width:1.2rem}
-.stage p{font-size:.95rem;color:var(--muted);line-height:1.5}
-@media (min-width:900px){
-  .flow{grid-template-columns:repeat(5,1fr);gap:1.6rem;padding-left:0;padding-top:2.4rem}
-  .flow__track{left:1.5rem;right:1.5rem;top:1rem;bottom:auto;width:auto;height:2px}
-  .flow__pulse{left:0;top:calc(1rem - 6px)}
-  .stage::before{left:50%;top:-1.4rem;width:2px;height:1.4rem;transform:translateX(-50%)}
-}
-.ledger{margin-top:clamp(2.5rem,5vw,4rem);border-top:1px solid var(--line);display:grid}
-.ledger__row{display:grid;gap:.4rem 2rem;padding:1.15rem 0;border-bottom:1px solid var(--line)}
-@media (min-width:760px){.ledger__row{grid-template-columns:11rem 1fr}}
-.ledger__k{font-family:var(--serif);font-size:1.25rem;color:var(--fg)}
-.ledger__v{color:var(--muted);max-width:64ch}
-.ledger__v b{color:var(--fg);font-weight:500}
+/* ---------- benefits ---------- */
+.benefits{display:grid;gap:1.25rem}
+@media (min-width:640px){.benefits{grid-template-columns:repeat(2,1fr);gap:1.5rem}}
+@media (min-width:1000px){.benefits{grid-template-columns:repeat(4,1fr)}}
+.benefit{display:grid;gap:.8rem;align-content:start;padding:1.5rem 1.4rem 1.6rem;border-radius:14px;border:1px solid var(--line);background:var(--bg-2)}
+.benefit__icon{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;border:1px solid var(--line);color:var(--amber)}
+.benefit__icon svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.benefit h3{font-family:var(--serif);font-weight:500;font-size:1.4rem;letter-spacing:-.01em;line-height:1.15}
+.benefit p{color:var(--muted);font-size:.95rem;line-height:1.5}
+
+/* ---------- integrations ---------- */
+.integ-h{font-family:var(--serif);font-weight:400;font-size:1.35rem;color:var(--muted);margin:0 0 1rem}
+.integ{display:grid;gap:1rem;margin:0 0 2.5rem;padding:0;list-style:none}
+@media (min-width:640px){.integ{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1000px){.integ{grid-template-columns:repeat(3,1fr)}}
+.integ__card{display:grid;grid-template-columns:auto 1fr;gap:.2rem .9rem;align-items:center;padding:1.1rem 1.2rem;border-radius:12px;border:1px solid var(--line);background:var(--bg-2)}
+.integ__card b{font-weight:600;font-size:1.05rem}
+.integ__card p{grid-column:2;color:var(--muted);font-size:.92rem;line-height:1.45}
+.mark{grid-row:1/3;width:44px;height:44px;border-radius:11px;display:grid;place-items:center;background:var(--ivory);color:var(--g9)}
+.mark svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.chips{display:flex;flex-wrap:wrap;gap:.6rem;margin:0;padding:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem .95rem .55rem .8rem;border-radius:999px;border:1px dashed var(--line);color:var(--muted);font-size:.95rem}
+.chip svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.chip small{font-size:.75rem;padding:.15rem .45rem;border-radius:999px;background:var(--line);color:var(--fg)}
+
+/* ---------- data promises ---------- */
+.promises{display:grid;gap:1.5rem}
+@media (min-width:800px){.promises{grid-template-columns:repeat(3,1fr);gap:2.5rem}}
+.promise{display:grid;gap:.7rem;align-content:start;padding-top:1.2rem;border-top:2px solid var(--fg)}
+.promise h3{font-family:var(--serif);font-weight:500;font-size:1.5rem;letter-spacing:-.01em;line-height:1.15}
+.promise p{color:var(--muted);font-size:.98rem;line-height:1.55;max-width:38ch}
 
 /* ---------- budget widget ---------- */
 .budget{display:grid;gap:1.5rem;background:var(--ivory);color:var(--g9);border-radius:14px;padding:clamp(1.1rem,3vw,2rem);box-shadow:0 40px 80px -50px rgba(0,0,0,.8)}
@@ -250,7 +254,6 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .mini{background:var(--tg-bg);border-radius:12px;padding:10px;display:grid;gap:6px;font-family:var(--ui);font-size:13.5px;color:#111;line-height:1.35}
 .mini__b{background:#fff;border-radius:14px;border-bottom-left-radius:5px;padding:7px 10px;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.06);white-space:pre-line}
 .mini__b b{font-weight:600}
-.mini__b .urg{float:right;margin-left:6px}
 .mini__q{align-self:end;background:var(--tg-out);border-radius:14px;border-bottom-right-radius:5px;padding:7px 10px;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.06)}
 .mini__quiet{font-size:12px;color:#5F6D76;text-align:center;padding-top:2px}
 
@@ -259,28 +262,22 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 @media (min-width:900px){.approval{grid-template-columns:1fr 1fr;gap:3.5rem;align-items:start}}
 .editor{display:grid;gap:.8rem}
 .editor label{font-weight:600;font-size:.95rem}
-.editor textarea{width:100%;min-height:9.5rem;resize:vertical;font:inherit;font-size:1rem;line-height:1.5;color:var(--g9);background:var(--ivory);border:1px solid var(--ivory-3);border-radius:var(--r-card);padding:.9rem 1rem}
+.editor textarea{width:100%;min-height:9.5rem;resize:vertical;font:inherit;font-size:1rem;line-height:1.5;color:var(--g9);background:#fff;border:1px solid var(--ivory-3);border-radius:var(--r-card);padding:.9rem 1rem}
 .editor textarea:focus-visible{outline-color:var(--amber)}
-.hashline{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.9rem;color:var(--muted)}
-.hash{font-family:var(--mono);font-size:.9rem;color:var(--ivory);background:var(--g8);border:1px solid var(--line);padding:.25rem .55rem;border-radius:6px;letter-spacing:.02em;transition:border-color .3s ease}
-.hash.is-changed{border-color:var(--amber);color:var(--amber)}
 .editor__hint{font-size:.9rem;color:var(--muted);max-width:46ch}
-.editor__reset{align-self:start;background:transparent;border:1px solid var(--line);border-radius:999px;padding:.5rem .9rem;font-size:.9rem;color:var(--sage)}
-.editor__reset:hover{color:var(--ivory);border-color:var(--sage)}
+.editor__reset{align-self:start;background:transparent;border:1px solid var(--line);border-radius:999px;padding:.5rem .9rem;font-size:.9rem;color:var(--muted)}
+.editor__reset:hover{color:var(--fg);border-color:var(--fg)}
 .thread{display:grid;gap:.75rem;background:var(--tg-bg);border-radius:16px;padding:14px;font-family:var(--ui);color:#111;font-size:14px;line-height:1.35;align-content:start}
 .dcard{background:#fff;border-radius:16px;border-bottom-left-radius:6px;padding:10px 12px 11px;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.06);animation:msgIn .4s cubic-bezier(.2,.8,.2,1) both}
 .dcard__head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;color:#5F6D76;margin-bottom:5px}
+.dcard.is-done .tg-kb{display:none}
 .dcard__head b{color:#111;font-weight:600;font-size:13.5px}
-.dcard__hash{font-family:var(--mono);font-size:11.5px;color:#5F6D76}
 .dcard__body{white-space:pre-line;margin-bottom:8px}
 .dcard .tg-kb{margin-top:0}
 .dcard .tg-btn{background:#F2F5F7}
 .dcard .tg-btn:hover{background:#E8EEF3}
-.dcard.is-stale .tg-btn[data-send]{color:#98A6B0;text-decoration:line-through}
 .dcard__state{margin-top:8px;font-size:12.5px;color:#5F6D76;min-height:1em}
-.dcard__state.is-bad{color:#B03A2E}
 .dcard__state.is-ok{color:#2E7D4F}
-.thread__sys{font-size:12px;color:#5F6D76;text-align:center}
 .thread__q{align-self:end;background:var(--tg-out);border-radius:16px;border-bottom-right-radius:6px;padding:8px 11px;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.06)}
 
 /* ---------- onboarding ---------- */
@@ -293,19 +290,10 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .onb-claim{margin-top:2rem;font-family:var(--serif);font-size:clamp(1.3rem,2.4vw,1.7rem);color:var(--fg)}
 .onb-claim span{color:var(--muted)}
 
-/* ---------- built on ---------- */
-.stack{margin:0;padding-left:0;display:flex;flex-wrap:wrap;gap:.6rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:1.4rem 0}
-.stack li{list-style:none;display:flex;align-items:center;gap:.6rem;padding:.35rem 1.4rem .35rem 0;margin-right:1.4rem;border-right:1px solid var(--line);color:var(--fg);font-weight:500}
-.stack li:last-child{border-right:0;margin-right:0;padding-right:0}
-.stack svg{width:20px;height:20px;stroke:var(--sage);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.stack small{color:var(--muted);font-weight:400;font-size:.85rem}
-.stack-wrap{padding-block:clamp(2.5rem,6vw,4rem)}
-.stack-wrap p{margin-bottom:1.2rem;color:var(--muted);max-width:60ch}
-
 /* ---------- footer ---------- */
-.foot{padding:2.5rem 0 3.5rem;border-top:1px solid var(--line);color:var(--sage);font-size:.95rem}
+.foot{padding:1.8rem 0 2.6rem;border-top:1px solid var(--line);color:var(--sage-2);font-size:.85rem}
 .foot .wrap{display:flex;flex-wrap:wrap;gap:1rem 2rem;justify-content:space-between;align-items:center}
-.foot a{color:var(--ivory);text-decoration:none;border-bottom:1px solid var(--line)}
+.foot a{color:var(--sage);text-decoration:none;border-bottom:1px solid var(--line)}
 .foot a:hover{border-color:var(--ivory)}
 
 /* ---------- reduced motion ---------- */
@@ -314,22 +302,21 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
   .rv{opacity:1;transform:none;transition:none}
   .msg,.ph-group,.dcard{animation:none}
   .dot,.dot::after{animation:none}
-  .dot,.kept__label,.swarm-count span,.mail,.flow__pulse,.slot,.dec,.btn,.hash{transition:none}
+  .dot,.kept__label,.swarm-count span,.mail,.slot,.dec,.btn{transition:none}
   .msg--typing i{animation:none;opacity:.6}
   .tg-input__text:not(:empty)::after{animation:none}
   .mails .mail{opacity:1;transform:none}
-  .flow__pulse{display:none}
-}
+  }
 </style>
 <!-- /head -->
 
 <header class="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Proactive Agent, top of page"><span class="brand__mark" aria-hidden="true"></span>Proactive Agent<small>working title</small></a>
+    <a class="brand" href="#top" aria-label="Proactive Agent, top of page"><span class="brand__mark" aria-hidden="true"></span>Proactive Agent</a>
     <nav class="nav__links" aria-label="Page">
-      <a class="hide-sm" href="#how">How it works</a>
-      <a class="hide-sm" href="#budget">Try the budget</a>
-      <a class="hide-sm" href="#approval">Approval</a>
+      <a class="hide-sm" href="#benefits">What it does</a>
+      <a class="hide-sm" href="#cases">Use cases</a>
+      <a class="hide-sm" href="#integrations">Integrations</a>
       <a href="https://t.me/proactiveagent_bot" rel="noopener">Open in Telegram</a>
     </nav>
   </div>
@@ -348,9 +335,9 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.3 2.9 10.5c-1.1.4-1.1 1.1-.2 1.4l4.7 1.5 1.8 5.6c.2.6.4.8 1 .8.6 0 .8-.3 1.2-.6l2.6-2.5 4.9 3.6c.9.5 1.5.2 1.8-.8L23.7 4.7c.3-1.3-.5-1.9-2.1-1.4ZM9 13.4l9.6-6.1c.5-.3.9-.1.5.2l-8 7.2-.3 3.3L9 13.4Z"/></svg>
           Message the bot on Telegram
         </a>
-        <a class="btn btn--ghost" href="#how">See how it works</a>
+        <a class="btn btn--ghost" href="#benefits">See what it does</a>
       </div>
-      <p class="hero__note">Open source under MIT. Built with Strands Agents on Amazon Bedrock for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon.</p>
+      <p class="hero__note">Free and open source. Your mail stays yours: it reads, it asks, it never sends on its own.</p>
     </div>
     <div class="hero__phone">
       <div class="phone" id="phone" aria-hidden="true">
@@ -396,155 +383,201 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         <div class="kept__slot"><span class="kept__ring"></span><span class="kept__label">Landlord: viewing tomorrow 17:00</span></div>
         <div class="kept__slot"><span class="kept__ring"></span><span class="kept__label">School: Leo is unwell, call</span></div>
       </div>
-      <p class="swarm-after">Proactive Agent reads all sixty, rates each one, and interrupts you for the few that need you today. The rest waits for tomorrow's morning brief.</p>
+      <p class="swarm-after">Proactive Agent reads all sixty and knocks for the few that need you today. The rest waits for tomorrow's morning brief.</p>
     </div>
   </div>
 </section>
 
-<!-- 3. How it works -->
-<section class="band" id="how" aria-labelledby="h-how">
+<!-- 3. What it does for you -->
+<section class="band" id="benefits" aria-labelledby="h-benefits">
   <div class="wrap">
     <div class="sec-head rv">
-      <h2 id="h-how">One queue. One judgment. One gate.</h2>
-      <p class="lede">Importance and interruption are different questions. A model answers the first; a plain function with a daily budget answers the second.</p>
+      <h2 id="h-benefits">What it does for you.</h2>
+      <p class="lede">A secretary who reads everything, tells you the little that matters, and never acts without asking.</p>
     </div>
-    <div class="flow rv" id="flow" role="list" aria-label="Pipeline">
-      <div class="flow__track" aria-hidden="true"></div>
-      <div class="flow__pulse" id="flowPulse" aria-hidden="true"></div>
-      <div class="stage" role="listitem">
-        <div class="stage__top"><span class="stage__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13l2.2-8h13.6L21 13v6H3z"/><path d="M3 13h5l1.5 3h5l1.5-3h5"/></svg></span><span class="stage__n" aria-hidden="true">1</span><h3>Observe</h3></div>
-        <p>Every mail, calendar event and chat message becomes an observation in one queue. Nothing is handled twice; nothing is dropped.</p>
-      </div>
-      <div class="stage" role="listitem">
-        <div class="stage__top"><span class="stage__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18a8 8 0 0 1 16 0"/><path d="M12 18l4.5-6"/><path d="M12 18h.01"/></svg></span><span class="stage__n" aria-hidden="true">2</span><h3>Triage</h3></div>
-        <p>The model rates urgency 1 to 5 and writes a one-line, secretary-style summary in your language.</p>
-      </div>
-      <div class="stage" role="listitem">
-        <div class="stage__top"><span class="stage__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12"/><path d="M4 12h16M4 16h16"/><path d="M12 4v16"/></svg></span><span class="stage__n" aria-hidden="true">3</span><h3>Budget gate</h3></div>
-        <p>Deterministic: daily quota (default 5), per-thread cooldown, quiet hours, mutes. One slot stays reserved for urgency-5 emergencies.</p>
-      </div>
-      <div class="stage" role="listitem">
-        <div class="stage__top"><span class="stage__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span><span class="stage__n" aria-hidden="true">4</span><h3>Notify</h3></div>
-        <p>A ping in Telegram with 👍 useful, 👎 noise and 🔇 mute thread. Your taps tune what gets through.</p>
-      </div>
-      <div class="stage" role="listitem">
-        <div class="stage__top"><span class="stage__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/></svg></span><span class="stage__n" aria-hidden="true">5</span><h3>Act</h3></div>
-        <p>Drafts, reminders and a morning brief at 08:00 in your timezone. Every outbound action waits for your approval.</p>
-      </div>
-    </div>
-
-    <div class="ledger rv">
-      <div class="ledger__row"><div class="ledger__k">Chat like a secretary</div><div class="ledger__v">First a reflex, <b>"Sure, checking today's mail…"</b>, then the answer with facts from real observations. It remembers what it told you, so <b>"that mail"</b> works. It finds contacts itself and keeps the durable facts you tell it. <b>"Remind me tomorrow 9:00: invoice"</b> just works.</div></div>
-      <div class="ledger__row"><div class="ledger__k">Measured</div><div class="ledger__v"><b>49 seconds</b> from a mail being sent to the Telegram ping, bounded by Composio's polling. Triage eval: <b>59 of 60</b> mails within one urgency point, <b>100% recall</b> on emergencies.</div></div>
-      <div class="ledger__row"><div class="ledger__k">Adding a source</div><div class="ledger__v">Is a data change. Google Calendar arrived as <b>one mapping row</b> with zero changes to the core, and a test keeps it that way.</div></div>
+    <div class="benefits">
+      <article class="benefit rv">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></svg></span>
+        <h3>Fewer interruptions</h3>
+        <p>You decide how many times a day it may knock. Everything else waits for your morning brief at eight. Emergencies always get through.</p>
+      </article>
+      <article class="benefit rv" style="--d:80ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
+        <h3>A secretary you can talk to</h3>
+        <p>Ask what came in, who wrote, what's due. It answers from your real mail and calendar, and remembers what it told you, so "that mail" just works.</p>
+      </article>
+      <article class="benefit rv" style="--d:160ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/><path d="M13 20h7"/></svg></span>
+        <h3>Drafts you approve</h3>
+        <p>Mail replies, notes, documents. It writes the draft, you tap Send, Edit or Cancel. Nothing is sent or created without your OK.</p>
+      </article>
+      <article class="benefit rv" style="--d:240ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><path d="M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span>
+        <h3>It gets to know you</h3>
+        <p>It asks once who you are, learns from what you connect, and keeps only what you confirm. Your name, your city, your time zone, your people.</p>
+      </article>
     </div>
   </div>
 </section>
 
-<!-- 4. Interactive budget -->
-<section class="band" id="budget" aria-labelledby="h-budget" style="padding-top:0">
-  <div class="wrap">
-    <div class="sec-head rv">
-      <h2 id="h-budget">Try the interruption budget.</h2>
-      <p class="lede">Fifteen mails from one day, already rated by the model. Move the quota, switch quiet hours, and watch the gate decide which ones knock and which wait for the brief.</p>
-    </div>
-    <div class="budget rv" id="budgetWidget">
-      <div class="controls">
-        <div class="ctl">
-          <label class="ctl__label" for="quota"><span>Daily quota</span><output id="quotaOut" for="quota">5</output></label>
-          <input type="range" id="quota" min="1" max="10" value="5" step="1">
-          <div class="slots" id="slots" aria-hidden="true"></div>
-          <p class="ctl__hint">One slot is always kept for urgency 5. The dashed one fills only for an emergency.</p>
-        </div>
-        <div class="ctl">
-          <button class="switch" id="quiet" role="switch" aria-checked="true"><span class="switch__track" aria-hidden="true"></span><span>Quiet hours 22:00–07:00</span></button>
-          <p class="ctl__hint">Nothing knocks at night. Urgency 5 bypasses quiet hours and the quota.</p>
-        </div>
-        <div class="summary" id="summary" aria-live="polite"></div>
-      </div>
-      <div class="mails" id="mails" role="list" aria-label="Today's mails and the gate's decision"></div>
-    </div>
-  </div>
-</section>
-
-<!-- 5. Use cases -->
+<!-- 4. Use cases -->
 <section class="band band--ivory" id="cases" aria-labelledby="h-cases">
   <div class="wrap">
     <div class="sec-head rv">
-      <h2 id="h-cases">The same gate, four very different days.</h2>
-      <p class="lede">Each person gets their own budget, memory and timezone. What counts as an interruption is learned from their taps, not from a global rule.</p>
+      <h2 id="h-cases">Four very different days. One quiet phone.</h2>
+      <p class="lede">Everyone gets their own budget, memory and time zone. What counts as worth a knock is learned from what you tap, not from a rulebook.</p>
     </div>
     <div class="cases">
       <article class="case rv">
         <h3>The freelancer</h3>
-        <p>Clients, invoices, and a lot of tool newsletters. Money and signed contracts get through; digests wait.</p>
-        <div class="mini" aria-label="Example ping">
-          <div class="mini__b"><span class="urg">4</span><b>Client Olsen</b> signed the contract and asks for next steps. Invoice #2041 to Halden is due Friday.</div>
+        <p>Clients, invoices, and a pile of tool newsletters. Money and signed contracts get through; digests wait.</p>
+        <div class="mini" aria-label="Example conversation">
+          <div class="mini__b"><b>❗ Client Olsen</b> signed the contract and asks for next steps. Invoice #2041 to Halden is due Friday.</div>
+          <div class="mini__q">anything else from Olsen this month?</div>
+          <div class="mini__b">Two mails: the revised scope on the 3rd and a question about the kickoff date on the 9th. You answered both.</div>
           <div class="mini__quiet">12 newsletters and 3 receipts wait for the morning brief</div>
         </div>
       </article>
       <article class="case rv" style="--d:80ms">
         <h3>The student, apartment-hunting in a new city</h3>
-        <p>Landlord replies are time-critical and rare. University newsletters and listing digests are neither.</p>
-        <div class="mini" aria-label="Example ping">
-          <div class="mini__b"><span class="urg">4</span><b>Frau Weber</b> offers a viewing tomorrow at 17:00 and wants a reply today to hold the slot.</div>
-          <div class="mini__quiet">4 listing digests and the faculty newsletter wait for the brief</div>
+        <p>Landlord replies are rare and time-critical. Listing digests and the faculty newsletter are neither.</p>
+        <div class="mini" aria-label="Example conversation">
+          <div class="mini__b"><b>❗ Frau Weber</b> offers a viewing tomorrow at 17:00 and wants a reply today to hold the slot.</div>
+          <div class="mini__q">am I free then?</div>
+          <div class="mini__b">Yes. Your last lecture ends at 15:30 and the evening is empty. Want me to confirm the viewing?</div>
+          <div class="mini__quiet">4 listing digests wait for the brief</div>
         </div>
       </article>
       <article class="case rv" style="--d:160ms">
         <h3>The on-call engineer</h3>
-        <p>Alerts at 23:10 must knock, even during quiet hours. The weekly on-call report can wait until 08:00.</p>
-        <div class="mini" aria-label="Example ping">
-          <div class="mini__b"><span class="urg">5</span><b>PagerDuty</b>: SEV-1, checkout is down. Paged 2 minutes ago. Sent past quiet hours on the emergency reserve.</div>
-          <div class="mini__quiet">Weekly on-call report waits for the brief</div>
+        <p>An alert at 23:10 must wake you, quiet hours or not. The weekly on-call report can wait until eight.</p>
+        <div class="mini" aria-label="Example conversation">
+          <div class="mini__b"><b>❗ PagerDuty</b>: SEV-1, checkout is down. Paged 2 minutes ago.</div>
+          <div class="mini__q">who's on the bridge?</div>
+          <div class="mini__b">Priya opened the incident and Tom joined at 23:12. The bridge link is in the alert mail.</div>
+          <div class="mini__quiet">Sent during quiet hours. Emergencies always get through.</div>
         </div>
       </article>
       <article class="case rv" style="--d:240ms">
         <h3>The parent</h3>
-        <p>School and kita mail is a stream of planning days and bake sales. A family emergency bypasses everything.</p>
-        <div class="mini" aria-label="Example ping">
-          <div class="mini__b"><span class="urg">5</span><b>Leo's school</b>: Leo is unwell and they ask you to call. Sent past today's quota.</div>
-          <div class="mini__quiet">Kita closed Monday for a planning day: in the brief</div>
+        <p>School and kita mail is a stream of planning days and bake sales. A family emergency gets through anyway.</p>
+        <div class="mini" aria-label="Example conversation">
+          <div class="mini__b"><b>❗ Leo's school</b>: Leo is unwell and they ask you to call.</div>
+          <div class="mini__q">what's the number?</div>
+          <div class="mini__b">030 4409 8812, the office line from their mail. Want me to remind you about the kita's planning day on Monday?</div>
+          <div class="mini__quiet">Today's budget was used up. This one came through anyway.</div>
         </div>
       </article>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Interruption budget -->
+<section class="band" id="budget" aria-labelledby="h-budget">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 id="h-budget">Set your interruption budget.</h2>
+      <p class="lede">Fifteen mails from one day. Choose how many times you want to be interrupted, switch quiet hours, and see which ones knock and which wait for your morning brief.</p>
+    </div>
+    <div class="budget rv" id="budgetWidget">
+      <div class="controls">
+        <div class="ctl">
+          <label class="ctl__label" for="quota"><span>Knocks per day</span><output id="quotaOut" for="quota">5</output></label>
+          <input type="range" id="quota" min="1" max="10" value="5" step="1">
+          <div class="slots" id="slots" aria-hidden="true"></div>
+          <p class="ctl__hint">One slot is always kept for emergencies. The dashed one fills only when something can't wait.</p>
+        </div>
+        <div class="ctl">
+          <button class="switch" id="quiet" role="switch" aria-checked="true"><span class="switch__track" aria-hidden="true"></span><span>Quiet hours 22:00–07:00</span></button>
+          <p class="ctl__hint">Nothing knocks at night. Emergencies always get through.</p>
+        </div>
+        <div class="summary" id="summary" aria-live="polite"></div>
+      </div>
+      <div class="mails" id="mails" role="list" aria-label="Today's mails and what happens to each"></div>
     </div>
   </div>
 </section>
 
 <!-- 6. Approval -->
-<section class="band" id="approval" aria-labelledby="h-approval">
+<section class="band band--ivory" id="approval" aria-labelledby="h-approval">
   <div class="wrap">
     <div class="sec-head rv">
-      <h2 id="h-approval">Approval, not autonomy.</h2>
-      <p class="lede">Every outbound action is a draft you see first. An edit changes the draft's content hash, and a Send button only works for the hash it was made for. An old button can never send a draft you changed.</p>
+      <h2 id="h-approval">Nothing goes out without your OK.</h2>
+      <p class="lede">Every reply, note or document starts as a draft in your chat. Edit it, tap Send, done. Or tap Cancel and it never existed.</p>
     </div>
     <div class="approval rv">
       <div class="editor">
-        <label for="draftText">Edit the draft and watch the hash</label>
+        <label for="draftText">Try it: change the draft</label>
         <textarea id="draftText" spellcheck="false">Hi Mara, let's move the review to tomorrow, same time. Does that work for you?
 
 Best,
 Alex</textarea>
-        <div class="hashline">Content hash <code class="hash" id="hashNow">…</code> <span id="hashNote">matches the draft the first Send button was made for</span></div>
-        <p class="editor__hint">Try it: change a word, then press the first Send. Then press the one under the new draft.</p>
-        <button class="editor__reset" id="draftReset" type="button">Restore the original draft</button>
+        <p class="editor__hint">The draft in the chat follows what you type. Then press Send, or Cancel.</p>
+        <button class="editor__reset" id="draftReset" type="button">Start over</button>
       </div>
       <div class="thread" id="thread" aria-live="polite">
         <div class="thread__q">write to Mara that we move the meeting to tomorrow</div>
-        <div class="dcard" id="draftV1">
-          <div class="dcard__head"><b>Draft to Mara Lindqvist</b><span class="dcard__hash" id="hashV1"></span></div>
-          <div class="dcard__body" id="bodyV1"></div>
-          <div class="tg-kb"><button class="tg-btn" data-send="v1" type="button">✅ Send</button><button class="tg-btn" type="button" data-edit>✏️ Edit</button><button class="tg-btn" type="button" data-cancel>❌ Cancel</button></div>
-          <div class="dcard__state" id="stateV1"></div>
+        <div class="dcard" id="draftCard">
+          <div class="dcard__head"><b>Draft to Mara Lindqvist</b><span>Re: Thursday review</span></div>
+          <div class="dcard__body" id="draftBody"></div>
+          <div class="tg-kb"><button class="tg-btn" type="button" data-send>✅ Send</button><button class="tg-btn" type="button" data-edit>✏️ Edit</button><button class="tg-btn" type="button" data-cancel>❌ Cancel</button></div>
+          <div class="dcard__state" id="draftState"></div>
         </div>
-        <div id="threadV2"></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- 7. Onboarding -->
-<section class="band band--ivory" id="onboarding" aria-labelledby="h-onb">
+<!-- 7. Integrations -->
+<section class="band" id="integrations" aria-labelledby="h-integ">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 id="h-integ">Works with what you already use.</h2>
+      <p class="lede">Connect a service in one tap. The agent reads, summarizes and drafts. It only writes anything after you approve.</p>
+    </div>
+    <h3 class="integ-h rv">Connected today</h3>
+    <ul class="integ" aria-label="Connected services">
+      <li class="integ__card rv"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6.5v11h4V11l5 3.8 5-3.8v6.5h4v-11L12 13z"/></svg></span><b>Gmail</b><p>Watches your inbox, summarizes what matters, drafts replies for you to send.</p></li>
+      <li class="integ__card rv" style="--d:60ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9.5 15.5h5M12 13v5"/></svg></span><b>Google Calendar</b><p>Reminds you 15 minutes before, knows your day, checks if you're free.</p></li>
+      <li class="integ__card rv" style="--d:120ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8.5 16.5v-9l7 9v-9"/></svg></span><b>Notion</b><p>Finds and reads your pages, writes notes and new pages after you approve.</p></li>
+      <li class="integ__card rv" style="--d:180ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h6l6 10.5-3 5.5H6l-3-5.5z"/><path d="M9 4l6 10.5H3"/><path d="M15 4 9 14.5h12"/></svg></span><b>Google Drive</b><p>Finds the file you mean, even when you only remember roughly what it was.</p></li>
+      <li class="integ__card rv" style="--d:240ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M9 12h7M9 15.5h7M9 19h4"/></svg></span><b>Google Docs</b><p>Reads your documents and writes new ones for you, once you say go.</p></li>
+      <li class="integ__card rv" style="--d:300ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 3 3 10.5l6 2 2 6.5 3.5-4 5 3.5z"/></svg></span><b>Telegram</b><p>Where you talk to it. Notifications, questions, drafts and approvals, all in one chat.</p></li>
+    </ul>
+    <h3 class="integ-h rv">Coming next</h3>
+    <ul class="chips rv" aria-label="Planned services">
+      <li class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.5-4.5A8 8 0 1 1 8.5 18.5z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1a4 4 0 0 1-2-2l1-1-1-2z"/></svg>WhatsApp<small>planned</small></li>
+      <li class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v6M15 15v6M3 15h6M15 9h6"/><path d="M9 9H5a2 2 0 1 1 0-4h4zM15 15h4a2 2 0 1 1 0 4h-4zM9 15v4a2 2 0 1 1-4 0v-4zM15 9V5a2 2 0 1 1 4 0v4z"/></svg>Slack<small>planned</small></li>
+      <li class="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="11" height="14" rx="1.5"/><ellipse cx="8.5" cy="12" rx="2.5" ry="3"/><path d="M14 9h7v9h-7"/><path d="M14 9l3.5 3 3.5-3"/></svg>Outlook<small>planned</small></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 8. Your data, your call -->
+<section class="band band--ivory" id="data" aria-labelledby="h-data">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 id="h-data">Your data, your call.</h2>
+    </div>
+    <div class="promises">
+      <div class="promise rv">
+        <h3>It asks before it remembers</h3>
+        <p>When you connect a service it looks at the basics first: who writes to you, what your days look like. Then it tells you what it noticed and asks whether to keep it. Nothing about you is stored without a yes.</p>
+      </div>
+      <div class="promise rv" style="--d:80ms">
+        <h3>Nothing leaves without approval</h3>
+        <p>Every outgoing message and every document it writes waits for your Send. An old button can't send a draft you changed since.</p>
+      </div>
+      <div class="promise rv" style="--d:160ms">
+        <h3>Leaving takes one sentence</h3>
+        <p>Say "delete my account". It asks twice to be sure, then removes everything: your messages, your memory, and the connections to your services.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Onboarding -->
+<section class="band" id="onboarding" aria-labelledby="h-onb">
   <div class="wrap">
     <div class="sec-head rv">
       <h2 id="h-onb">Set up in one conversation.</h2>
@@ -555,33 +588,19 @@ Alex</textarea>
       <li class="step rv" style="--d:100ms"><span class="step__n" aria-hidden="true">2</span><h3>Answer one question</h3><p>Your name and where you are. That sets your timezone, your budget and your own memory.</p>
         <div class="mini"><div class="mini__q">Alex, in Berlin</div><div class="mini__b">Nice to meet you, Alex. Berlin time it is. Want me to connect your Gmail and Google Calendar?</div></div></li>
       <li class="step rv" style="--d:200ms"><span class="step__n" aria-hidden="true">3</span><h3>Tap the link</h3><p>It sends a Google sign-in link and waits until the account is connected. Nothing is typed into the chat.</p>
-        <div class="mini"><div class="mini__q">yes</div><div class="mini__b">Here's your Gmail login: <span style="color:#2E4F86;text-decoration:underline">connect.composio.dev/…</span>
+        <div class="mini"><div class="mini__q">yes</div><div class="mini__b">Here's your Gmail login: <span style="color:#2E4F86;text-decoration:underline">Sign in with Google</span>
 I'll tell you when it's linked.</div><div class="mini__b">Gmail connected. I'm watching now.</div></div></li>
     </ol>
     <p class="onb-claim rv">No commands. No passwords in chat. <span>Anyone can message the bot; each person gets their own budget, memory and timezone.</span></p>
   </div>
 </section>
 
-<!-- 8. Built on -->
-<section class="band stack-wrap" aria-labelledby="h-stack" style="padding-block:clamp(2.5rem,6vw,4rem)">
-  <div class="wrap">
-    <p id="h-stack">Built on</p>
-    <ul class="stack">
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8c4 0 5 8 9 8s5-8 9-8"/><path d="M3 16c4 0 5-8 9-8s5 8 9 8"/></svg>Strands Agents <small>SDK</small></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9l8-4 8 4-8 4z"/><path d="M4 13l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>Amazon Bedrock <small>Claude Haiku 4.5, Sonnet 4.6, Titan embeddings</small></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5M16 3v5"/><path d="M5 8h14v3a7 7 0 0 1-14 0z"/><path d="M12 18v3"/></svg>Composio <small>Gmail and Calendar auth, triggers</small></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Postgres <small>with pgvector</small></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l6 2 2 6.5 3.5-4 5 3.5z"/></svg>Telegram <small>WhatsApp planned</small></li>
-    </ul>
-  </div>
-</section>
-
 </main>
 
-<!-- 9. Footer -->
+<!-- 10. Footer -->
 <footer class="foot">
   <div class="wrap">
-    <p>Built for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon · MIT · <a href="#" id="githubLink" data-github-url="">GitHub</a></p>
+    <p>Open source under MIT · <a href="#" id="githubLink" data-github-url="">GitHub</a> · Built for the AWS <a href="https://agentsforhumans.devpost.com/" rel="noopener">Agents for Humans</a> hackathon</p>
     <p><a href="https://t.me/proactiveagent_bot" rel="noopener">@proactiveagent_bot</a></p>
   </div>
 </footer>
@@ -748,29 +767,6 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   }, 120); });
 })();
 
-/* ---------- 3. flow stepping ---------- */
-(function(){
-  var flow = $('flow'), pulse = $('flowPulse');
-  if (!flow) return;
-  var stages = flow.querySelectorAll('.stage'), idx = 0, timer = null;
-  function moveTo(n){
-    stages.forEach(function(s, k){ s.classList.toggle('is-active', k === n); });
-    if (reduce) return;
-    var f = flow.getBoundingClientRect(), s = stages[n].getBoundingClientRect();
-    var horizontal = window.matchMedia('(min-width: 900px)').matches;
-    var x = horizontal ? (s.left + s.width/2 - f.left - 7) : 0;
-    var y = horizontal ? 0 : (s.top + s.height/2 - f.top - 7);
-    pulse.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-  }
-  function start(){ if (timer) return; moveTo(idx); timer = setInterval(function(){ idx = (idx+1) % stages.length; moveTo(idx); }, 1700); }
-  function stop(){ clearInterval(timer); timer = null; }
-  if (reduce) { stages.forEach(function(s){ s.classList.add('is-active'); }); return; }
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function(en){ en[0].isIntersecting ? start() : stop(); }, { threshold: 0.3 }).observe(flow);
-  } else { start(); }
-  window.addEventListener('resize', function(){ moveTo(idx); });
-})();
-
 /* ---------- 4. interruption budget ---------- */
 (function(){
   var mailsEl = $('mails'), quota = $('quota'), quotaOut = $('quotaOut'), quiet = $('quiet'), slots = $('slots'), summary = $('summary');
@@ -799,13 +795,13 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
     var regular = Math.max(0, q - RESERVE), used = 0, urgent = 0, last = {};
     return MAILS.map(function(m){
       var min = toMin(m.t), r = { d:'brief', why:'' };
-      if (m.muted) { r.d = 'muted'; r.why = 'thread muted with 🔇'; }
-      else if (m.u <= 2) { r.why = 'urgency ' + m.u + ': batched into the brief'; }
-      else if (m.u === 5) { urgent++; last[m.th] = min; r.d = 'ping'; r.why = (quietOn && inQuiet(min)) ? 'emergency: bypasses quiet hours and the quota' : 'emergency: reserved slot, bypasses the quota'; }
-      else if (quietOn && inQuiet(min)) { r.why = 'quiet hours, waits for the brief'; }
-      else if (last[m.th] != null && min - last[m.th] < COOLDOWN) { r.why = 'same thread pinged ' + (min - last[m.th]) + ' min ago (cooldown)'; }
-      else if (used < regular) { used++; last[m.th] = min; r.d = 'ping'; r.why = 'slot ' + used + ' of ' + regular; }
-      else { r.why = regular === 0 ? 'no everyday slots at this quota' : 'daily quota used'; }
+      if (m.muted) { r.d = 'muted'; r.why = 'you muted this conversation'; }
+      else if (m.u <= 2) { r.why = 'low priority, goes in the morning brief'; }
+      else if (m.u === 5) { urgent++; last[m.th] = min; r.d = 'ping'; r.why = (quietOn && inQuiet(min)) ? 'emergency, gets through even at night' : 'emergency, always gets through'; }
+      else if (quietOn && inQuiet(min)) { r.why = 'quiet hours, waits for the morning brief'; }
+      else if (last[m.th] != null && min - last[m.th] < COOLDOWN) { r.why = 'same conversation knocked ' + (min - last[m.th]) + ' min ago'; }
+      else if (used < regular) { used++; last[m.th] = min; r.d = 'ping'; r.why = 'knock ' + used + ' of ' + regular; }
+      else { r.why = regular === 0 ? 'no everyday knocks at this budget' : 'today\'s budget is used up'; }
       return { m:m, d:r.d, why:r.why };
     }).concat([{ meta:true, used:used, urgent:urgent, regular:regular }]);
   }
@@ -813,7 +809,7 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
     var n = el('<div class="mail" role="listitem" style="--d:' + (k*45) + 'ms">' +
       '<span class="mail__t">' + m.t + '</span>' +
       '<span><span class="mail__who">' + esc(m.from) + '</span> <span class="mail__subj">' + esc(m.subj) + '</span></span>' +
-      '<span class="mail__right"><span class="u u-' + m.u + '" aria-label="urgency ' + m.u + '">' + m.u + '</span><span class="dec"></span></span>' +
+      '<span class="mail__right"><span class="u u-' + m.u + '" aria-label="priority ' + m.u + '">' + m.u + '</span><span class="dec"></span></span>' +
       '<span class="mail__why"></span></div>');
     mailsEl.appendChild(n); return n;
   });
@@ -824,15 +820,15 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
     res.forEach(function(r, k){
       var n = rows[k], dec = n.querySelector('.dec');
       n.classList.toggle('is-ping', r.d === 'ping'); n.classList.toggle('is-muted', r.d === 'muted');
-      dec.className = 'dec dec--' + r.d; dec.textContent = r.d === 'ping' ? 'ping' : r.d === 'brief' ? 'brief' : 'muted';
+      dec.className = 'dec dec--' + r.d; dec.textContent = r.d === 'ping' ? 'knock' : r.d === 'brief' ? 'brief' : 'muted';
       n.querySelector('.mail__why').textContent = r.why;
     });
     slots.innerHTML = '';
     for (var s = 0; s < meta.regular; s++) { var sl = el('<span class="slot"></span>'); if (s < meta.used) sl.classList.add('is-used'); slots.appendChild(sl); }
     var rs = el('<span class="slot slot--reserve"></span>'); if (meta.urgent > 0) rs.classList.add('is-used'); slots.appendChild(rs);
-    slots.appendChild(el('<small>' + meta.used + ' of ' + meta.regular + ' everyday slots used' + (meta.urgent ? ', reserve used' : '') + '</small>'));
+    slots.appendChild(el('<small>' + meta.used + ' of ' + meta.regular + ' everyday knocks used' + (meta.urgent ? ', emergency slot used' : '') + '</small>'));
     var pings = meta.used + meta.urgent, briefs = res.filter(function(r){ return r.d === 'brief'; }).length;
-    summary.innerHTML = '<span><b>' + pings + '</b>pings today</span><span><b>' + briefs + '</b>in the morning brief</span><span><b>' + meta.urgent + '</b>emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + '</span>';
+    summary.innerHTML = '<span><b>' + pings + '</b>knocks today</span><span><b>' + briefs + '</b>in the morning brief</span><span><b>' + meta.urgent + '</b>emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + '</span>';
   }
   quota.addEventListener('input', render);
   quiet.addEventListener('click', function(){ quiet.setAttribute('aria-checked', quiet.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); render(); });
@@ -841,52 +837,22 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   else { new IntersectionObserver(function(en, io){ if (en[0].isIntersecting) { mailsEl.classList.add('in'); io.disconnect(); } }, { threshold: 0.15 }).observe(mailsEl); }
 })();
 
-/* ---------- 6. approval with content hash ---------- */
+/* ---------- 6. approval: draft, edit, send ---------- */
 (function(){
-  var ta = $('draftText'), hashNow = $('hashNow'), hashNote = $('hashNote'), v1 = $('draftV1'), bodyV1 = $('bodyV1'), hashV1 = $('hashV1'), stateV1 = $('stateV1'), v2wrap = $('threadV2'), reset = $('draftReset');
+  var ta = $('draftText'), card = $('draftCard'), body = $('draftBody'), state = $('draftState'), reset = $('draftReset');
   if (!ta) return;
-  var ORIGINAL = ta.value, sent = false;
-  function fnv(s){ var h = 0x811c9dc5; for (var k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = Math.imul(h, 0x01000193) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); }
-  var H1 = fnv(ORIGINAL);
-  bodyV1.textContent = ORIGINAL; hashV1.textContent = H1;
-  function current(){ return ta.value; }
-  function v2(){ return v2wrap.querySelector('.dcard'); }
-  function renderV2(){
-    var text = current(), h = fnv(text);
-    if (text === ORIGINAL) { v2wrap.innerHTML = ''; return; }
-    var card = v2();
-    if (!card) {
-      v2wrap.innerHTML = '<div class="thread__q">(edited in the box on the left)</div>' +
-        '<div class="dcard" id="draftV2"><div class="dcard__head"><b>New draft to Mara Lindqvist</b><span class="dcard__hash"></span></div><div class="dcard__body"></div>' +
-        '<div class="tg-kb"><button class="tg-btn" type="button" data-send="v2">✅ Send</button><button class="tg-btn" type="button" data-edit>✏️ Edit</button><button class="tg-btn" type="button" data-cancel>❌ Cancel</button></div><div class="dcard__state"></div></div>';
-      card = v2();
-      card.querySelector('[data-send]').addEventListener('click', function(){ send(card, fnv(current()), 'new'); });
-      card.querySelector('[data-edit]').addEventListener('click', function(){ ta.focus(); });
-      card.querySelector('[data-cancel]').addEventListener('click', function(){ ta.value = ORIGINAL; update(); });
-    }
-    card.querySelector('.dcard__hash').textContent = h;
-    card.querySelector('.dcard__body').textContent = text;
-    card.querySelector('.dcard__state').textContent = 'Send button bound to ' + h;
-  }
+  var ORIGINAL = ta.value;
+  function setState(cls, text){ state.className = 'dcard__state' + (cls ? ' ' + cls : ''); state.textContent = text; }
   function update(){
-    var h = fnv(current()), changed = h !== H1;
-    hashNow.textContent = h; hashNow.classList.toggle('is-changed', changed);
-    hashNote.textContent = changed ? 'no longer matches ' + H1 + ', the hash the first Send button carries' : 'matches the draft the first Send button was made for';
-    v1.classList.toggle('is-stale', changed);
-    if (!stateV1.classList.contains('is-ok')) stateV1.textContent = changed ? 'This button carries ' + H1 + '. It will not send.' : '';
-    renderV2();
+    body.textContent = ta.value;
+    if (card.classList.contains('is-done')) return;
+    setState('', ta.value === ORIGINAL ? '' : 'Draft updated. Send when it reads right.');
   }
-  function send(card, boundHash, which){
-    var st = card.querySelector('.dcard__state'), now = fnv(current());
-    if (boundHash !== now) { st.className = 'dcard__state is-bad'; st.textContent = 'Refused: the draft changed since this button was made (' + boundHash + ' ≠ ' + now + '). Nothing sent.'; return; }
-    st.className = 'dcard__state is-ok'; st.textContent = '✅ Sent to Mara (' + now + ').';
-    card.classList.add('is-done'); sent = (which === 'first');
-  }
-  v1.querySelector('[data-send]').addEventListener('click', function(){ send(v1, H1, 'first'); });
-  v1.querySelector('[data-edit]').addEventListener('click', function(){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
-  v1.querySelector('[data-cancel]').addEventListener('click', function(){ stateV1.className = 'dcard__state'; stateV1.textContent = 'Cancelled. Nothing sent.'; });
-  ta.addEventListener('input', function(){ if (!stateV1.classList.contains('is-ok')) stateV1.className = 'dcard__state'; update(); });
-  reset.addEventListener('click', function(){ ta.value = ORIGINAL; sent = false; stateV1.className = 'dcard__state'; stateV1.textContent = ''; update(); });
+  card.querySelector('[data-send]').addEventListener('click', function(){ card.classList.add('is-done'); setState('is-ok', '✅ Sent to Mara.'); });
+  card.querySelector('[data-cancel]').addEventListener('click', function(){ card.classList.add('is-done'); setState('', 'Cancelled. Nothing sent.'); });
+  card.querySelector('[data-edit]').addEventListener('click', function(){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
+  ta.addEventListener('input', update);
+  reset.addEventListener('click', function(){ ta.value = ORIGINAL; card.classList.remove('is-done'); setState('', ''); update(); });
   update();
 })();
 })();
