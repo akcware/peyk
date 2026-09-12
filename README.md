@@ -36,8 +36,8 @@ data. It looks up contacts itself, reads the document instead of guessing from i
 before it sets a reminder.
 
 **Drafts, you decide.** "Write to Mara that we move the meeting to tomorrow" → a draft with ✅ Send · ✏️ Edit ·
-❌ Cancel. Edit changes the draft's content hash; the Send button of an older version is refused. The same
-approval flow creates Notion pages and Google Docs.
+❌ Cancel. Edit changes the draft's content hash; the Send button of an older version is refused. Documents in
+your own workspace (Notion pages, Google Docs) are created directly and you get the link — they reach nobody else.
 
 **Gets to know you — with consent.** Right after you connect a service Peyk reads the last 30 days of
 *metadata* (senders, subjects, document titles, never bodies), then says what it noticed and asks you to confirm
@@ -52,7 +52,7 @@ everything it holds about you.
 |---|---|
 | Gmail | watches new mail, summarizes, drafts replies and new mails for approval |
 | Google Calendar | knows your day, pings you 15 minutes before an event |
-| Notion, Google Docs, Google Drive | finds and reads your documents; writes pages and docs for you (approved first) |
+| Notion, Google Docs, Google Drive | finds and reads your documents; writes pages and docs for you and sends the link |
 | Telegram | where you talk to Peyk (WhatsApp next — the control channel is an adapter) |
 
 Auth and triggers go through [Composio](https://composio.dev); Peyk never sees your Google or Notion password.
