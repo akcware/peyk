@@ -165,8 +165,8 @@ def read_notion(execute: ExecuteFn, uid: str | None, doc_id: str) -> dict[str, A
         if isinstance(row, dict):
             title, props_text = render_notion_properties(row.get("properties") or (row.get("page") or {}).get("properties") or {})
             url = _first(row, "url", "public_url")
-    except Exception:  # noqa: BLE001 - properties are a bonus
-        pass
+    except Exception:  # noqa: BLE001, S110 - properties are a bonus; the body alone is still an answer
+        props_text = props_text or ""
     text = "\n\n".join(part for part in (props_text, body.strip()) if part)
     return {"service": "notion", "id": doc_id, "title": title, "url": url, "text": text[:MAX_TEXT]}
 
