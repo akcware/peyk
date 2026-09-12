@@ -22,7 +22,7 @@ from core.log import get_logger
 from core.models import Content, Observation
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
-from workers import account, chat, commands, contacts, feedback, gate, gate_state, ticks
+from workers import account, chat, commands, contacts, feedback, gate, gate_state, health, ticks
 
 log = get_logger("workers.triage")
 
@@ -230,6 +230,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
 async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier | None = None, idle_sleep: float = 1.0,
               tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None, notifiers=None) -> None:
     while True:
+        health.beat("triage")
         async with db.connection() as conn:
             obs = await queue.claim_next(conn, None)   # all users
         if obs is None:

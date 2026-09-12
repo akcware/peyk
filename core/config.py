@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     RECONCILE_EVERY: str = "10m"               # empty string disables the reconcile job
     RECONCILE_LOOKBACK_MINUTES: int = 15
 
+    HEALTH_PORT: int = 8080                    # workers' HTTP health endpoint (0 = disabled)
+
     LOG_LEVEL: str = "INFO"
     DEFAULT_PHONE_REGION: str = Field(default="DE", description="phonenumbers default region")
 

@@ -13,6 +13,7 @@ from core.log import get_logger
 from core.models import Observation
 from core.recurrence import next_run
 from core.repo import job_repo, observation_repo, user_repo
+from workers import health
 
 log = get_logger("workers.scheduler")
 
@@ -71,6 +72,7 @@ async def run(settings: Settings, *, every: float = 30.0) -> None:
     async with db.connection() as conn:
         await ensure_default_jobs_all_users(conn, settings)
     while True:
+        health.beat("scheduler")
         try:
             async with db.connection() as conn:
                 await fire_due(conn, None, datetime.now(tz=UTC), settings.TIMEZONE)

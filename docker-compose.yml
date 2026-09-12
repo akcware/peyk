@@ -17,7 +17,7 @@ services:
 
   gateway:
     build: .
-    command: uvicorn gateway.app:app --host 0.0.0.0 --port 8000
+    command: gateway
     env_file: .env
     environment:
       DATABASE_URL: postgresql://agent:agent@db:5432/agent
@@ -30,7 +30,7 @@ services:
 
   workers:
     build: .
-    command: python -m workers.main
+    command: workers
     env_file: .env
     environment:
       DATABASE_URL: postgresql://agent:agent@db:5432/agent

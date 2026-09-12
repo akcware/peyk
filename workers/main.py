@@ -10,7 +10,7 @@ from core.adapter import AdapterRegistry
 from core.config import export_agent_env, get_settings
 from core.embeddings import TitanEmbedder
 from core.log import configure_logging, get_logger
-from workers import approval, ingest, maintenance, scheduler, ticks, triage, users
+from workers import approval, health, ingest, maintenance, scheduler, ticks, triage, users
 
 log = get_logger("workers.main")
 
@@ -34,6 +34,8 @@ async def main() -> None:
     tasks.append(asyncio.create_task(
         triage.run(settings, agent=agent, tick_ctx=tick_ctx, embedder=embedder, approval=flow, notifiers=notifiers), name="triage"))
     tasks.append(asyncio.create_task(scheduler.run(settings), name="scheduler"))
+    if settings.HEALTH_PORT:
+        tasks.append(asyncio.create_task(health.serve(settings.HEALTH_PORT), name="health"))
     tasks.append(asyncio.create_task(maintenance.recover_loop(None), name="recover"))
 
     stop = asyncio.Event()

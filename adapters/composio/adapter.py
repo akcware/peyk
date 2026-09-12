@@ -201,11 +201,23 @@ class ComposioAdapter:
             loop.call_soon_threadsafe(queue.put_nowait, dict(event))
 
         log.info("composio.subscribed", delivery="ws")
+
+        async def _watchdog() -> None:
+            while True:
+                await asyncio.sleep(15)
+                alive = getattr(subscription, "is_alive", lambda: True)()
+                errored = getattr(subscription, "has_errored", lambda: False)()
+                if not alive or errored:
+                    log.warning("composio.subscription_dead", alive=alive, errored=errored)
+                    queue.put_nowait(_QUEUE_END)
+                    return
+
+        watchdog = asyncio.create_task(_watchdog(), name="composio-watchdog")
         try:
             while True:
                 event = await queue.get()
                 if event is _QUEUE_END:
-                    return
+                    raise ConnectionError("composio realtime subscription ended; reconnecting")
                 user_id = await self.user_for_event(event, default=conn.user_id)
                 if user_id is None:
                     log.warning("composio.event_unknown_user", composio_user_id=event.get("user_id"), trigger=event.get("trigger_slug"))
@@ -214,6 +226,7 @@ class ComposioAdapter:
                 if obs is not None:
                     yield obs
         finally:
+            watchdog.cancel()
             try:
                 subscription.stop()
             except Exception as e:  # noqa: BLE001

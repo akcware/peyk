@@ -59,3 +59,9 @@ requeue-failed:
 # Forget a user (re-test onboarding): make reset-user CHAT=<telegram chat id>
 reset-user:
 	uv run python scripts/reset_user.py --chat $(CHAT)
+
+deploy:
+	scripts/deploy_lightsail.sh
+
+deploy-logs:
+	scripts/deploy_lightsail.sh --logs
