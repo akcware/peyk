@@ -327,17 +327,18 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
 
     @tool
     def create_document(service: str, title: str, body_markdown: str, parent: str = "") -> dict:
-        """Prepare a new Notion page or Google Doc for the person. It is a DRAFT they approve in chat first.
+        """Create a new Notion page or Google Doc in the person's own workspace, right away (no approval needed:
+        it is their document, nothing is sent to anyone). The link is delivered right after your reply.
 
         Args:
             service: notion | googledocs
             title: document title
-            body_markdown: the content, markdown
+            body_markdown: the full content, markdown
             parent: optional Notion parent page id (from search_documents); empty otherwise
         """
-        intents.append({"intent": "ActionDraft", "channel": service, "subject": title, "body": body_markdown,
-                        "thread_key": parent or None, "to": []})
-        return {"draft": True}
+        intents.append({"intent": "DocumentCreate", "service": service, "title": title, "body": body_markdown,
+                        "parent": parent or None})
+        return {"creating": True, "note": "the link will be sent right after your reply"}
 
     @tool
     def delete_my_data() -> dict:
@@ -363,7 +364,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
 
 @lru_cache
 def _model():
-    return build_model("chat", temperature=0.2, max_tokens=1024)
+    return build_model("chat", temperature=0.2, max_tokens=4096)   # documents are long
 
 
 def to_messages(history: list[dict[str, Any]]) -> list[dict[str, Any]]:

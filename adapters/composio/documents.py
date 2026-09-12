@@ -213,3 +213,15 @@ def create_googledocs(execute: ExecuteFn, uid: str | None, title: str, body_mark
 
 
 CREATORS = {"notion": create_notion, "googledocs": create_googledocs}
+
+
+def document_url(service: str, doc_id: str, url: str | None = None) -> str:
+    if url:
+        return url
+    if service == "googledocs":
+        return f"https://docs.google.com/document/d/{doc_id}/edit"
+    if service == "notion":
+        return f"https://www.notion.so/{doc_id.replace('-', '')}"
+    if service == "googledrive":
+        return f"https://drive.google.com/file/d/{doc_id}/view"
+    return ""

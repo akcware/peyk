@@ -148,5 +148,37 @@ async def test_chat_round_resolves_document_query(conn, settings):
     tools["read_document"]._tool_func("googledocs", "d1")
     assert intents[-1]["intent"] == "DocumentQuery" and intents[-1]["op"] == "read"
     tools["create_document"]._tool_func("googledocs", "T", "# body")
-    assert intents[-1] == {"intent": "ActionDraft", "channel": "googledocs", "subject": "T", "body": "# body", "thread_key": None, "to": []}
+    assert intents[-1] == {"intent": "DocumentCreate", "service": "googledocs", "title": "T", "body": "# body", "parent": None}
     assert datetime.now(tz=UTC).year >= 2026
+
+
+async def test_document_create_is_direct_and_links(conn, settings):
+    """create_document creates immediately (own workspace) and the link follows the reply; failures do not retry."""
+    calls = []
+    a = DocsAdapter(settings, calls, {"googledocs": "ca_d"})
+    tg = FakeTelegram()
+    registry = AdapterRegistry({"composio": a, "telegram": tg})
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": "Hazırlıyorum."}
+        return {"task": "chat", "reply": "Kira sözleşmesi taslağını oluşturdum.", "intents": [
+            {"intent": "DocumentCreate", "service": "googledocs", "title": "Kira Sözleşmesi", "body": "# Kira", "parent": None}]}
+    await user_repo.get_or_create_by_control(conn, "telegram", "777")
+    msg = await observation_repo.insert(conn, tg_text("777", "3", "örnek kira sözleşmesi hazırla", USER_ID))
+    await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=triage.Notifier(tg, "777", USER_ID),
+                              embedder=FakeEmbedder(), registry=registry)
+    texts = [m["text"] for m in tg.sent]
+    assert texts[0] == "Hazırlıyorum." and texts[1].startswith("Kira sözleşmesi taslağını")
+    assert texts[2] == "📄 Kira Sözleşmesi\nhttps://docs.google.com/document/d/d_new/edit"
+    assert [c[0] for c in calls] == ["GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN"]
+
+    # a model failure in stage 2: apology, no exception (so the queue does not retry), and a retry would not re-ack
+    tg.sent.clear()
+    def boom(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": "Bakıyorum."}
+        raise RuntimeError("max tokens")
+    msg2 = await observation_repo.insert(conn, tg_text("777", "4", "uzun bir şey yaz", USER_ID))
+    await chat.handle_message(conn, msg2, settings=settings, agent=AgentClient("local", handle_fn=boom), notifier=triage.Notifier(tg, "777", USER_ID),
+                              embedder=FakeEmbedder(), registry=registry)
+    assert [m["text"] for m in tg.sent] == ["Bakıyorum.", "I got stuck on that one — could you ask again?"]

@@ -124,6 +124,23 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                     await account.start(conn, user, notifier)
                     applied.append("DeleteAccountRequest")
                 continue
+            if kind == "DocumentCreate":
+                from adapters.composio.documents import document_url
+
+                if registry is None or notifier is None:
+                    continue
+                adapter = registry.get("composio")
+                handle = await adapter.connect(obs.user_id)
+                try:
+                    created = await adapter.create_document(handle, str(it.get("service") or "googledocs"), str(it.get("title") or "Untitled"),
+                                                            str(it.get("body") or ""), it.get("parent") or None)
+                    url = document_url(str(it.get("service")), str(created.get("id") or ""), created.get("url"))
+                    await notifier.send_text(f"📄 {it.get('title') or 'Document'}\n{url}" if url else f"📄 {it.get('title')}: created (id {created.get('id')})")
+                    applied.append("DocumentCreate")
+                except Exception as e:  # noqa: BLE001
+                    log.error("chat.document_create_failed", error=str(e))
+                    await notifier.send_text("Belgeyi oluşturamadım; biraz sonra tekrar deneyebilirim.")
+                continue
             if kind == "LearnConfirm":
                 from workers import learn
 
@@ -311,6 +328,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if await already_answered(conn, obs, final=True):
         log.info("chat.already_answered", observation_id=str(obs.id))
         return ""
+    acked_before = await already_answered(conn, obs, final=False)   # a retry after a failure: never re-send the reflex
     typing = getattr(notifier, "typing", None)
     if typing:
         await typing()
@@ -327,7 +345,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     # Stage 1 — first reflex (fast model): a natural "let me check…" or, for simple things, the answer itself.
     # Skipped while onboarding: the full agent must run so it can greet, ask and connect.
     ack = None
-    if not onboarding_needed:
+    if not onboarding_needed and not acked_before:
         try:
             history = await build_history(conn, obs, turns=4)
             ack = await agent.chat_ack({"message": text, "history": history, "now_iso": now.astimezone().isoformat(),
@@ -349,10 +367,16 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
         if typing:
             await typing()
 
-    # Stage 2 — the real work (tools, memory, intents).
-    reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
-                                    contact_search=contact_search, registry=registry, user=user, state=state,
-                                    first_reflex=first_reflex)
+    # Stage 2 — the real work (tools, memory, intents). A model failure here is answered with a short apology
+    # instead of raising: the queue must not retry a conversation turn (the person would see it twice).
+    try:
+        reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
+                                        contact_search=contact_search, registry=registry, user=user, state=state,
+                                        first_reflex=first_reflex)
+    except Exception as e:  # noqa: BLE001
+        log.error("chat.converse_failed", observation_id=str(obs.id), error=str(e)[:300])
+        reply, intents = ("Bu sefer takıldım; bir kez daha sorar mısın?" if (user or {}).get("language") == "tr"
+                          else "I got stuck on that one — could you ask again?"), []
     if state.get("is_new"):
         await user_repo.merge_state(conn, obs.user_id, {"greeted": True})
     if not reply:
