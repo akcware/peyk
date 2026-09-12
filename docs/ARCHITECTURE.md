@@ -10,63 +10,43 @@ in chat, and the approval carries a hash of exactly what you saw.
 ## The picture
 
 ```mermaid
-flowchart LR
-    subgraph Sources
+flowchart TB
+    subgraph Sources[" "]
+        direction LR
         GM[Gmail]:::ext
         GC[Google Calendar]:::ext
-        DOC[Notion · Drive · Docs<br/>on demand, no triggers]:::ext
-        TG[Telegram<br/>control channel]:::ext
+        DOC[Notion · Drive · Docs]:::ext
+        TG[Telegram — you]:::ext
     end
-    subgraph Composio["Composio (OAuth + triggers + actions)"]
-        TR[triggers<br/>GMAIL_NEW_GMAIL_MESSAGE<br/>GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER]
-        AC[actions<br/>fetch · send · reply<br/>search · read · create documents<br/>contacts]
-    end
-    GM --> TR
-    GC --> TR
-    DOC --> AC
-    TR -- websocket --> ING
-    TR -- webhook --> GW[gateway<br/>FastAPI /webhook/composio<br/>HMAC verify → insert]
-    TG -- getUpdates --> ING
+    CMP["Composio<br/>OAuth · triggers · actions"]
+    GM --> CMP
+    GC --> CMP
+    DOC -. on demand .- CMP
+    CMP -- events --> ING
+    TG -- messages, button taps --> ING
 
-    subgraph Workers["workers — one long-lived process"]
-        ING[ingest<br/>one task per adapter<br/>insert ON CONFLICT DO NOTHING]
-        SCH[scheduler<br/>due jobs → tick observations]
-        LOOP[consumer loop<br/>claim FOR UPDATE SKIP LOCKED<br/>route by data]
-        GATE[gate<br/>pure: quota · cooldown · quiet hours · mutes · reserve]
-        CHAT[chat<br/>reflex → answer → intents]
-        APPR["approval<br/>draft → approve(hash) → send"]
-        ONB[onboarding · first-learn<br/>account deletion]
-        HB["/health"]
+    subgraph W["workers — one long-lived process"]
+        ING[ingest] --> Q[("Postgres = queue<br/>one observation per input, deduplicated")]
+        SCH[scheduler → tick observations] --> Q
+        Q --> LOOP["consumer loop — route by data"]
+        LOOP -- world event --> TRI[triage: urgency 1–5] --> GATE["gate (pure): quota · cooldown · quiet hours · mutes · reserve"]
+        LOOP -- your message --> CHAT["chat: reflex, then answer with tools"]
+        CHAT --> INT["intents applied here:<br/>reminder · memory · connect · learn · document · delete"]
+        INT --> APPR["approval: draft → ✅ Send only with matching hash"]
     end
-    subgraph DB["Postgres 16 + pgvector"]
-        OBS[(observation = queue)]
-        TRG[(triage · sent_notification<br/>mute_rule · budget_settings)]
-        JOB[(scheduled_job)]
-        MEM[(memory · vector 1024)]
-        ACT[(action · content_hash)]
-        USR[(app_user · identity · person)]
-    end
-    GW --> OBS
-    ING --> OBS
-    SCH --> JOB
-    SCH --> OBS
-    OBS --> LOOP
-    LOOP --> AGENT
-    LOOP --> GATE --> TGOUT[Telegram sendMessage<br/>👍 👎 🔇]
-    LOOP --> TRG
-    LOOP --> CHAT --> AGENT
-    CHAT --> MEM
-    CHAT --> JOB
-    CHAT --> ONB
-    CHAT --> APPR --> ACT
-    APPR -- approved + hash match --> AC
-    ONB --> AC
-    LOOP --> USR
 
-    subgraph AgentCore["agent/ — deployable to Bedrock AgentCore Runtime, no DB access"]
-        AGENT[app.py router<br/>triage · chat_ack · chat · learn]
+    GATE -- knock, or wait for the brief --> OUT
+    CHAT --> OUT
+    OUT[Telegram — you]:::ext
+    APPR -- send mail --> CMP
+    INT -- OAuth link · read docs · create doc --> CMP
+
+    subgraph A["agent/ — no DB access, deployable to Bedrock AgentCore"]
+        AG[triage · chat_ack · chat · learn]
     end
-    AGENT -. Bedrock .-> BR[(Claude Haiku 4.5 · Claude Sonnet 4.6<br/>Titan Embeddings v2)]
+    TRI -.-> AG
+    CHAT -.-> AG
+    AG -.-> BR[("Bedrock<br/>Haiku 4.5 · Sonnet 4.6 · Titan v2")]
 
     classDef ext fill:#eee,stroke:#999,color:#333
 ```
