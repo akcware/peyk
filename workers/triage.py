@@ -209,7 +209,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
         if notifier is None and notifiers is not None:
             notifier = await notifiers.for_user(conn, obs.user_id)
         if approval is not None and notifier is not None:
-            approval.notifier = notifier
+            approval = approval.with_notifier(notifier)   # this person's view: consumers run in parallel
         if is_control_channel(obs, settings):
             if is_callback(obs):
                 data = callback_data(obs) or ""

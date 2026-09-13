@@ -105,6 +105,8 @@ def _turn_text(obs: Observation) -> tuple[str, str] | None:
         text = str(obs.payload.get("text") or "")
         if obs.payload.get("kind") == "notification":
             text = f"[notification I sent about observation {obs.payload.get('notified_observation_id')}]\n{text}"
+        elif obs.payload.get("kind") == "action_result":
+            text = f"[the person pressed a button on my card: {obs.payload.get('status')}]\n{text}"
         return "assistant", text
     text = control_text(obs)
     if not text or text.startswith("/") or "callback_query" in obs.payload:
