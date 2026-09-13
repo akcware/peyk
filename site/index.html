@@ -9,16 +9,16 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Peyk">
 <meta property="og:title" content="Peyk — Reads everything. Knocks only when it matters.">
-<meta property="og:description" content="A personal agent that watches everything that comes at you — mail, calendar, documents, messages — interrupts you only when it matters, and never sends anything you didn't approve.">
+<meta property="og:description" content="A personal agent that reads your mail, calendar and documents, interrupts you only as often as you allow, and never sends anything you didn't approve.">
 <meta property="og:image" content="https://peyk.chat/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Peyk: reads everything, knocks only when it matters.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Peyk — Reads everything. Knocks only when it matters.">
-<meta name="twitter:description" content="A personal agent that watches everything that comes at you — mail, calendar, documents, messages — interrupts you only when it matters, and never sends anything you didn't approve.">
+<meta name="twitter:description" content="A personal agent that reads your mail, calendar and documents, interrupts you only as often as you allow, and never sends anything you didn't approve.">
 <meta name="twitter:image" content="https://peyk.chat/og.png">
-<meta name="description" content="Peyk — a personal agent that watches everything that comes at you — mail, calendar, documents, messages — interrupts you only when it matters, and never sends anything you didn't approve.">
+<meta name="description" content="Peyk — a personal agent that reads your mail, calendar and documents, interrupts you only as often as you allow, and never sends anything you didn't approve.">
 <meta name="theme-color" content="#0F2620">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -370,6 +370,36 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
 .foot a{color:var(--sage);text-decoration:none;border-bottom:1px solid var(--line)}
 .foot a:hover{border-color:var(--ivory)}
 
+/* ---------- how it differs ---------- */
+.vs{width:100%;border-collapse:collapse}
+.vs th{text-align:left;font-weight:600;font-size:.95rem;color:var(--muted);padding:0 0 .9rem;vertical-align:bottom}
+.vs__us span{display:inline-flex;align-items:center;gap:.55rem;color:var(--fg)}
+.vs__us svg{width:26px;height:26px}
+.vs td{padding:1.25rem 0;border-top:1px solid var(--line);vertical-align:top}
+.vs td:first-child{width:40%;padding-right:2.5rem;color:var(--muted)}
+.vs td:last-child{font-family:var(--serif);font-size:clamp(1.15rem,1.9vw,1.4rem);line-height:1.35}
+@media (max-width:640px){
+  .vs thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .vs tr{display:grid;gap:.4rem;padding:1.15rem 0;border-top:1px solid var(--line)}
+  .vs td,.vs td:first-child{display:block;width:auto;padding:0;border:0}
+  .vs td::before{content:attr(data-label);display:block;font-family:var(--sans);font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.1rem}
+}
+.nope{display:grid;gap:1rem;margin-top:clamp(2.75rem,6vw,4rem);max-width:44rem}
+.nope h3{font-family:var(--serif);font-weight:400;font-size:1.5rem;letter-spacing:-.01em}
+.nope ul{margin:0;padding:0;list-style:none;display:grid;gap:.6rem}
+.nope li{position:relative;padding-left:1.75rem;color:var(--muted)}
+.nope li::before{content:"";position:absolute;left:0;top:.78em;width:1rem;height:2px;border-radius:1px;background:var(--amber)}
+
+/* ---------- questions ---------- */
+.faq{max-width:48rem;border-top:1px solid var(--line)}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{display:flex;justify-content:space-between;align-items:baseline;gap:1.5rem;padding:1.2rem 0;cursor:pointer;list-style:none;font-family:var(--serif);font-size:clamp(1.2rem,2vw,1.4rem);line-height:1.3}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";flex:none;font-family:var(--sans);font-size:1.5rem;line-height:1;color:var(--accent-text);transition:transform .2s ease}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{padding:0 0 1.35rem;max-width:62ch;color:var(--muted)}
+.faq a{color:var(--fg)}
+
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -380,6 +410,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
   .msg--typing i{animation:none;opacity:.6}
   .tg-input__text:not(:empty)::after{animation:none}
   .mails .mail{opacity:1;transform:none}
+  .faq summary::after{transition:none}
   }
 </style>
 </head>
@@ -389,8 +420,8 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
   <div class="wrap">
     <a class="brand" href="#top" aria-label="Peyk, top of page"><svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-28 32 34)"><ellipse cx="32" cy="34" rx="27" ry="10" fill="none" stroke="currentColor" stroke-width="2.5"/></g><circle cx="32" cy="34" r="13" fill="currentColor"/><g transform="rotate(-28 32 34)"><path d="M5 34A27 10 0 0 0 59 34" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="51" cy="41" r="5.5" fill="#F3B54A"/></g></svg>Peyk</a>
     <nav class="nav__links" aria-label="Page">
-      <a class="hide-sm" href="#benefits">What it does</a>
       <a class="hide-sm" href="#cases">Use cases</a>
+      <a class="hide-sm" href="#benefits">What it does</a>
       <a class="hide-sm" href="#integrations">Integrations</a>
       <a href="https://t.me/proactiveagent_bot" rel="noopener">Open in Telegram</a>
     </nav>
@@ -404,7 +435,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
   <div class="wrap">
     <div class="hero__copy">
       <h1 id="h-hero">Reads everything. Knocks only when it matters.</h1>
-      <p class="lede">A personal agent that watches everything that comes at you — mail, calendar, documents, messages — interrupts you only when it matters, and never sends anything you didn't approve.</p>
+      <p class="lede">A personal agent that reads your mail, calendar and documents. You pick how many times a day it may interrupt you; everything else waits for your morning brief. It never sends anything you didn't approve.</p>
       <div class="hero__ctas">
         <a class="btn btn--amber" href="https://t.me/proactiveagent_bot" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.3 2.9 10.5c-1.1.4-1.1 1.1-.2 1.4l4.7 1.5 1.8 5.6c.2.6.4.8 1 .8.6 0 .8-.3 1.2-.6l2.6-2.5 4.9 3.6c.9.5 1.5.2 1.8-.8L23.7 4.7c.3-1.3-.5-1.9-2.1-1.4ZM9 13.4l9.6-6.1c.5-.3.9-.1.5.2l-8 7.2-.3 3.3L9 13.4Z"/></svg>
@@ -412,7 +443,7 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
         </a>
         <a class="btn btn--ghost" href="#benefits">See what it does</a>
       </div>
-      <p class="hero__note">Free and open source. Your mail stays yours: it reads, it asks, it never sends on its own.</p>
+      <p class="hero__note">Free and open source. It keeps nothing about you until you say yes.</p>
     </div>
     <div class="hero__phone">
       <div class="phone" id="phone" aria-hidden="true">
@@ -471,70 +502,28 @@ h3{font-family:var(--sans);font-weight:600;font-size:1.1rem;line-height:1.3}
   </div>
 </section>
 
-<!-- 3. What it does for you -->
-<section class="band" id="benefits" aria-labelledby="h-benefits">
+<!-- 3. Interruption budget -->
+<section class="band" id="budget" aria-labelledby="h-budget">
   <div class="wrap">
     <div class="sec-head rv">
-      <h2 id="h-benefits">What it does for you.</h2>
-      <p class="lede">A secretary who reads everything, tells you the little that matters, and never acts without asking.</p>
+      <h2 id="h-budget">Set your interruption budget.</h2>
+      <p class="lede">Fifteen mails from one day. Choose how many times you want to be interrupted, switch quiet hours, and see which ones knock and which wait for your morning brief.</p>
     </div>
-    <div class="benefits">
-      <article class="benefit rv">
-        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></svg></span>
-        <h3>Fewer interruptions</h3>
-        <p>You decide how many times a day it may knock. Everything else waits for your morning brief at eight. Emergencies always get through.</p>
-        <div class="mini" aria-label="Example conversation">
-<div class="mini__quiet">Quiet hours 22:00–07:00 · nothing knocked</div>
-<div class="mini__b">☀️ Morning, Alex. Quiet night, nothing knocked.
-
-<b>Today:</b> Halden &amp; Co’s invoice #2041 is due, 1,850 €. Mara moved the design review to 14:00 and booked room 3B.
-
-<b>Can wait:</b> Dr. Okafor’s grant report, Monday. Two receipts and the Figma newsletter are filed for later.
-
-I’d pay the invoice first, then prep for 14:00.<span class="msg__meta">08:00</span></div>
+    <div class="budget rv" id="budgetWidget">
+      <div class="controls">
+        <div class="ctl">
+          <label class="ctl__label" for="quota"><span>Knocks per day</span><output id="quotaOut" for="quota">5</output></label>
+          <input type="range" id="quota" min="1" max="10" value="5" step="1">
+          <div class="slots" id="slots" aria-hidden="true"></div>
+          <p class="ctl__hint">The dashed knocks are kept for emergencies, and those may come even at night.</p>
         </div>
-      </article>
-      <article class="benefit rv" style="--d:80ms">
-        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
-        <h3>A secretary you can talk to</h3>
-        <p>Ask what came in, who wrote, what's due. It answers from your real mail and calendar, and remembers what it told you, so "that mail" just works.</p>
-        <div class="mini" aria-label="Example conversation">
-<div class="mini__q">what's due this week?<span class="msg__meta">17:02<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
-<div class="mini__b">Two things. Invoice #2041 to Halden &amp; Co, Friday. The grant report to Dr. Okafor, Monday 09:00; you asked me to remind you Sunday evening.<span class="msg__meta">17:02</span></div>
-<div class="mini__q">who wrote about the invoice?<span class="msg__meta">17:03<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
-<div class="mini__b">Jonas Halden, Tuesday 16:12, subject “Invoice #2041 — payment terms”. He asks for 14-day terms. Want a reply drafted?<span class="msg__meta">17:03</span></div>
+        <div class="ctl">
+          <button class="switch" id="quiet" role="switch" aria-checked="true"><span class="switch__track" aria-hidden="true"></span><span>Quiet hours 22:00–07:00</span></button>
+          <p class="ctl__hint">Nothing knocks at night, except an emergency.</p>
         </div>
-      </article>
-      <article class="benefit rv" style="--d:160ms">
-        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/><path d="M13 20h7"/></svg></span>
-        <h3>Drafts you approve</h3>
-        <p>Mail replies, notes, documents. It writes the draft, you tap Send, Edit or Cancel. Nothing is sent or created without your OK.</p>
-        <div class="mini" aria-label="Example conversation">
-<div class="mini__q">tell Jonas 14 days is fine<span class="msg__meta">17:04<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
-<div class="mini__grp"><div class="mini__b">📝 Draft (reply in thread)
-To: jonas@halden.co
-
-Hi Jonas, 14-day terms are fine on our side. I'll confirm as soon as the invoice is in.
-
-Best,
-Alex<span class="msg__hash">#8b12e4a0 · v2f7c…</span><span class="msg__meta">17:04</span></div><div class="tg-kb"><span class="tg-btn">✅ Send</span><span class="tg-btn">✏️ Edit</span><span class="tg-btn">❌ Cancel</span></div></div>
-<div class="mini__quiet">Nothing leaves until you tap Send</div>
-        </div>
-      </article>
-      <article class="benefit rv" style="--d:240ms">
-        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><path d="M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span>
-        <h3>It gets to know you</h3>
-        <p>It asks once who you are, learns from what you connect, and keeps only what you confirm. Your name, your city, your time zone, your people.</p>
-        <div class="mini" aria-label="Example conversation">
-<div class="mini__b">Gmail connected. From the last weeks’ headers, not the content, I’d guess:
-• Halden &amp; Co is a client; invoices matter.
-• Mara Lindqvist writes most often. A client?
-• Newsletters: Substack, Figma, Notion.
-Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</span></div>
-<div class="mini__q">right, but Mara is a colleague, not a client<span class="msg__meta">09:14<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
-<div class="mini__b">Noted. Mara Lindqvist: colleague. Halden &amp; Co: client. Newsletters wait for the morning brief.<span class="msg__meta">09:14</span></div>
-        </div>
-      </article>
+        <div class="summary" id="summary" aria-live="polite"></div>
+      </div>
+      <div class="mails" id="mails" role="list" aria-label="Today's mails and what happens to each"></div>
     </div>
   </div>
 </section>
@@ -544,7 +533,7 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
   <div class="wrap">
     <div class="sec-head rv">
       <h2 id="h-cases">Four very different days. One quiet phone.</h2>
-      <p class="lede">Everyone gets their own budget, memory and time zone. What counts as worth a knock is learned from what you tap, not from a rulebook.</p>
+      <p class="lede">Everyone gets their own budget, memory and time zone. What knocks depends on what you've told it about your people, and one tap on 🔇 keeps a thread quiet.</p>
     </div>
     <div class="tabs rv" role="tablist" aria-label="Pick a day" id="caseTabs">
       <button class="tab" role="tab" type="button" id="tab-freelancer" aria-controls="case-freelancer" aria-selected="true">The freelancer</button>
@@ -580,7 +569,7 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
           <div class="mini__b"><b>❗ PagerDuty</b>: SEV-1, checkout is down. Paged 2 minutes ago.<span class="msg__meta">23:10</span></div>
           <div class="mini__q">who's on the bridge?<span class="msg__meta">23:13<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
           <div class="mini__b">Priya opened the incident and Tom joined at 23:12. The bridge link is in the alert mail.<span class="msg__meta">23:13</span></div>
-          <div class="mini__quiet">Sent during quiet hours. Emergencies always get through.</div>
+          <div class="mini__quiet">Sent during quiet hours. Emergencies get through at night.</div>
         </div>
       </article>
       <article class="case rv" id="case-parent" role="tabpanel" aria-labelledby="tab-parent">
@@ -590,35 +579,77 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
           <div class="mini__b"><b>❗ Leo's school</b>: Leo is unwell and they ask you to call.<span class="msg__meta">13:02</span></div>
           <div class="mini__q">what's the number?<span class="msg__meta">13:04<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
           <div class="mini__b">030 4409 8812, the office line from their mail. Want me to remind you about the daycare's planning day on Monday?<span class="msg__meta">13:04</span></div>
-          <div class="mini__quiet">Today's budget was used up. This one came through anyway.</div>
+          <div class="mini__quiet">Today's everyday knocks were used up. This one took a knock kept for emergencies.</div>
         </div>
       </article>
     </div>
   </div>
 </section>
 
-<!-- 5. Interruption budget -->
-<section class="band" id="budget" aria-labelledby="h-budget">
+<!-- 5. What it does for you -->
+<section class="band" id="benefits" aria-labelledby="h-benefits">
   <div class="wrap">
     <div class="sec-head rv">
-      <h2 id="h-budget">Set your interruption budget.</h2>
-      <p class="lede">Fifteen mails from one day. Choose how many times you want to be interrupted, switch quiet hours, and see which ones knock and which wait for your morning brief.</p>
+      <h2 id="h-benefits">What it does for you.</h2>
+      <p class="lede">A secretary who reads everything, tells you the little that matters, and never acts without asking.</p>
     </div>
-    <div class="budget rv" id="budgetWidget">
-      <div class="controls">
-        <div class="ctl">
-          <label class="ctl__label" for="quota"><span>Knocks per day</span><output id="quotaOut" for="quota">5</output></label>
-          <input type="range" id="quota" min="1" max="10" value="5" step="1">
-          <div class="slots" id="slots" aria-hidden="true"></div>
-          <p class="ctl__hint">Emergencies don't count against it. The dashed slot is theirs, and it opens even at night.</p>
+    <div class="benefits">
+      <article class="benefit rv">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></svg></span>
+        <h3>Fewer interruptions</h3>
+        <p>What didn't knock arrives once, at eight: what needs you today, what can wait, and what it would do first.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__quiet">Quiet hours 22:00–07:00 · nothing knocked</div>
+<div class="mini__b">☀️ Morning, Alex. Quiet night, nothing knocked.
+
+<b>Today:</b> Halden &amp; Co’s invoice #2041 is due, 1,850 €. Mara moved the design review to 14:00 and booked room 3B.
+
+<b>Can wait:</b> Dr. Okafor’s grant report, Monday. Two receipts and the Figma newsletter are filed for later.
+
+I’d pay the invoice first, then prep for 14:00.<span class="msg__meta">08:00</span></div>
         </div>
-        <div class="ctl">
-          <button class="switch" id="quiet" role="switch" aria-checked="true"><span class="switch__track" aria-hidden="true"></span><span>Quiet hours 22:00–07:00</span></button>
-          <p class="ctl__hint">Nothing knocks at night. Emergencies always get through.</p>
+      </article>
+      <article class="benefit rv" style="--d:80ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
+        <h3>A secretary you can talk to</h3>
+        <p>Ask what came in, who wrote, what's due. It answers from your real mail and calendar, and remembers what it told you, so "that mail" just works.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__q">what's due this week?<span class="msg__meta">17:02<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Two things. Invoice #2041 to Halden &amp; Co, Friday. The grant report to Dr. Okafor, Monday 09:00; you asked me to remind you Sunday evening.<span class="msg__meta">17:02</span></div>
+<div class="mini__q">who wrote about the invoice?<span class="msg__meta">17:03<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Jonas Halden, Tuesday 16:12, subject “Invoice #2041 — payment terms”. He asks for 14-day terms. Want a reply drafted?<span class="msg__meta">17:03</span></div>
         </div>
-        <div class="summary" id="summary" aria-live="polite"></div>
-      </div>
-      <div class="mails" id="mails" role="list" aria-label="Today's mails and what happens to each"></div>
+      </article>
+      <article class="benefit rv" style="--d:160ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/><path d="M13 20h7"/></svg></span>
+        <h3>Drafts you approve</h3>
+        <p>Replies, new mails, invitations. It writes the draft and waits for your tap. Nothing reaches anyone without your OK.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__q">tell Jonas 14 days is fine<span class="msg__meta">17:04<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__grp"><div class="mini__b">📝 Draft (reply in thread)
+To: jonas@halden.co
+
+Hi Jonas, 14-day terms are fine on our side. I'll confirm as soon as the invoice is in.
+
+Best,
+Alex<span class="msg__hash">#8b12e4a0 · v2f7c…</span><span class="msg__meta">17:04</span></div><div class="tg-kb"><span class="tg-btn">✅ Send</span><span class="tg-btn">✏️ Edit</span><span class="tg-btn">❌ Cancel</span></div></div>
+<div class="mini__quiet">Nothing leaves until you tap Send</div>
+        </div>
+      </article>
+      <article class="benefit rv" style="--d:240ms">
+        <span class="benefit__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><path d="M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg></span>
+        <h3>It gets to know you</h3>
+        <p>It asks once who you are, learns from what you connect, and keeps only what you confirm. Your name, your city, your time zone, your people.</p>
+        <div class="mini" aria-label="Example conversation">
+<div class="mini__b">Gmail connected. From the last weeks’ headers, not the content, I’d guess:
+• Halden &amp; Co is a client; invoices matter.
+• Mara Lindqvist writes most often. A client?
+• Newsletters: Substack, Figma, Notion.
+Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</span></div>
+<div class="mini__q">right, but Mara is a colleague, not a client<span class="msg__meta">09:14<svg class="msg__check" viewBox="0 0 18 11"><path d="M1.5 6.2 4.6 9.3l6-6"/><path d="M6.9 8.4 8.6 10.1l7.9-7.9"/></svg></span></div>
+<div class="mini__b">Noted. Mara Lindqvist: colleague. Halden &amp; Co: client. Newsletters wait for the morning brief.<span class="msg__meta">09:14</span></div>
+        </div>
+      </article>
     </div>
   </div>
 </section>
@@ -628,7 +659,7 @@ Correct anything; I keep only what you confirm.<span class="msg__meta">09:12</sp
   <div class="wrap">
     <div class="sec-head rv">
       <h2 id="h-approval">Nothing goes out without your OK.</h2>
-      <p class="lede">Every reply, note or document starts as a draft in your chat. Edit it, tap Send, done. Or tap Cancel and it never existed.</p>
+      <p class="lede">Every reply and every new mail starts as a draft in your chat. Edit it, tap Send, done. Or tap Cancel and it never existed.</p>
     </div>
     <div class="approval rv">
       <div class="editor">
@@ -661,13 +692,13 @@ Alex</textarea>
   <div class="wrap">
     <div class="sec-head rv">
       <h2 id="h-integ">Works with what you already use.</h2>
-      <p class="lede">Connect a service in one tap. Peyk reads, summarizes and drafts. It only writes anything after you approve.</p>
+      <p class="lede">Connect a service in one tap. Peyk reads, summarizes and drafts. Anything that reaches other people waits for your OK.</p>
     </div>
     <h3 class="integ-h rv">Connected today</h3>
     <ul class="integ" aria-label="Connected services">
       <li class="integ__card rv"><span class="mark" aria-hidden="true"><svg viewBox="52 42 88 66"><path fill="#4285f4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6"/><path fill="#34a853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15"/><path fill="#fbbc04" d="M120 48v26l20-15v-8c0-7.42-8.47-11.65-14.4-7.2"/><path fill="#ea4335" d="M72 74V48l24 18 24-18v26L96 92"/><path fill="#c5221f" d="M52 51v8l20 15V48l-5.6-4.2c-5.94-4.45-14.4-.22-14.4 7.2"/></svg></span><b>Gmail</b><p>Watches your inbox, summarizes what matters, drafts replies for you to send.</p></li>
-      <li class="integ__card rv" style="--d:60ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 200 200"><g><g transform="translate(3.75 3.75)"><path fill="#FFFFFF" d="M148.882,43.618l-47.368-5.263l-57.895,5.263L38.355,96.25l5.263,52.632l52.632,6.579l52.632-6.579 l5.263-53.947L148.882,43.618z"/><path fill="#1A73E8" d="M65.211,125.276c-3.934-2.658-6.658-6.539-8.145-11.671l9.132-3.763c0.829,3.158,2.276,5.605,4.342,7.342 c2.053,1.737,4.553,2.592,7.474,2.592c2.987,0,5.553-0.908,7.697-2.724s3.224-4.132,3.224-6.934c0-2.868-1.132-5.211-3.395-7.026 s-5.105-2.724-8.5-2.724h-5.276v-9.039H76.5c2.921,0,5.382-0.789,7.382-2.368c2-1.579,3-3.737,3-6.487 c0-2.447-0.895-4.395-2.684-5.855s-4.053-2.197-6.803-2.197c-2.684,0-4.816,0.711-6.395,2.145s-2.724,3.197-3.447,5.276 l-9.039-3.763c1.197-3.395,3.395-6.395,6.618-8.987c3.224-2.592,7.342-3.895,12.342-3.895c3.697,0,7.026,0.711,9.974,2.145 c2.947,1.434,5.263,3.421,6.934,5.947c1.671,2.539,2.5,5.382,2.5,8.539c0,3.224-0.776,5.947-2.329,8.184 c-1.553,2.237-3.461,3.947-5.724,5.145v0.539c2.987,1.25,5.421,3.158,7.342,5.724c1.908,2.566,2.868,5.632,2.868,9.211 s-0.908,6.776-2.724,9.579c-1.816,2.803-4.329,5.013-7.513,6.618c-3.197,1.605-6.789,2.421-10.776,2.421 C73.408,129.263,69.145,127.934,65.211,125.276z"/><path fill="#1A73E8" d="M121.25,79.961l-9.974,7.25l-5.013-7.605l17.987-12.974h6.895v61.197h-9.895L121.25,79.961z"/><path fill="#EA4335" d="M148.882,196.25l47.368-47.368l-23.684-10.526l-23.684,10.526l-10.526,23.684L148.882,196.25z"/><path fill="#34A853" d="M33.092,172.566l10.526,23.684h105.263v-47.368H43.618L33.092,172.566z"/><path fill="#4285F4" d="M12.039-3.75C3.316-3.75-3.75,3.316-3.75,12.039v136.842l23.684,10.526l23.684-10.526V43.618h105.263 l10.526-23.684L148.882-3.75H12.039z"/><path fill="#188038" d="M-3.75,148.882v31.579c0,8.724,7.066,15.789,15.789,15.789h31.579v-47.368H-3.75z"/><path fill="#FBBC04" d="M148.882,43.618v105.263h47.368V43.618l-23.684-10.526L148.882,43.618z"/><path fill="#1967D2" d="M196.25,43.618V12.039c0-8.724-7.066-15.789-15.789-15.789h-31.579v47.368H196.25z"/></g></g></svg></span><b>Google Calendar</b><p>Reminds you 15 minutes before, knows your day, checks if you're free.</p></li>
-      <li class="integ__card rv" style="--d:120ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M6.017 4.313l55.333 -4.087c6.797 -0.583 8.543 -0.19 12.817 2.917l17.663 12.443c2.913 2.14 3.883 2.723 3.883 5.053v68.243c0 4.277 -1.553 6.807 -6.99 7.193L24.467 99.967c-4.08 0.193 -6.023 -0.39 -8.16 -3.113L3.3 79.94c-2.333 -3.113 -3.3 -5.443 -3.3 -8.167V11.113c0 -3.497 1.553 -6.413 6.017 -6.8z" fill="#fff"/><path fill-rule="evenodd" clip-rule="evenodd" d="M61.35 0.227l-55.333 4.087C1.553 4.7 0 7.617 0 11.113v60.66c0 2.723 0.967 5.053 3.3 8.167l13.007 16.913c2.137 2.723 4.08 3.307 8.16 3.113l64.257 -3.89c5.433 -0.387 6.99 -2.917 6.99 -7.193V20.64c0 -2.21 -0.873 -2.847 -3.443 -4.733L74.167 3.143c-4.273 -3.107 -6.02 -3.5 -12.817 -2.917zM25.92 19.523c-5.247 0.353 -6.437 0.433 -9.417 -1.99L8.927 11.507c-0.77 -0.78 -0.383 -1.753 1.557 -1.947l53.193 -3.887c4.467 -0.39 6.793 1.167 8.54 2.527l9.123 6.61c0.39 0.197 1.36 1.36 0.193 1.36l-54.933 3.307 -0.68 0.047zM19.803 88.3V30.367c0 -2.53 0.777 -3.697 3.103 -3.893L86 22.78c2.14 -0.193 3.107 1.167 3.107 3.693v57.547c0 2.53 -0.39 4.67 -3.883 4.863l-60.377 3.5c-3.493 0.193 -5.043 -0.97 -5.043 -4.083zm59.6 -54.827c0.387 1.75 0 3.5 -1.75 3.7l-2.91 0.577v42.773c-2.527 1.36 -4.853 2.137 -6.797 2.137 -3.107 0 -3.883 -0.973 -6.21 -3.887l-19.03 -29.94v28.967l6.02 1.363s0 3.5 -4.857 3.5l-13.39 0.777c-0.39 -0.78 0 -2.723 1.357 -3.11l3.497 -0.97v-38.3L30.48 40.667c-0.39 -1.75 0.58 -4.277 3.3 -4.473l14.367 -0.967 19.8 30.327v-26.83l-5.047 -0.58c-0.39 -2.143 1.163 -3.7 3.103 -3.89l13.4 -0.78z" fill="#000"/></svg></span><b>Notion</b><p>Finds and reads your pages, writes notes and new pages after you approve.</p></li>
+      <li class="integ__card rv" style="--d:60ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 200 200"><g><g transform="translate(3.75 3.75)"><path fill="#FFFFFF" d="M148.882,43.618l-47.368-5.263l-57.895,5.263L38.355,96.25l5.263,52.632l52.632,6.579l52.632-6.579 l5.263-53.947L148.882,43.618z"/><path fill="#1A73E8" d="M65.211,125.276c-3.934-2.658-6.658-6.539-8.145-11.671l9.132-3.763c0.829,3.158,2.276,5.605,4.342,7.342 c2.053,1.737,4.553,2.592,7.474,2.592c2.987,0,5.553-0.908,7.697-2.724s3.224-4.132,3.224-6.934c0-2.868-1.132-5.211-3.395-7.026 s-5.105-2.724-8.5-2.724h-5.276v-9.039H76.5c2.921,0,5.382-0.789,7.382-2.368c2-1.579,3-3.737,3-6.487 c0-2.447-0.895-4.395-2.684-5.855s-4.053-2.197-6.803-2.197c-2.684,0-4.816,0.711-6.395,2.145s-2.724,3.197-3.447,5.276 l-9.039-3.763c1.197-3.395,3.395-6.395,6.618-8.987c3.224-2.592,7.342-3.895,12.342-3.895c3.697,0,7.026,0.711,9.974,2.145 c2.947,1.434,5.263,3.421,6.934,5.947c1.671,2.539,2.5,5.382,2.5,8.539c0,3.224-0.776,5.947-2.329,8.184 c-1.553,2.237-3.461,3.947-5.724,5.145v0.539c2.987,1.25,5.421,3.158,7.342,5.724c1.908,2.566,2.868,5.632,2.868,9.211 s-0.908,6.776-2.724,9.579c-1.816,2.803-4.329,5.013-7.513,6.618c-3.197,1.605-6.789,2.421-10.776,2.421 C73.408,129.263,69.145,127.934,65.211,125.276z"/><path fill="#1A73E8" d="M121.25,79.961l-9.974,7.25l-5.013-7.605l17.987-12.974h6.895v61.197h-9.895L121.25,79.961z"/><path fill="#EA4335" d="M148.882,196.25l47.368-47.368l-23.684-10.526l-23.684,10.526l-10.526,23.684L148.882,196.25z"/><path fill="#34A853" d="M33.092,172.566l10.526,23.684h105.263v-47.368H43.618L33.092,172.566z"/><path fill="#4285F4" d="M12.039-3.75C3.316-3.75-3.75,3.316-3.75,12.039v136.842l23.684,10.526l23.684-10.526V43.618h105.263 l10.526-23.684L148.882-3.75H12.039z"/><path fill="#188038" d="M-3.75,148.882v31.579c0,8.724,7.066,15.789,15.789,15.789h31.579v-47.368H-3.75z"/><path fill="#FBBC04" d="M148.882,43.618v105.263h47.368V43.618l-23.684-10.526L148.882,43.618z"/><path fill="#1967D2" d="M196.25,43.618V12.039c0-8.724-7.066-15.789-15.789-15.789h-31.579v47.368H196.25z"/></g></g></svg></span><b>Google Calendar</b><p>Reminds you 15 minutes before, checks if you're free, adds or moves events when you ask.</p></li>
+      <li class="integ__card rv" style="--d:120ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M6.017 4.313l55.333 -4.087c6.797 -0.583 8.543 -0.19 12.817 2.917l17.663 12.443c2.913 2.14 3.883 2.723 3.883 5.053v68.243c0 4.277 -1.553 6.807 -6.99 7.193L24.467 99.967c-4.08 0.193 -6.023 -0.39 -8.16 -3.113L3.3 79.94c-2.333 -3.113 -3.3 -5.443 -3.3 -8.167V11.113c0 -3.497 1.553 -6.413 6.017 -6.8z" fill="#fff"/><path fill-rule="evenodd" clip-rule="evenodd" d="M61.35 0.227l-55.333 4.087C1.553 4.7 0 7.617 0 11.113v60.66c0 2.723 0.967 5.053 3.3 8.167l13.007 16.913c2.137 2.723 4.08 3.307 8.16 3.113l64.257 -3.89c5.433 -0.387 6.99 -2.917 6.99 -7.193V20.64c0 -2.21 -0.873 -2.847 -3.443 -4.733L74.167 3.143c-4.273 -3.107 -6.02 -3.5 -12.817 -2.917zM25.92 19.523c-5.247 0.353 -6.437 0.433 -9.417 -1.99L8.927 11.507c-0.77 -0.78 -0.383 -1.753 1.557 -1.947l53.193 -3.887c4.467 -0.39 6.793 1.167 8.54 2.527l9.123 6.61c0.39 0.197 1.36 1.36 0.193 1.36l-54.933 3.307 -0.68 0.047zM19.803 88.3V30.367c0 -2.53 0.777 -3.697 3.103 -3.893L86 22.78c2.14 -0.193 3.107 1.167 3.107 3.693v57.547c0 2.53 -0.39 4.67 -3.883 4.863l-60.377 3.5c-3.493 0.193 -5.043 -0.97 -5.043 -4.083zm59.6 -54.827c0.387 1.75 0 3.5 -1.75 3.7l-2.91 0.577v42.773c-2.527 1.36 -4.853 2.137 -6.797 2.137 -3.107 0 -3.883 -0.973 -6.21 -3.887l-19.03 -29.94v28.967l6.02 1.363s0 3.5 -4.857 3.5l-13.39 0.777c-0.39 -0.78 0 -2.723 1.357 -3.11l3.497 -0.97v-38.3L30.48 40.667c-0.39 -1.75 0.58 -4.277 3.3 -4.473l14.367 -0.967 19.8 30.327v-26.83l-5.047 -0.58c-0.39 -2.143 1.163 -3.7 3.103 -3.89l13.4 -0.78z" fill="#000"/></svg></span><b>Notion</b><p>Finds and reads your pages, and writes new ones when you ask.</p></li>
       <li class="integ__card rv" style="--d:180ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 87.3 78"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg></span><b>Google Drive</b><p>Finds the file you mean, even when you only remember roughly what it was.</p></li>
       <li class="integ__card rv" style="--d:240ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 64 88"><path fill="#3086F6" d="M58 88H6c-3.3 0-6-2.7-6-6V6c0-3.3 2.7-6 6-6h36l22 22v60c0 3.3-2.7 6-6 6z"/><path fill="#0C67D6" d="M42 0l22 22H42z"/><path fill="#FDFFFF" d="M50 39H14v-5h36zm0 7H14v5h36zM40 58H14v5h26z"/></svg></span><b>Google Docs</b><p>Reads your documents and writes new ones for you, once you say go.</p></li>
       <li class="integ__card rv" style="--d:300ms"><span class="mark" aria-hidden="true"><svg viewBox="0 0 240 240"><defs><linearGradient id="lg-tg" x1="120" y1="240" x2="120" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1d93d2"/><stop offset="1" stop-color="#38b0e3"/></linearGradient></defs><circle cx="120" cy="120" r="120" fill="url(#lg-tg)"/><path d="M81.229,128.772l14.237,39.406s1.78,3.687,3.686,3.687,30.255-29.492,30.255-29.492l31.525-60.89L81.737,118.6Z" fill="#c8daea"/><path d="M100.106,138.878l-2.733,29.046s-1.144,8.9,7.754,0,17.415-15.763,17.415-15.763" fill="#a9c6d8"/><path d="M81.486,130.178,52.2,120.636s-3.5-1.42-2.373-4.64c.232-.664.7-1.229,2.1-2.2,6.489-4.523,120.106-45.36,120.106-45.36s3.208-1.081,5.1-.362a2.766,2.766,0,0,1,1.885,2.055,9.357,9.357,0,0,1,.254,2.585c-.009.752-.1,1.449-.169,2.542-.692,11.165-21.4,94.493-21.4,94.493s-1.239,4.876-5.678,5.043A8.13,8.13,0,0,1,146.1,172.5c-8.711-7.493-38.819-27.727-45.472-32.177a1.27,1.27,0,0,1-.546-.9c-.093-.469.417-1.05.417-1.05s52.426-46.6,53.821-51.492c.108-.379-.3-.566-.848-.4-3.482,1.281-63.844,39.4-70.506,43.607A3.21,3.21,0,0,1,81.486,130.178Z" fill="#fff"/></svg></span><b>Telegram</b><p>Where you talk to it. Notifications, questions, drafts and approvals, all in one chat.</p></li>
@@ -677,13 +708,6 @@ Alex</textarea>
       <li class="chip"><svg aria-hidden="true" viewBox="12 12 151 151"><defs><linearGradient id="lg-wa" x1="85.915" x2="86.535" y1="32.567" y2="137.092" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#57d163"/><stop offset="1" stop-color="#23b33a"/></linearGradient></defs><path fill="#fff" d="m12.966 161.238 10.439-38.114a73.42 73.42 0 0 1-9.821-36.772c.017-40.556 33.021-73.55 73.578-73.55 19.681.01 38.154 7.669 52.047 21.572s21.537 32.383 21.53 52.037c-.018 40.553-33.027 73.553-73.578 73.553h-.032c-12.313-.005-24.412-3.094-35.159-8.954z"/><path fill="url(#lg-wa)" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.313-6.179 22.558 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.517 31.126 8.523h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.928z"/><path fill="#fff" fill-rule="evenodd" d="M68.772 55.603c-1.378-3.061-2.828-3.123-4.137-3.176l-3.524-.043c-1.226 0-3.218.46-4.902 2.3s-6.435 6.287-6.435 15.332 6.588 17.785 7.506 19.013 12.718 20.381 31.405 27.75c15.529 6.124 18.689 4.906 22.061 4.6s10.877-4.447 12.408-8.74 1.532-7.971 1.073-8.74-1.685-1.226-3.525-2.146-10.877-5.367-12.562-5.981-2.91-.919-4.137.921-4.746 5.979-5.819 7.206-2.144 1.381-3.984.462-7.76-2.861-14.784-9.124c-5.465-4.873-9.154-10.891-10.228-12.73s-.114-2.835.808-3.751c.825-.824 1.838-2.147 2.759-3.22s1.224-1.84 1.836-3.065.307-2.301-.153-3.22-4.032-10.011-5.666-13.647"/></svg>WhatsApp<small>planned</small></li>
       <li class="chip"><svg aria-hidden="true" viewBox="0 0 127 127"><path fill="#E01E5A" d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z"/><path fill="#36C5F0" d="M47 27c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.5 39.7.6 47 .6c7.3 0 13.2 5.9 13.2 13.2V27H47zm0 6.7c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H13.9C6.6 60.1.7 54.2.7 46.9c0-7.3 5.9-13.2 13.2-13.2H47z"/><path fill="#2EB67D" d="M99.9 46.9c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.9V46.9zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V13.8C66.9 6.5 72.8.6 80.1.6c7.3 0 13.2 5.9 13.2 13.2v33.1z"/><path fill="#ECB22E" d="M80.1 99.8c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V99.8h13.2zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2 0-7.3 5.9-13.2 13.2-13.2h33.1c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H80.1z"/></svg>Slack<small>planned</small></li>
       <li class="chip"><svg aria-hidden="true" viewBox="0 0 1831.085 1703.335"><path fill="#0A2767" d="M1831.083,894.25c0.1-14.318-7.298-27.644-19.503-35.131h-0.213l-0.767-0.426l-634.492-375.585 c-2.74-1.851-5.583-3.543-8.517-5.067c-24.498-12.639-53.599-12.639-78.098,0c-2.934,1.525-5.777,3.216-8.517,5.067L446.486,858.693 l-0.766,0.426c-19.392,12.059-25.337,37.556-13.278,56.948c3.553,5.714,8.447,10.474,14.257,13.868l634.492,375.585 c2.749,1.835,5.592,3.527,8.517,5.068c24.498,12.639,53.599,12.639,78.098,0c2.925-1.541,5.767-3.232,8.517-5.068l634.492-375.585 C1823.49,922.545,1831.228,908.923,1831.083,894.25z"/><path fill="#0364B8" d="M520.453,643.477h416.38v381.674h-416.38V643.477z M1745.917,255.5V80.908 c1-43.652-33.552-79.862-77.203-80.908H588.204C544.552,1.046,510,37.256,511,80.908V255.5l638.75,170.333L1745.917,255.5z"/><path fill="#0078D4" d="M511,255.5h425.833v383.25H511V255.5z"/><path fill="#28A8EA" d="M1362.667,255.5H936.833v383.25L1362.667,1022h383.25V638.75L1362.667,255.5z"/><path fill="#0078D4" d="M936.833,638.75h425.833V1022H936.833V638.75z"/><path fill="#0364B8" d="M936.833,1022h425.833v383.25H936.833V1022z"/><path fill="#14447D" d="M520.453,1025.151h416.38v346.969h-416.38V1025.151z"/><path fill="#0078D4" d="M1362.667,1022h383.25v383.25h-383.25V1022z"/><linearGradient id="lg-ol1" gradientUnits="userSpaceOnUse" x1="1128.4584" y1="811.0833" x2="1128.4584" y2="1.9982" gradientTransform="matrix(1 0 0 -1 0 1705.3334)"><stop offset="0" style="stop-color:#35B8F1"/><stop offset="1" style="stop-color:#28A8EA"/></linearGradient><path fill="url(#lg-ol1)" d="M1811.58,927.593l-0.809,0.426l-634.492,356.848c-2.768,1.703-5.578,3.321-8.517,4.769 c-10.777,5.132-22.481,8.029-34.407,8.517l-34.663-20.27c-2.929-1.47-5.773-3.105-8.517-4.897L447.167,906.003h-0.298 l-21.036-11.753v722.384c0.328,48.196,39.653,87.006,87.849,86.7h1230.914c0.724,0,1.363-0.341,2.129-0.341 c10.18-0.651,20.216-2.745,29.808-6.217c4.145-1.756,8.146-3.835,11.966-6.217c2.853-1.618,7.75-5.152,7.75-5.152 c21.814-16.142,34.726-41.635,34.833-68.772V894.25C1831.068,908.067,1823.616,920.807,1811.58,927.593z"/><path opacity="0.5" fill="#0A2767" d="M1797.017,891.397v44.287l-663.448,456.791L446.699,906.301 c0-0.235-0.191-0.426-0.426-0.426l0,0l-63.023-37.899v-31.938l25.976-0.426l54.932,31.512l1.277,0.426l4.684,2.981 c0,0,645.563,368.346,647.267,369.197l24.698,14.478c2.129-0.852,4.258-1.703,6.813-2.555 c1.278-0.852,640.879-360.681,640.879-360.681L1797.017,891.397z"/><path fill="#1490DF" d="M1811.58,927.593l-0.809,0.468l-634.492,356.848c-2.768,1.703-5.578,3.321-8.517,4.769 c-24.641,12.038-53.457,12.038-78.098,0c-2.918-1.445-5.76-3.037-8.517-4.769L446.657,928.061l-0.766-0.468 c-12.25-6.642-19.93-19.409-20.057-33.343v722.384c0.305,48.188,39.616,87.004,87.803,86.7c0.001,0,0.002,0,0.004,0h1229.636 c48.188,0.307,87.5-38.509,87.807-86.696c0-0.001,0-0.002,0-0.004V894.25C1831.068,908.067,1823.616,920.807,1811.58,927.593z"/><path opacity="0.1" d="M1185.52,1279.629l-9.496,5.323c-2.752,1.752-5.595,3.359-8.517,4.812 c-10.462,5.135-21.838,8.146-33.47,8.857l241.405,285.479l421.107,101.476c11.539-8.716,20.717-20.178,26.7-33.343L1185.52,1279.629 z"/><path opacity="0.05" d="M1228.529,1255.442l-52.505,29.51c-2.752,1.752-5.595,3.359-8.517,4.812 c-10.462,5.135-21.838,8.146-33.47,8.857l113.101,311.838l549.538,74.989c21.649-16.254,34.394-41.743,34.407-68.815v-9.326 L1228.529,1255.442z"/><path fill="#28A8EA" d="M514.833,1703.333h1228.316c18.901,0.096,37.335-5.874,52.59-17.033l-697.089-408.331 c-2.929-1.47-5.773-3.105-8.517-4.897L447.125,906.088h-0.298l-20.993-11.838v719.914 C425.786,1663.364,465.632,1703.286,514.833,1703.333C514.832,1703.333,514.832,1703.333,514.833,1703.333z"/><path opacity="0.1" d="M1022,418.722v908.303c-0.076,31.846-19.44,60.471-48.971,72.392 c-9.148,3.931-19,5.96-28.957,5.962H425.833V383.25H511v-42.583h433.073C987.092,340.83,1021.907,375.702,1022,418.722z"/><path opacity="0.2" d="M979.417,461.305v908.302c0.107,10.287-2.074,20.469-6.388,29.808 c-11.826,29.149-40.083,48.273-71.54,48.417H425.833V383.25h475.656c12.356-0.124,24.533,2.958,35.344,8.943 C962.937,405.344,979.407,432.076,979.417,461.305z"/><path opacity="0.2" d="M979.417,461.305v823.136c-0.208,43-34.928,77.853-77.927,78.225H425.833V383.25 h475.656c12.356-0.124,24.533,2.958,35.344,8.943C962.937,405.344,979.407,432.076,979.417,461.305z"/><path opacity="0.2" d="M936.833,461.305v823.136c-0.046,43.067-34.861,78.015-77.927,78.225H425.833 V383.25h433.072c43.062,0.023,77.951,34.951,77.927,78.013C936.833,461.277,936.833,461.291,936.833,461.305z"/><linearGradient id="lg-ol2" gradientUnits="userSpaceOnUse" x1="162.7469" y1="1383.0741" x2="774.0864" y2="324.2592" gradientTransform="matrix(1 0 0 -1 0 1705.3334)"><stop offset="0" style="stop-color:#1784D9"/><stop offset="0.5" style="stop-color:#107AD5"/><stop offset="1" style="stop-color:#0A63C9"/></linearGradient><path fill="url(#lg-ol2)" d="M78.055,383.25h780.723c43.109,0,78.055,34.947,78.055,78.055v780.723 c0,43.109-34.946,78.055-78.055,78.055H78.055c-43.109,0-78.055-34.947-78.055-78.055V461.305 C0,418.197,34.947,383.25,78.055,383.25z"/><path fill="#FFFFFF" d="M243.96,710.631c19.238-40.988,50.29-75.289,89.17-98.495c43.057-24.651,92.081-36.94,141.675-35.515 c45.965-0.997,91.321,10.655,131.114,33.683c37.414,22.312,67.547,55.004,86.742,94.109c20.904,43.09,31.322,90.512,30.405,138.396 c1.013,50.043-9.706,99.628-31.299,144.783c-19.652,40.503-50.741,74.36-89.425,97.388c-41.327,23.734-88.367,35.692-136.011,34.578 c-46.947,1.133-93.303-10.651-134.01-34.067c-37.738-22.341-68.249-55.07-87.892-94.28c-21.028-42.467-31.57-89.355-30.745-136.735 C212.808,804.859,223.158,755.686,243.96,710.631z M339.006,941.858c10.257,25.912,27.651,48.385,50.163,64.812 c22.93,16.026,50.387,24.294,78.353,23.591c29.783,1.178,59.14-7.372,83.634-24.358c22.227-16.375,39.164-38.909,48.715-64.812 c10.677-28.928,15.946-59.572,15.543-90.404c0.33-31.127-4.623-62.084-14.649-91.554c-8.855-26.607-25.246-50.069-47.182-67.537 c-23.88-17.79-53.158-26.813-82.91-25.55c-28.572-0.74-56.644,7.593-80.184,23.804c-22.893,16.496-40.617,39.168-51.1,65.365 c-23.255,60.049-23.376,126.595-0.341,186.728L339.006,941.858z"/><path fill="#50D9FF" d="M1362.667,255.5h383.25v383.25h-383.25V255.5z"/></svg>Outlook<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path style="fill:var(--fg)" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#FF7A59" d="M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z"/></svg>HubSpot<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#5E6AD2" d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/></svg>Linear<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#7B83EB" d="M20.625 8.127q-.55 0-1.025-.205-.475-.205-.832-.563-.358-.357-.563-.832Q18 6.053 18 5.502q0-.54.205-1.02t.563-.837q.357-.358.832-.563.474-.205 1.025-.205.54 0 1.02.205t.837.563q.358.357.563.837.205.48.205 1.02 0 .55-.205 1.025-.205.475-.563.832-.357.358-.837.563-.48.205-1.02.205zm0-3.75q-.469 0-.797.328-.328.328-.328.797 0 .469.328.797.328.328.797.328.469 0 .797-.328.328-.328.328-.797 0-.469-.328-.797-.328-.328-.797-.328zM24 10.002v5.578q0 .774-.293 1.46-.293.685-.803 1.194-.51.51-1.195.803-.686.293-1.459.293-.445 0-.908-.105-.463-.106-.85-.329-.293.95-.855 1.729-.563.78-1.319 1.336-.756.557-1.67.861-.914.305-1.898.305-1.148 0-2.162-.398-1.014-.399-1.805-1.102-.79-.703-1.312-1.664t-.674-2.086h-5.8q-.411 0-.704-.293T0 16.881V6.873q0-.41.293-.703t.703-.293h8.59q-.34-.715-.34-1.5 0-.727.275-1.365.276-.639.75-1.114.475-.474 1.114-.75.638-.275 1.365-.275t1.365.275q.639.276 1.114.75.474.475.75 1.114.275.638.275 1.365t-.275 1.365q-.276.639-.75 1.113-.475.475-1.114.75-.638.276-1.365.276-.188 0-.375-.024-.188-.023-.375-.058v1.078h10.875q.469 0 .797.328.328.328.328.797zM12.75 2.373q-.41 0-.78.158-.368.158-.638.434-.27.275-.428.639-.158.363-.158.773 0 .41.158.78.159.368.428.638.27.27.639.428.369.158.779.158.41 0 .773-.158.364-.159.64-.428.274-.27.433-.639.158-.369.158-.779 0-.41-.158-.773-.159-.364-.434-.64-.275-.275-.639-.433-.363-.158-.773-.158zM6.937 9.814h2.25V7.94H2.814v1.875h2.25v6h1.875zm10.313 7.313v-6.75H12v6.504q0 .41-.293.703t-.703.293H8.309q.152.809.556 1.5.405.691.985 1.19.58.497 1.318.779.738.281 1.582.281.926 0 1.746-.352.82-.351 1.436-.966.615-.616.966-1.43.352-.815.352-1.752zm5.25-1.547v-5.203h-3.75v6.855q.305.305.691.452.387.146.809.146.469 0 .879-.176.41-.175.715-.48.304-.305.48-.715t.176-.879Z"/></svg>Microsoft Teams<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#006BFF" d="M19.655 14.262c.281 0 .557.023.828.064 0 .005-.005.01-.005.014-.105.267-.234.534-.381.786l-1.219 2.106c-1.112 1.936-3.177 3.127-5.411 3.127h-2.432c-2.23 0-4.294-1.191-5.412-3.127l-1.218-2.106a6.251 6.251 0 0 1 0-6.252l1.218-2.106C6.736 4.832 8.8 3.641 11.035 3.641h2.432c2.23 0 4.294 1.191 5.411 3.127l1.219 2.106c.147.252.271.519.381.786 0 .004.005.009.005.014-.267.041-.543.064-.828.064-1.816 0-2.501-.607-3.291-1.306-.764-.676-1.711-1.517-3.44-1.517h-1.029c-1.251 0-2.387.455-3.2 1.278-.796.805-1.233 1.904-1.233 3.099v1.411c0 1.196.437 2.295 1.233 3.099.813.823 1.949 1.278 3.2 1.278h1.034c1.729 0 2.676-.841 3.439-1.517.791-.703 1.471-1.306 3.287-1.301Zm.005-3.237c.399 0 .794-.036 1.179-.11-.002-.004-.002-.01-.002-.014-.073-.414-.193-.823-.349-1.218.731-.12 1.407-.396 1.986-.819 0-.004-.005-.013-.005-.018-.331-1.085-.832-2.101-1.489-3.03-.649-.915-1.435-1.719-2.331-2.395-1.867-1.398-4.088-2.138-6.428-2.138-1.448 0-2.855.28-4.175.841-1.273.543-2.423 1.315-3.407 2.299S2.878 6.552 2.341 7.83c-.557 1.324-.842 2.726-.842 4.175 0 1.448.281 2.855.842 4.174.542 1.274 1.314 2.423 2.298 3.407s2.129 1.761 3.407 2.299c1.324.556 2.727.841 4.175.841 2.34 0 4.561-.74 6.428-2.137a10.815 10.815 0 0 0 2.331-2.396c.652-.929 1.158-1.949 1.489-3.03 0-.004.005-.014.005-.018-.579-.423-1.255-.699-1.986-.819.161-.395.276-.804.349-1.218.005-.009.005-.014.005-.023.869.166 1.692.506 2.404 1.035.685.505.552 1.075.446 1.416C22.184 20.437 17.619 24 12.221 24c-6.625 0-12-5.375-12-12s5.37-12 12-12c5.398 0 9.963 3.563 11.471 8.464.106.341.239.915-.446 1.421-.717.529-1.535.873-2.404 1.034.128.716.128 1.45 0 2.166-.387-.074-.782-.11-1.182-.11-4.184 0-3.968 2.823-6.736 2.823h-1.029c-1.899 0-3.15-1.357-3.15-3.095v-1.411c0-1.738 1.251-3.094 3.15-3.094h1.034c2.768 0 2.552 2.823 6.731 2.827Z"/></svg>Calendly<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#00C4CC" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zM6.962 7.68c.754 0 1.337.549 1.405 1.2.069.583-.171 1.097-.822 1.406-.343.171-.48.172-.549.069-.034-.069 0-.137.069-.206.617-.514.617-.926.548-1.508-.034-.378-.308-.618-.583-.618-1.2 0-2.914 2.674-2.674 4.629.103.754.549 1.646 1.509 1.646.308 0 .65-.103.96-.24.5-.264.799-.47 1.097-.8-.073-.885.704-2.046 1.851-2.046.515 0 .926.205.96.583.068.514-.377.582-.514.582s-.378-.034-.378-.17c-.034-.138.309-.07.275-.378-.035-.206-.24-.274-.446-.274-.72 0-1.131.994-1.029 1.611.035.275.172.549.447.549.205 0 .514-.31.617-.755.068-.308.343-.514.583-.514.102 0 .17.034.205.171v.138c-.034.137-.137.548-.102.651 0 .069.034.171.17.171.092 0 .436-.18.777-.459.117-.59.253-1.298.253-1.357.034-.24.137-.48.617-.48.103 0 .171.034.205.171v.138l-.136.617c.445-.583 1.097-.994 1.508-.994.172 0 .309.102.309.274 0 .103 0 .274-.069.446-.137.377-.309.96-.412 1.474 0 .137.035.274.207.274.171 0 .685-.206 1.096-.754l.007-.004c-.002-.068-.007-.134-.007-.202 0-.411.035-.754.104-.994.068-.274.411-.514.617-.514.103 0 .205.069.205.171 0 .035 0 .103-.034.137-.137.446-.24.857-.24 1.269 0 .24.034.582.102.788 0 .034.035.069.07.069.068 0 .548-.445.89-1.028-.308-.206-.48-.549-.48-.96 0-.72.446-1.097.858-1.097.343 0 .617.24.617.72 0 .308-.103.65-.274.96h.102a.77.77 0 0 0 .584-.24.293.293 0 0 1 .134-.117c.335-.425.83-.74 1.41-.74.48 0 .924.205.959.582.068.515-.378.618-.515.618l-.002-.002c-.138 0-.377-.035-.377-.172 0-.137.309-.068.274-.376-.034-.206-.24-.275-.446-.275-.686 0-1.13.891-1.028 1.611.034.275.171.583.445.583.206 0 .515-.308.652-.754.068-.274.343-.514.583-.514.103 0 .17.034.205.171 0 .069 0 .206-.137.652-.17.308-.171.48-.137.617.034.274.171.48.309.583.034.034.068.102.068.102 0 .069-.034.138-.137.138-.034 0-.068 0-.103-.035-.514-.205-.72-.548-.789-.891-.205.24-.445.377-.72.377-.445 0-.89-.411-.96-.926a1.609 1.609 0 0 1 .075-.649c-.203.13-.422.203-.623.203h-.17c-.447.652-.927 1.098-1.27 1.303a.896.896 0 0 1-.377.104c-.068 0-.171-.035-.205-.104-.095-.152-.156-.392-.193-.667-.481.527-1.145.805-1.453.805-.343 0-.548-.206-.582-.55v-.376c.102-.754.377-1.2.377-1.337a.074.074 0 0 0-.069-.07c-.24 0-1.028.824-1.166 1.373l-.103.445c-.068.309-.377.515-.582.515-.103 0-.172-.035-.206-.172v-.137l.046-.233c-.435.31-.87.508-1.075.508-.308 0-.48-.172-.514-.412-.206.274-.445.412-.754.412-.352 0-.696-.24-.862-.593-.244.275-.523.553-.852.764-.48.309-1.028.549-1.68.549-.582 0-1.097-.309-1.371-.583-.412-.377-.651-.96-.686-1.509-.205-1.68.823-3.84 2.4-4.8.378-.205.755-.343 1.132-.343zm9.77 3.291c-.104 0-.172.172-.172.343 0 .274.137.583.309.755a1.74 1.74 0 0 0 .102-.583c0-.343-.137-.515-.24-.515z"/></svg>Canva<small>planned</small></li>
-      <li class="chip"><svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#2684FF" d="M7.12 11.084a.683.683 0 00-1.16.126L.075 22.974a.703.703 0 00.63 1.018h8.19a.678.678 0 00.63-.39c1.767-3.65.696-9.203-2.406-12.52zM11.434.386a15.515 15.515 0 00-.906 15.317l3.95 7.9a.703.703 0 00.628.388h8.19a.703.703 0 00.63-1.017L12.63.38a.664.664 0 00-1.196.006z"/></svg>Atlassian<small>planned</small></li>
     </ul>
   </div>
 </section>
@@ -701,7 +725,7 @@ Alex</textarea>
       </div>
       <div class="promise rv" style="--d:80ms">
         <h3>Nothing leaves without approval</h3>
-        <p>Every outgoing message and every document it writes waits for your Send. An old button can't send a draft you changed since.</p>
+        <p>Every mail and every invite to other people waits for your Send. An old button can't send a draft you changed since.</p>
       </div>
       <div class="promise rv" style="--d:160ms">
         <h3>Leaving takes one sentence</h3>
@@ -711,7 +735,68 @@ Alex</textarea>
   </div>
 </section>
 
-<!-- 9. Onboarding -->
+<!-- 9. How it differs -->
+<section class="band" id="compare" aria-labelledby="h-compare">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 id="h-compare">Most assistants try to do more. Peyk tries to interrupt less.</h2>
+    </div>
+    <table class="vs rv">
+      <caption class="sr-only">How Peyk differs from most AI assistants</caption>
+      <thead><tr><th scope="col">Most assistants</th><th scope="col" class="vs__us"><span><svg viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-28 32 34)"><ellipse cx="32" cy="34" rx="27" ry="10" fill="none" stroke="currentColor" stroke-width="2.5"/></g><circle cx="32" cy="34" r="13" fill="currentColor"/><g transform="rotate(-28 32 34)"><path d="M5 34A27 10 0 0 0 59 34" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="51" cy="41" r="5.5" fill="#F3B54A"/></g></svg>Peyk</span></th></tr></thead>
+      <tbody>
+        <tr><td data-label="Most assistants">Tell you when something seems important.</td><td data-label="Peyk">Also asks how often. You pick the number of knocks a day, and two are kept for emergencies.</td></tr>
+        <tr><td data-label="Most assistants">Build a picture of you from everything they read.</td><td data-label="Peyk">Learns from senders and subjects, not the text of your mail, and keeps only what you confirm.</td></tr>
+        <tr><td data-label="Most assistants">Ask you to trust a closed service, or to run the code yourself.</td><td data-label="Peyk">Open source, so anyone can check what it does with your mail. Already running, so you don't have to.</td></tr>
+      </tbody>
+    </table>
+    <div class="nope rv">
+      <h3>What it doesn't do, on purpose</h3>
+      <ul>
+        <li>Shop, book tables or call anyone for you.</li>
+        <li>Send, post or pay anything on its own.</li>
+        <li>Ask for a password. You sign in to Google or Notion yourself.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 10. Questions -->
+<section class="band band--ivory" id="faq" aria-labelledby="h-faq">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 id="h-faq">Before you say hi.</h2>
+    </div>
+    <div class="faq rv">
+      <details>
+        <summary>Why Telegram?</summary>
+        <p>It's free on any phone or computer, and a bot there can write to you first with Send, Edit and Cancel buttons right in the chat. WhatsApp is on the way: first Peyk will read your WhatsApp the way it reads your mail, and later you'll be able to talk to it there.</p>
+      </details>
+      <details>
+        <summary>What does it read?</summary>
+        <p>Only the services you connect: your mail, calendar and documents. To get to know you it looks at senders, subjects and titles from the last 30 days, never the text of your mails, and asks before it keeps anything.</p>
+      </details>
+      <details>
+        <summary>Can it send something without me?</summary>
+        <p>No. Mails and invites to other people wait for your tap, and an older button can't send a draft you changed since. When you ask, it does make things only you will see: a private event in your calendar, a page in your Notion, a doc in your Google Drive. You get the link.</p>
+      </details>
+      <details>
+        <summary>What if something urgent comes after my budget is used?</summary>
+        <p>Two of your daily knocks are kept for emergencies, and those come through quiet hours too. Anything that didn't knock is in your morning brief, and you can ask "anything new?" at any time.</p>
+      </details>
+      <details>
+        <summary>Isn't this just ChatGPT with my inbox?</summary>
+        <p>ChatGPT mostly waits for you to ask. Peyk reads what comes in and comes to you, only as often as you allow. You can still ask it anything: who wrote, what's due, what's on the web.</p>
+      </details>
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. Peyk is free and open source under the MIT license. The code is on <a href="https://github.com/akcware/peyk" rel="noopener">GitHub</a>, so you can read exactly what it does with your mail.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 11. Onboarding -->
 <section class="band" id="onboarding" aria-labelledby="h-onb">
   <div class="wrap">
     <div class="sec-head rv">
@@ -730,7 +815,7 @@ I'll tell you when it's linked.<span class="msg__meta">08:03</span></div><div cl
   </div>
 </section>
 
-<!-- 10. Closing -->
+<!-- 12. Closing -->
 <section class="band band--ivory closing" aria-labelledby="h-close">
   <div class="wrap">
     <div class="closing__inner rv">
@@ -749,7 +834,7 @@ I'll tell you when it's linked.<span class="msg__meta">08:03</span></div><div cl
 
 </main>
 
-<!-- 11. Footer -->
+<!-- 13. Footer -->
 <footer class="foot">
   <div class="wrap">
     <svg class="foot__logo" viewBox="0 0 520 200" role="img" aria-label="Peyk"><g transform="rotate(-9 260 108)"><ellipse cx="260" cy="108" rx="228" ry="62" fill="none" stroke="currentColor" stroke-width="2.5"/></g><path transform="translate(119.83 146)" d="M64.70400390625 -66.09918359375Q64.70400390625 -72.857578125 61.932814453125 -77.567974609375Q59.161625 -82.27837109375 52.857654296875 -84.723169921875Q46.55368359375 -87.16796875 35.89133984375 -87.16796875H22.06729296875L22.34891015625 -91.52H48.192195312500004Q60.17300390625 -91.52 67.533009765625 -88.217595703125Q74.893015625 -84.91519140625 78.29141796875001 -79.30878515625Q81.6898203125 -73.70237890625 81.6898203125 -66.77757421875Q81.6898203125 -59.699171875000005 78.189017578125 -53.7535703125Q74.68821484375 -47.80796875 67.296208984375 -44.27516796875Q59.904203125 -40.7423671875 48.192195312500004 -40.7423671875H22.34891015625L22.06729296875 -45.094398437500004H42.77765234375Q49.08804296875 -45.094398437500004 54.054431640625 -47.475197265625Q59.0208203125 -49.85599609375 61.862412109375 -54.54079296875Q64.70400390625 -59.22558984375 64.70400390625 -66.09918359375ZM32.128191406250004 -91.52V-4.73601171875L43.12336328125 -1.97120703125V0.0H4.08318359375V-1.97120703125L15.07835546875 -4.73601171875V-86.84798828125L4.08318359375 -89.5359921875V-91.52Z M113.3648359375 -66.9440078125Q120.52006250000001 -66.9440078125 125.72967578125 -64.038400390625Q130.9392890625 -61.13279296875 133.966494140625 -55.539181640625Q136.99369921875 -49.9455703125 137.5825 -41.84316015625H94.90728125000001V-45.9775859375H129.72325L123.14395312500001 -43.22557421875Q122.58075781250001 -50.4319921875 121.12796875000001 -54.860792968750005Q119.6751796875 -59.28959375 117.27519531250002 -61.350388671875Q114.87521093750001 -63.41118359375 111.36803125 -63.41118359375Q106.74726562500001 -63.41118359375 103.451291015625 -60.6976015625Q100.15531640625001 -57.98401953125 98.408130859375 -52.518435546875Q96.6609453125 -47.0528515625 96.6609453125 -38.80964453125Q96.6609453125 -28.364859375 99.310537109375 -21.875271484375002Q101.96012890625 -15.38568359375 107.05451562500001 -12.409689453125Q112.14890234375001 -9.4336953125 119.50888671875 -9.4336953125Q123.01608593750001 -9.4336953125 126.29287890625001 -10.3424921875Q129.569671875 -11.2512890625 132.51366992187502 -13.132886718750001Q135.45766796875 -15.014484375 137.80008203125 -17.93288671875L138.99049218750002 -17.036875000000002Q134.85608203125003 -10.17604296875 130.69607226562502 -6.137625Q126.53606250000001 -2.09920703125 121.97285156250001 -0.3455996093750001Q117.40964062500001 1.4080078125 111.98242578125002 1.4080078125Q103.29120312500001 1.4080078125 96.44319335937502 -2.3871953125Q89.59518359375001 -6.1823984375 85.67838085937501 -13.542400390625001Q81.76157812500001 -20.90240234375 81.76157812500001 -31.564796875Q81.76157812500001 -41.11359765625 85.44798242187501 -49.158400390625005Q89.13438671875001 -57.203203125 96.21279882812502 -62.07360546875Q103.29121093750001 -66.9440078125 113.3648359375 -66.9440078125Z M182.800140625 -14.2337109375 174.94086328125002 3.0208828125 143.35034765625002 -60.953597656250004 135.59357421875 -63.46240234375V-65.536H168.79694140625003V-63.424L160.02897265625 -61.20960546875ZM153.37287890625 29.6319921875Q149.0848671875 29.6319921875 146.28166015625 27.404783203125Q143.47845312500002 25.17757421875 143.47845312500002 20.97915625Q143.47845312500002 19.03355078125 144.14405468750002 17.72154296875Q144.80965625000002 16.40953515625 145.82725781250002 15.737529296875Q146.844859375 15.0655234375 147.75366015625002 15.0655234375Q148.52165234375002 15.0655234375 149.89765429687503 15.807921875000002Q151.27365625000002 16.550320312500002 153.30886328125 17.299119140625002Q155.3440703125 18.04791796875 157.968078125 18.04791796875Q161.09129296875003 18.04791796875 163.39530078125 17.241521484375Q165.69930859375 16.435125 167.5745078125 14.239939453125Q169.44970703125 12.04475390625 171.22889843750002 7.935984375L175.82405859375 -2.73910546875L179.75373437500002 -12.18567578125L196.26575000000003 -61.56800390625L187.292984375 -63.424V-65.536H209.39851953125003V-63.424L201.57774609375002 -61.5936015625L175.14575390625 8.230296875Q172.0353359375 16.38393359375 168.745724609375 21.043154296875002Q165.45611328125 25.702375 161.705703125 27.66718359375Q157.95529296875 29.6319921875 153.37287890625 29.6319921875Z M237.43857031250002 -38.6048359375 242.16189453125003 -43.161746093750004 275.09619140625 -3.75041015625 281.8801640625 -1.8048046875000001V0.0H249.25284765625003V-1.8048046875000001L257.09919140625004 -3.5456054687500003L231.2945703125 -34.29119921875H227.51850390625V-37.5808203125H231.8705625L261.46412890625004 -61.32479296875L251.85131640625002 -63.424V-65.536H277.42577734375004V-63.424L267.620953125 -61.20959375ZM230.65455859375 -3.7888085937500002 238.94890625000002 -1.8048046875000001V0.0H207.2048046875V-1.8048046875000001L215.62716015625 -3.7888085937500002V-82.2910859375Q214.79516015625 -82.76469140625001 213.297560546875 -83.6031015625Q211.7999609375 -84.44151171875001 209.7519609375 -85.59992578125001Q207.7039609375 -86.75833984375001 205.20796093750002 -88.19195703125V-89.53596875L230.104140625 -95.1040078125H230.65455859375V-83.916765625Z" fill="currentColor"/><g transform="rotate(-9 260 108)"><path d="M32 108A228 62 0 0 0 488 108" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="420" cy="151" r="11" fill="#F3B54A"/></g></svg>
@@ -947,7 +1032,7 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
 (function(){
   var mailsEl = $('mails'), quota = $('quota'), quotaOut = $('quotaOut'), quiet = $('quiet'), slots = $('slots'), summary = $('summary');
   if (!mailsEl) return;
-  var COOLDOWN = 120, QUIET_START = 22*60, QUIET_END = 7*60;
+  var COOLDOWN = 120, QUIET_START = 22*60, QUIET_END = 7*60, RESERVE = 2;
   var MAILS = [
     { t:'06:40', from:'Sunflower Daycare', subj:'Closed on Monday, planning day', u:3, th:'kita' },
     { t:'07:55', from:'Halden & Co', subj:'Invoice #2041 due Friday', u:3, th:'inv' },
@@ -968,18 +1053,23 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
   function toMin(t){ var p = t.split(':'); return (+p[0])*60 + (+p[1]); }
   function inQuiet(m){ return m >= QUIET_START || m < QUIET_END; }
   function decide(q, quietOn){
-    var regular = q, used = 0, urgent = 0, last = {};
+    /* same rules as the real gate: an emergency skips quiet hours and cooldown but never the daily total;
+       everyday mail stops RESERVE knocks early so the last ones stay free for emergencies */
+    var regular = Math.max(q - RESERVE, 0), used = 0, urgent = 0, last = {};
     return MAILS.map(function(m){
       var min = toMin(m.t), r = { d:'brief', why:'' };
       if (m.muted) { r.d = 'muted'; r.why = 'you muted this conversation'; }
+      else if (m.u === 5) {
+        if (used + urgent >= q) { r.why = 'emergency, but every knock today is used'; }
+        else { urgent++; last[m.th] = min; r.d = 'ping'; r.why = (quietOn && inQuiet(min)) ? 'emergency, gets through even at night' : 'emergency, knocks right away'; }
+      }
       else if (m.u <= 2) { r.why = 'low priority, goes in the morning brief'; }
-      else if (m.u === 5) { urgent++; last[m.th] = min; r.d = 'ping'; r.why = (quietOn && inQuiet(min)) ? 'emergency, gets through even at night' : 'emergency, always gets through'; }
       else if (quietOn && inQuiet(min)) { r.why = 'quiet hours, waits for the morning brief'; }
       else if (last[m.th] != null && min - last[m.th] < COOLDOWN) { r.why = 'same conversation knocked ' + (min - last[m.th]) + ' min ago'; }
-      else if (used < regular) { used++; last[m.th] = min; r.d = 'ping'; r.why = 'knock ' + used + ' of ' + regular; }
-      else { r.why = regular === 0 ? 'no everyday knocks at this budget' : 'today\'s budget is used up'; }
+      else if (used + urgent < regular) { used++; last[m.th] = min; r.d = 'ping'; r.why = 'knock ' + used + ' of ' + regular + ' for everyday mail'; }
+      else { r.why = regular === 0 ? 'every knock is kept for emergencies at this budget' : 'today\'s everyday knocks are used up'; }
       return { m:m, d:r.d, why:r.why };
-    }).concat([{ meta:true, used:used, urgent:urgent, regular:regular }]);
+    }).concat([{ meta:true, used:used, urgent:urgent, regular:regular, total:q }]);
   }
   var rows = MAILS.map(function(m, k){
     var n = el('<div class="mail" role="listitem" style="--d:' + (k*45) + 'ms">' +
@@ -1000,9 +1090,12 @@ function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim();
       n.querySelector('.mail__why').textContent = r.why;
     });
     slots.innerHTML = '';
-    for (var s = 0; s < meta.regular; s++) { var sl = el('<span class="slot"></span>'); if (s < meta.used) sl.classList.add('is-used'); slots.appendChild(sl); }
-    var rs = el('<span class="slot slot--reserve"></span>'); if (meta.urgent > 0) rs.classList.add('is-used'); slots.appendChild(rs);
-    slots.appendChild(el('<small>' + meta.used + ' of ' + meta.regular + ' everyday knocks used' + (meta.urgent ? ', plus ' + meta.urgent + ' emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + ' on top' : '') + '</small>'));
+    for (var s = 0; s < meta.total; s++) {
+      var kept = s >= meta.regular, sl = el('<span class="slot' + (kept ? ' slot--reserve' : '') + '"></span>');
+      if (kept ? s - meta.regular < meta.urgent : s < meta.used) sl.classList.add('is-used');
+      slots.appendChild(sl);
+    }
+    slots.appendChild(el('<small>' + (meta.used + meta.urgent) + ' of ' + meta.total + ' used' + (meta.urgent ? ', ' + meta.urgent + ' by emergenc' + (meta.urgent === 1 ? 'y' : 'ies') : '') + '</small>'));
     var briefs = res.filter(function(r){ return r.d === 'brief'; }).length;
     summary.innerHTML = '<span><b>' + meta.used + '</b>everyday knocks</span><span><b>' + meta.urgent + '</b>emergenc' + (meta.urgent === 1 ? 'y' : 'ies') + '</span><span><b>' + briefs + '</b>in the morning brief</span>';
   }
