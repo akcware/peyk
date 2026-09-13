@@ -24,21 +24,35 @@ from workers import actions
 log = get_logger("workers.approval")
 
 EDIT_PREFIX = re.compile(r"^(edit|düzelt|duzelt)\s*:\s*", re.IGNORECASE)
+NOT_MODIFIED = "message is not modified"   # Telegram's answer to editing a message into what it already says
+
+
+def send_failure_key(error: BaseException) -> str:
+    """Which fixed text explains a failed send. The raw error is logged (action.send_failed), never shown."""
+    s = str(error).lower()
+    if "thread" in s and ("404" in s or "not found" in s or "cannot access" in s):
+        return "send_failed_thread"
+    if "expired" in s or "401" in s or "unauthorized" in s or "invalid_grant" in s:
+        return "send_failed_auth"
+    return "send_failed"
 
 
 class ApprovalFlow:
     def __init__(self, registry: AdapterRegistry | None, notifier: Any) -> None:
         self.registry = registry
         self.notifier = notifier
-        self._connections: dict[str, Any] = {}
+        self._connections: dict[tuple[str, str], Any] = {}   # (adapter id, user id) -> handle
 
     async def _conn_for(self, channel: str, user_id: UUID):
         if self.registry is None:
             raise KeyError("no adapter registry")
         adapter = self.registry.for_channel(channel)
-        if adapter.id not in self._connections:
-            self._connections[adapter.id] = await adapter.connect(user_id)
-        return adapter, self._connections[adapter.id]
+        # Per user, never per adapter: the handle carries that user's Composio entity, i.e. WHOSE mailbox sends.
+        # One shared entry would make everyone's mail go out through whoever pressed Send first after a restart.
+        key = (adapter.id, str(user_id))
+        if key not in self._connections:
+            self._connections[key] = await adapter.connect(user_id)
+        return adapter, self._connections[key]
 
     @property
     def lang(self) -> str | None:
@@ -79,7 +93,7 @@ class ApprovalFlow:
                 adapter, handle = await self._conn_for(action["channel"], obs.user_id)
                 sent = await actions.send(conn, action_id, adapter, handle)
             except Exception as e:  # noqa: BLE001
-                await self._edit(tg_mid, "⚠️ " + phrase(self.lang, "send_failed", error=e), actions.buttons(action, self.lang))
+                await self._edit(tg_mid, "⚠️ " + phrase(self.lang, send_failure_key(e)), actions.buttons(action, self.lang))
                 return phrase(self.lang, "ack_send_failed")
             # Replace the card with the sent text: what went out stays visible, the id does not (it is logged).
             log.info("approval.sent", action_id=str(action_id), external_id=sent["external_id"])
@@ -134,5 +148,7 @@ class ApprovalFlow:
         try:
             await self.notifier.edit_message(tg_message_id, text, markup)
         except Exception as e:  # noqa: BLE001
+            if NOT_MODIFIED in str(e).lower():
+                return   # the card already says this (a repeated Send on the same failure): nothing new to show
             log.warning("approval.edit_message_failed", error=str(e))
             await self.notifier.send_text(text)

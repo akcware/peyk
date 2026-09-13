@@ -224,6 +224,6 @@ def test_phrases_fall_back_to_english():
 
     assert phrase("tr", "sent") == "Gönderdim 👍" and phrase("de", "sent") == "Gesendet 👍"
     assert phrase(None, "sent") == "Sent 👍" and phrase("xx", "sent") == "Sent 👍" and phrase("tr-TR", "sent") == "Gönderdim 👍"
-    assert phrase("tr", "send_failed", error="boom").startswith("Gönderemedim: boom")
+    assert phrase("tr", "send_failed").startswith("Gönderemedim.")
     assert set(TEXTS["tr"]) == set(TEXTS["en"]) == set(TEXTS["de"])          # every language covers every key
     assert not any("—" in v for v in TEXTS["tr"].values() if not v.startswith("Taslak —"))
