@@ -11,6 +11,7 @@ from core.adapter import AdapterRegistry
 from core.config import export_agent_env, get_settings
 from core.embeddings import TitanEmbedder
 from core.log import configure_logging, get_logger
+from core.stt import make_transcriber
 from workers import approval, health, ingest, maintenance, scheduler, ticks, triage, users
 
 log = get_logger("workers.main")
@@ -25,7 +26,9 @@ async def main() -> None:
     await db.open_pool(settings.DATABASE_URL)
     directory = users.DbUserDirectory(settings)
     await users.ensure_bootstrap_user(settings)
-    registry = AdapterRegistry.from_ids(settings.adapter_ids, composio={"users": directory}, telegram={"users": directory})
+    transcriber = make_transcriber(settings.STT_ENGINE, region=settings.AWS_REGION, model_id=settings.STT_MODEL_ID)
+    registry = AdapterRegistry.from_ids(settings.adapter_ids, composio={"users": directory},
+                                        telegram={"users": directory, "transcriber": transcriber})
     log.info("workers.start", adapters=[a.id for a in registry.all()], ingest=[a.id for a in registry.ingestable()])
 
     tasks = ingest.start_ingest_tasks(registry.ingestable(), settings.USER_ID)

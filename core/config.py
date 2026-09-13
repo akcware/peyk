@@ -26,6 +26,19 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
 
+    # Voice notes. "transcribe": Amazon Transcribe streaming (needs transcribe:StartStreamTranscription on the key);
+    # "voxtral": Mistral Voxtral via Bedrock Converse (no extra right; for accounts where Transcribe is denied).
+    STT_ENGINE: Literal["transcribe", "voxtral"] = "transcribe"
+    STT_MODEL_ID: str = "mistral.voxtral-small-24b-2507"
+    # Candidate locales for language identification, at most five, one dialect per language; the person's client
+    # language is put first. Base codes ("tr") are fine for Voxtral, Transcribe wants locales ("tr-TR").
+    STT_LANGUAGES: str = "en-US,de-DE,tr-TR,fr-FR,es-ES"
+    VOICE_MAX_S: int = 600                     # longer voice notes are not transcribed (the person is told)
+
+    @property
+    def stt_languages(self) -> list[str]:
+        return [x.strip() for x in self.STT_LANGUAGES.split(",") if x.strip()]
+
     COMPOSIO_API_KEY: str = ""
     COMPOSIO_WEBHOOK_SECRET: str = ""
     COMPOSIO_USER_ID: str = "default"

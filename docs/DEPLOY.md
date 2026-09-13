@@ -17,7 +17,8 @@ Exactly **one** instance must run: Telegram `getUpdates` and the Composio subscr
 1. **Neon.** Create a project (Postgres 16, an AWS us-east region; ours is us-east-2, next to Fly's `iad`). Put the
    *direct* connection string in `.env` as `NEON_DATABASE_URL=postgresql://…?sslmode=require`. Migrations,
    including `create extension vector`, run on container start.
-2. **IAM key for Bedrock.** Create a user (ours is `peyk-runtime`) with Bedrock invoke rights only and store its
+2. **IAM key for Bedrock and Transcribe.** Create a user (ours is `peyk-runtime`) with Bedrock invoke rights and
+   `transcribe:StartStreamTranscription` (voice notes; streaming only, no S3), and store its
    key in the local AWS profile `peyk` (`aws configure --profile peyk`). The deploy script copies that key into
    the container environment; it never touches your admin credentials.
 3. **Fly.io.** `brew install flyctl && flyctl auth login`. The account needs a payment method; the

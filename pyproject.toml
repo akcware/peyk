@@ -17,6 +17,8 @@ dependencies = [
     "composio==0.21.1",
     "strands-agents[anthropic]>=1.55,<2",
     "botocore[crt]>=1.40",
+    "soundfile>=0.14.0",
+    "amazon-transcribe>=0.6.4",
 ]
 
 [dependency-groups]
@@ -29,6 +31,12 @@ agentcore = [
     "bedrock-agentcore>=1.22",
     "bedrock-agentcore-starter-toolkit>=0.3",
 ]
+
+[tool.uv]
+# amazon-transcribe pins awscrt~=0.26 while botocore[crt] pins the current awscrt; the transcribe SDK only uses
+# the stable awscrt.http/awscrt.auth surface and runs on the newer build (verified with a real stream, see
+# tests/phase0/test_stt.py).
+override-dependencies = ["awscrt==0.36.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

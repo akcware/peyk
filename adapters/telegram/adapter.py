@@ -1,5 +1,5 @@
-"""Telegram via Bot API directly with httpx. Four endpoints: getUpdates, sendMessage, editMessageText,
-answerCallbackQuery. No library, so the output channel's failure modes are visible."""
+"""Telegram via Bot API directly with httpx. Five endpoints: getUpdates, sendMessage, editMessageText,
+answerCallbackQuery, getFile (voice notes). No library, so the output channel's failure modes are visible."""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +14,14 @@ from core.adapter import Capabilities, UserDirectory
 from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
+from core.stt import (
+    TELEGRAM_VOICE_ENCODING,
+    TELEGRAM_VOICE_SAMPLE_RATE,
+    Transcriber,
+    language_options,
+    voice_failed_text,
+    voice_text,
+)
 
 log = get_logger("telegram.adapter")
 
@@ -28,12 +36,14 @@ class TelegramAdapter:
         http: httpx.AsyncClient | None = None,
         poll_timeout: int = 25,
         users: UserDirectory | None = None,
+        transcriber: Transcriber | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._http = http
         self._poll_timeout = poll_timeout
         self._offset: int | None = None
         self._users = users
+        self._transcriber = transcriber
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -109,12 +119,54 @@ class TelegramAdapter:
                 obs = self.update_to_observation(update, conn.user_id)
                 if obs is None:
                     continue
+                frm = (update.get("message") or update.get("callback_query") or {}).get("from") or {}
+                name = " ".join(x for x in (frm.get("first_name"), frm.get("last_name")) if x) or None
+                lang = (frm.get("language_code") or "").split("-")[0].lower() or None   # Telegram client language
                 if self._users is not None and obs.thread_key:
-                    frm = (update.get("message") or update.get("callback_query") or {}).get("from") or {}
-                    name = " ".join(x for x in (frm.get("first_name"), frm.get("last_name")) if x) or None
-                    lang = (frm.get("language_code") or "").split("-")[0].lower() or None   # Telegram client language
                     obs.user_id = await self._users.resolve_control(self.id, obs.thread_key, display_name=name, language=lang)
+                msg = update.get("message") or {}
+                if msg.get("voice"):
+                    await self.attach_voice_text(obs, msg, display_name=name, language=lang)
                 yield obs
+
+    async def attach_voice_text(self, obs: Observation, msg: dict[str, Any], *, display_name: str | None,
+                                language: str | None) -> None:
+        """A voice note becomes text before anyone downstream sees it: payload['control'] carries the transcript
+        (bracketed as an automatic one) and payload['voice'] what happened. A failure never drops the message;
+        the agent gets a note it can relay instead."""
+        voice = msg["voice"]
+        duration = int(voice.get("duration") or 0)
+        control: dict[str, Any] = {"message_id": msg.get("message_id"), "display_name": display_name}
+        note: dict[str, Any] = {"duration_s": duration, "file_id": voice.get("file_id")}
+        try:
+            if self._transcriber is None:
+                raise RuntimeError("no transcriber configured")
+            if duration > self._settings.VOICE_MAX_S:
+                raise ValueError(f"longer than {self._settings.VOICE_MAX_S} s")
+            audio = await self.download_file(str(voice["file_id"]))
+            langs = language_options(language, self._settings.stt_languages)
+            t = await self._transcriber.transcribe(audio, media_encoding=TELEGRAM_VOICE_ENCODING,
+                                                   sample_rate_hz=TELEGRAM_VOICE_SAMPLE_RATE, languages=langs)
+            note.update(language=t.language, took_ms=t.took_ms, chars=len(t.text))
+            control["text"] = voice_text(t.text, duration)
+            log.info("telegram.voice_transcribed", chat=obs.thread_key, duration_s=duration, language=t.language,
+                     ms=t.took_ms, chars=len(t.text))
+        except Exception as e:  # noqa: BLE001 - the message must still reach the agent
+            note["error"] = str(e)
+            control["text"] = voice_failed_text(duration, str(e))
+            log.warning("telegram.voice_failed", chat=obs.thread_key, duration_s=duration, error=str(e))
+        obs.payload = {**obs.payload, "control": control, "voice": note}
+
+    async def download_file(self, file_id: str) -> bytes:
+        """getFile, then the file endpoint (a different URL prefix than the bot methods). Bot API serves up to 20 MB."""
+        info = await self._call("getFile", file_id=file_id)
+        path = info.get("file_path")
+        if not path:
+            raise RuntimeError("telegram getFile returned no file_path")
+        url = f"https://api.telegram.org/file/bot{self._settings.TELEGRAM_BOT_TOKEN}/{path}"
+        resp = await self.http.get(url)
+        resp.raise_for_status()
+        return resp.content
 
     async def backfill(self, conn: Connection, since: datetime) -> AsyncIterator[Observation]:
         return
