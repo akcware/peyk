@@ -13,7 +13,7 @@ from core.adapter import AdapterRegistry
 from core.config import Settings
 from core.log import get_logger
 from core.models import Content, Observation
-from core.repo import cursor_repo, observation_repo
+from core.repo import cursor_repo, observation_repo, user_repo
 
 log = get_logger("workers.ticks")
 
@@ -38,17 +38,39 @@ class TickContext:
 # ---------- morning brief ----------
 
 async def brief_items(conn: psycopg.AsyncConnection, user_id, since: datetime, *, min_urgency: int = 3) -> list[dict]:
+    """Important observations since `since`, minus what the person wrote themselves and minus threads they have
+    already answered (a later message of theirs in the same thread). `notified_at` is set when we already told them."""
     cur = await conn.execute(
         """
-        select o.source, o.payload, t.urgency, t.category, t.reason, t.summary, o.occurred_at
+        select o.id, o.source, o.payload, t.urgency, t.category, t.reason, t.summary, o.occurred_at,
+               (select min(sn.sent_at) from sent_notification sn where sn.observation_id = o.id) as notified_at
         from observation o join triage t on t.observation_id = o.id
         where o.user_id = %s and o.occurred_at >= %s and t.urgency >= %s and o.is_backfill = false
+          and o.kind <> 'message_out' and not coalesce(o.payload->'label_ids' ? 'SENT', false)
+          and not exists (
+            select 1 from observation r
+            where r.user_id = o.user_id and r.source = o.source and r.thread_key = o.thread_key and r.occurred_at > o.occurred_at
+              and (r.kind = 'message_out' or coalesce(r.payload->'label_ids' ? 'SENT', false)))
         order by t.urgency desc, o.occurred_at desc
         limit 30
         """,
         (user_id, since, min_urgency),
     )
     return await cur.fetchall()
+
+
+def when_label(at: datetime, now: datetime) -> str:
+    """'today 08:12 (1h ago)' / 'yesterday 17:30 (15h ago)' in the timezone of `now`."""
+    local = at.astimezone(now.tzinfo)
+    hours = max(0, int((now - at).total_seconds() // 3600))
+    ago = f"{hours}h ago" if hours < 48 else f"{hours // 24}d ago"
+    if local.date() == now.date():
+        day = "today"
+    elif (now.date() - local.date()).days == 1:
+        day = "yesterday"
+    else:
+        day = f"{local:%a %d %b}"
+    return f"{day} {local:%H:%M} ({ago})"
 
 
 def render_brief(items: list[dict], now: datetime) -> str:
@@ -70,18 +92,27 @@ def brief_event_text(items: list[dict], now: datetime) -> str:
     """The system event handed to the agent: the important observations of the last 24h, compactly."""
     if not items:
         return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — give the person a one-line good-morning brief saying it is quiet"
-    lines = [f"it is morning ({now:%a %d %b}); write the person's morning brief from these {len(items)} items of the last 24h (urgency 1-5):"]
+    lines = [f"it is morning ({now:%a %d %b %H:%M}); write the person's morning brief from these {len(items)} items of the last 24h "
+             "(urgency 1-5; each says when it arrived and whether you already told the person about it):"]
     for it in items:
         p = it["payload"]
         who = p.get("from") or p.get("summary") or it["source"]
         subject = p.get("subject") or p.get("summary") or ""
-        lines.append(f"- [{it['source']}] u{it['urgency']} {who} — {subject}: {it.get('summary') or it['reason']}")
-    lines.append("Group by what needs action today vs. what can wait; 4-8 short lines; no bullets with raw headers; end with one sentence on what you would do first")
+        when = when_label(it["occurred_at"], now)
+        told = f"; you told them at {it['notified_at'].astimezone(now.tzinfo):%H:%M}" if it.get("notified_at") else ""
+        lines.append(f"- [{it['source']}] u{it['urgency']} {when}{told} — {who} — {subject}: {it.get('summary') or it['reason']}")
+    lines += [
+        "Rules: address the person by first name. Say when things came in — never present yesterday's mail as if it just arrived.",
+        "Verification codes, one-time passwords and login/password-setup links expire within minutes: when such an item is older "
+        "than an hour, do not tell the person to use it — leave it out, or at most say a fresh one can be requested.",
+        "Mail the person already answered is not in this list; what you already told them about is a reminder, not news.",
+        "Group by what needs action today vs. what can wait; 4-8 short lines; no bullets with raw headers; end with one sentence on what you would do first",
+    ]
     return "\n".join(lines)
 
 
 async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
-    now = datetime.now(tz=UTC)
+    now = local_now(await user_repo.get(conn, obs.user_id), ctx.settings)
     items = await brief_items(conn, obs.user_id, now - timedelta(hours=24))
     notifier = await ctx.notifier_for(conn, obs.user_id)
     fallback = render_brief(items, now)
@@ -94,6 +125,19 @@ async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
         if sent:
             return
     await notifier.send_text(fallback)
+
+
+def local_now(user: dict | None, settings: Settings) -> datetime:
+    """Now in the person's timezone (falls back to the operator's TIMEZONE, then UTC)."""
+    from zoneinfo import ZoneInfo
+
+    for tz in ((user or {}).get("timezone"), getattr(settings, "TIMEZONE", None)):
+        if tz:
+            try:
+                return datetime.now(tz=ZoneInfo(str(tz)))
+            except Exception:  # noqa: BLE001 - unknown zone name
+                continue
+    return datetime.now(tz=UTC)
 
 
 # ---------- followup ----------

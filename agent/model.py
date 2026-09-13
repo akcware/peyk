@@ -52,10 +52,20 @@ def user_language(code: str | None = None) -> str:
 
 
 def user_profile(payload: dict | None = None) -> str:
-    """Profile from the request payload only. Never fall back to the process environment: in a multi-user
-    deployment that would show one person's profile to another."""
+    """The "about the person" block: name (how to address them), their own mail addresses, profile. From the
+    request payload only. Never fall back to the process environment: in a multi-user deployment that would
+    show one person's profile to another."""
     u = (payload or {}).get("user") or {}
-    return (u.get("profile") or "").strip() or "(no profile yet — the person has not told you about themselves)"
+    lines = []
+    name = (u.get("display_name") or "").strip()
+    if name:
+        lines.append(f"Name: {name} — address them by their first name (never by the surname alone).")
+    emails = [str(e) for e in (u.get("emails") or []) if e]
+    if emails:
+        lines.append(f"Their own mail addresses: {', '.join(emails)}. Mail FROM one of these is something they wrote themselves "
+                     "(their reply in a thread) — never a request or a message to them.")
+    lines.append((u.get("profile") or "").strip() or "(no profile yet — the person has not told you about themselves)")
+    return "\n".join(lines)
 
 
 def retry_strategy():

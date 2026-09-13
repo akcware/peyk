@@ -20,6 +20,7 @@ class Mapping:
     thread_key: str | None = None        # path
     payload_fields: dict[str, str] = field(default_factory=dict)   # observation payload key -> path
     source_key_template: str | None = None   # optional "{event_id}:{start}" style composition
+    outgoing_marker: tuple[str, str] | None = None   # (payload key, value): present -> the person wrote it -> kind message_out
 
 
 # Triggers (inbound events). Keyed by Composio trigger slug.
@@ -38,6 +39,7 @@ MAPPINGS: dict[str, Mapping] = {
             "text": "$.message_text",
             "label_ids": "$.label_ids",
         },
+        outgoing_marker=("label_ids", "SENT"),   # Gmail fires the trigger for sent mail too: that is the person's own reply
     ),
     # Phase 5: second source. Verified against composio.triggers.get_type on 2026-09-10 (payload keys:
     # event_id, summary, attendees, location, hangout_link, start_time, start_timestamp, minutes_until_start, ...).
@@ -78,6 +80,7 @@ ACTION_MAPPINGS: dict[str, Mapping] = {
             "text": "$.messageText",
             "label_ids": "$.labelIds",
         },
+        outgoing_marker=("label_ids", "SENT"),
     ),
 }
 ACTION_ITEMS_PATH: dict[str, str] = {"GMAIL_FETCH_EMAILS": "$.messages"}
@@ -142,9 +145,15 @@ def apply(mapping: Mapping, data: dict[str, Any]) -> dict[str, Any] | None:
     thread_key = get_path(data, mapping.thread_key) if mapping.thread_key else None
     payload = {k: get_path(data, p) for k, p in mapping.payload_fields.items()}
     payload = {k: v for k, v in payload.items() if v is not None}
+    kind = mapping.kind
+    if mapping.outgoing_marker:
+        key, marker = mapping.outgoing_marker
+        value = payload.get(key)
+        if marker in (value if isinstance(value, list) else [value]):
+            kind = "message_out"
     return {
         "source": mapping.source,
-        "kind": mapping.kind,
+        "kind": kind,
         "source_key": str(source_key),
         "occurred_at": occurred_at,
         "thread_key": str(thread_key) if thread_key is not None else None,

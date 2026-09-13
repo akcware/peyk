@@ -158,7 +158,8 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
     ctx = await sender_context(conn, obs)
     user = await user_repo.get(conn, obs.user_id) or {}
     observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload,
-                   "user": {"profile": user.get("profile") or "", "language": user.get("language") or "", "display_name": user.get("display_name")}}
+                   "user": {"profile": user.get("profile") or "", "language": user.get("language") or "", "display_name": user.get("display_name"),
+                            "emails": user_repo.own_emails(user)}}
     result, meta = await agent.triage(observation, ctx)
     await budget_repo.insert_triage(conn, obs.id, urgency=result.urgency, category=result.category, reason=result.reason,
                                     summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
@@ -223,8 +224,20 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 ctx.retriage = _retriage
             await ticks.handle_tick(conn, obs, ctx)
             return
+        if obs.kind == "message_out":
+            # Something the person sent themselves (a Gmail reply): kept as thread context for the chat agent and the
+            # brief, never triaged or notified — and it tells us one of their own addresses.
+            await record_own_message(conn, obs)
+            return
         # every other observation is a world event (message_in, event_starting, ...): triage + gate
         await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
+
+
+async def record_own_message(conn, obs: Observation) -> None:
+    sender = str(obs.payload.get("from") or "")
+    if sender:
+        emails = await user_repo.add_own_email(conn, obs.user_id, normalize_email(sender))
+        log.info("triage.own_message", observation_id=str(obs.id), thread_key=obs.thread_key, own_emails=len(emails))
 
 
 _user_locks: dict[UUID, asyncio.Lock] = {}

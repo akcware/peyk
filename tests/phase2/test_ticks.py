@@ -179,3 +179,41 @@ async def test_morning_brief_is_agent_written_when_agent_available(conn, setting
     await ticks.handle_tick(conn, await observation_repo.insert(conn, scheduler.tick_observation(job)), ctx)
     assert seen and "morning brief" in seen[0] and "Mara faturayı bekliyor" in seen[0]
     assert tg.sent[-1]["text"].startswith("Günaydın!")
+
+
+async def test_brief_skips_own_mail_and_answered_threads_and_dates_items(conn, settings):
+    """The brief must not list what the person wrote themselves, nor a thread they already replied to; every item
+    it does list says when it arrived (in the person's timezone) and whether they were already told."""
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(tz=ZoneInfo("Europe/Berlin")).replace(hour=9, minute=3, second=0, microsecond=0)
+    yesterday_1730 = (now - timedelta(days=1)).replace(hour=17, minute=30)
+
+    async def stored(key, occurred_at, *, kind="message_in", thread=None, labels=None, urgency=4, sender="Mara <mara@example-client.test>"):
+        o = gmail_obs(key, sender=sender)
+        o.kind, o.occurred_at = kind, occurred_at
+        o.thread_key = thread or o.thread_key
+        if labels:
+            o.payload["label_ids"] = labels
+        o = await observation_repo.insert(conn, o)
+        await budget_repo.insert_triage(conn, o.id, urgency=urgency, category="person", reason=f"reason-{key}", model_id="m", latency_ms=1, summary=f"summary {key}")
+        return o
+
+    fly = await stored("fly", yesterday_1730)                                                   # old one-time link
+    await stored("mine", now - timedelta(hours=3), kind="message_out", labels=["SENT"], sender="Me <me@example.test>")
+    await stored("baris", now - timedelta(hours=20), thread="th-wg")                             # Barış wrote ...
+    await stored("reply", now - timedelta(hours=19), thread="th-wg", kind="message_out", labels=["SENT"], sender="Me <me@example.test>")  # ... and the person answered
+    await stored("legacy", now - timedelta(hours=18), thread="th-old")                          # older rows: SENT copy still kind message_in
+    await stored("legacy-reply", now - timedelta(hours=17), thread="th-old", labels=["SENT"], sender="Me <me@example.test>")
+    fresh = await stored("fresh", now - timedelta(minutes=50))
+    await budget_repo.insert_sent(conn, USER_ID, fresh.id, thread_key=fresh.thread_key, urgency=4, tg_message_id=1)
+
+    items = await ticks.brief_items(conn, USER_ID, now - timedelta(hours=24))
+    keys = [i["payload"]["subject"] for i in items]
+    assert keys == ["subject fresh", "subject fly"]          # own mail, answered threads (new and legacy shape) are gone
+    assert items[0]["notified_at"] is not None and items[1]["notified_at"] is None
+
+    text = ticks.brief_event_text(items, now)
+    assert "yesterday 17:30 (15h ago)" in text and "today 08:13 (0h ago)" in text
+    assert "; you told them at " in text and "expire within minutes" in text and "first name" in text
+    assert ticks.when_label(fly.occurred_at - timedelta(days=3), now).endswith("(87h ago)".replace("87h", "3d"))

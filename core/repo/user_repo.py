@@ -57,6 +57,8 @@ async def get_or_create_by_control(
     """Returns (user, created)."""
     existing = await get_by_control(conn, source, thread_key)
     if existing:
+        if display_name and not existing.get("display_name"):   # e.g. the bootstrap user, created from .env without a name
+            existing = await update(conn, existing["id"], display_name=display_name)
         return existing, False
     return await create(conn, control_source=source, control_thread_key=thread_key, display_name=display_name,
                         language=language, timezone=timezone), True
@@ -81,6 +83,21 @@ async def merge_state(conn: psycopg.AsyncConnection, user_id: UUID, patch: dict[
         f"update app_user set state = state || %s where id = %s returning {_COLS}", (Jsonb(patch), user_id)
     )
     return await cur.fetchone()
+
+
+def own_emails(user: dict | None) -> list[str]:
+    """The person's own mail addresses (learned from mail they sent, or the first-learn sample)."""
+    return [str(e) for e in ((user or {}).get("state") or {}).get("emails") or []]
+
+
+async def add_own_email(conn: psycopg.AsyncConnection, user_id: UUID, email: str) -> list[str]:
+    """Remember that `email` belongs to the person themself (state.emails, lowercase, deduplicated)."""
+    email = email.strip().lower()
+    user = await get(conn, user_id)
+    known = own_emails(user)
+    if not email or user is None or email in known:
+        return known
+    return own_emails(await merge_state(conn, user_id, {"emails": [*known, email]}))
 
 
 async def list_all(conn: psycopg.AsyncConnection) -> list[dict]:

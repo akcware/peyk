@@ -133,3 +133,13 @@ def test_mapping_table_shape():
     for slug, m in MAPPINGS.items():
         assert slug == slug.upper()
         assert m.source_key.startswith("$.") and m.occurred_at.startswith("$.")
+
+
+def test_sent_mail_is_the_persons_own_message():
+    """Gmail fires the trigger for mail the person sent too. That is their reply, not someone writing to them."""
+    ev = _event()
+    ev["data"]["label_ids"] = ["SENT"]
+    obs = to_observation(parse_envelope(ev), USER_ID)
+    assert obs is not None and obs.kind == "message_out" and obs.payload["label_ids"] == ["SENT"]
+    ev["data"]["label_ids"] = ["INBOX", "SENT"]           # self-addressed mail: still something they wrote
+    assert to_observation(parse_envelope(ev), USER_ID).kind == "message_out"

@@ -61,7 +61,9 @@ class ComposioAdapter:
                 log.warning("composio.toolkit_versions_unpinned",
                             hint="set COMPOSIO_TOOLKIT_VERSIONS=gmail=...,googlecalendar=... (see scripts/composio_setup.py --status); "
                                  "tools.execute will fail without it")
-            self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY, toolkit_versions=versions or None)
+            # Bounded: a slow Composio call must never hold a chat turn for minutes (20 s per request, one retry).
+            self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY, toolkit_versions=versions or None,
+                                    timeout=20.0, max_retries=1)
         return self._client
 
     def _execute(self, slug: str, arguments: dict[str, Any], composio_user_id: str | None = None) -> dict[str, Any]:

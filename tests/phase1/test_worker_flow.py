@@ -132,3 +132,33 @@ def test_render_is_source_agnostic():
                                                      summary="Standup with the client team starts in 15 minutes in Room B."))
     assert text.startswith("‼️ Standup · calendar") and "starts in 15 minutes" in text and "starts soon" not in text
     assert json.dumps(triage.Notifier.buttons(UUID_ZERO := "00000000-0000-0000-0000-000000000000")).count(UUID_ZERO) == 3
+
+
+async def test_own_sent_mail_is_not_triaged_and_teaches_own_address(conn, settings):
+    """A Gmail message with the SENT label is the person's own reply: no triage row, no notification — and its
+    sender is remembered as one of the person's own addresses (so prompts can tell their mail from others')."""
+    from core.repo import user_repo
+
+    await user_repo.create(conn, control_source="telegram", control_thread_key="777", user_id=USER_ID, display_name="Aşkın Kadir Çekim")
+    tg = FakeTelegram()
+    notifier = triage.Notifier(tg, "777", USER_ID)
+    own = gmail_obs("sent1", sender='"Aşkın Kadir Çekim" <KadirCekim.07@gmail.com>')
+    own.kind = "message_out"
+    own.payload["label_ids"] = ["SENT"]
+    stored = await observation_repo.insert(conn, own)
+
+    def never(payload):
+        raise AssertionError("the person's own mail must not be triaged")
+    await triage.handle(stored, settings=settings, agent=AgentClient("local", handle_fn=never), notifier=notifier)
+    assert await budget_repo.get_triage(conn, stored.id) is None and tg.sent == []
+    assert user_repo.own_emails(await user_repo.get(conn, USER_ID)) == ["kadircekim.07@gmail.com"]
+    await triage.handle(stored, settings=settings, agent=AgentClient("local", handle_fn=never), notifier=notifier)
+    assert user_repo.own_emails(await user_repo.get(conn, USER_ID)) == ["kadircekim.07@gmail.com"]   # deduplicated
+
+    # the triage prompt for a real incoming mail now carries the name and the person's own addresses
+    seen = {}
+    def capture(payload):
+        seen.update(payload["observation"]["user"])
+        return {"task": "triage", "result": TriageResult(urgency=2, category="person", reason="fake").model_dump(), "model_id": "m", "latency_ms": 1}
+    await triage.handle(await observation_repo.insert(conn, gmail_obs("in1")), settings=settings, agent=AgentClient("local", handle_fn=capture), notifier=notifier)
+    assert seen["display_name"] == "Aşkın Kadir Çekim" and seen["emails"] == ["kadircekim.07@gmail.com"]

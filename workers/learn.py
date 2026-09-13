@@ -42,15 +42,20 @@ async def run(conn: psycopg.AsyncConnection, user_id: UUID, toolkit: str, *, reg
     if not facts:
         log.info("learn.nothing_to_sample", toolkit=toolkit)
         return None
-    # people the person deals with -> identity table (so contact lookup and sender context work from day one)
+    # people the person deals with -> identity table (so contact lookup and sender context work from day one);
+    # the person's own address -> app_user, so their sent mail is never mistaken for someone writing to them
     for f in facts:
+        if f.get("kind") == "self" and f.get("email"):
+            await user_repo.add_own_email(conn, user_id, str(f["email"]))
+            continue
         if f.get("kind") == "contact" and f.get("email"):
             try:
                 await identity_repo.resolve(conn, user_id, "email", f["email"], display_name=f.get("name") or None)
             except Exception as e:  # noqa: BLE001
                 log.debug("learn.identity_failed", error=str(e))
     payload = {"service": toolkit, "facts": facts,
-               "user": {"display_name": user.get("display_name"), "profile": user.get("profile") or "", "language": user.get("language") or "en"}}
+               "user": {"display_name": user.get("display_name"), "profile": user.get("profile") or "", "language": user.get("language") or "en",
+                        "emails": user_repo.own_emails(await user_repo.get(conn, user_id))}}
     result = await agent.learn(payload)
     proposed = [str(x).strip() for x in (result.get("facts") or []) if str(x).strip()]
     pending = {"toolkit": toolkit, "facts": proposed, "profile_suggestion": (result.get("profile_suggestion") or "").strip(),

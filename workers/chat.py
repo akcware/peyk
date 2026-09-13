@@ -187,7 +187,7 @@ async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry
     from workers import learn
 
     u = {"display_name": user.get("display_name"), "profile": user.get("profile") or "", "language": user.get("language") or "en",
-         "timezone": user.get("timezone") or "UTC"}
+         "timezone": user.get("timezone") or "UTC", "emails": user_repo.own_emails(user)}
     state = await onboarding.user_state(conn, user, registry)
     pending = learn.pending_for_state(user)
     if pending:

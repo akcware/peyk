@@ -325,3 +325,21 @@ async def test_connected_services_refresh_after_ttl(conn, settings):
     comp.accounts[str(user["id"])] = {"gmail": "a", "notion": "b", "googledocs": "c"}
     st = await onboarding.user_state(conn, await user_repo.get(conn, user["id"]), registry)
     assert st["connected"] == ["gmail"]                            # within TTL: cache used
+
+
+async def test_existing_user_gets_a_name_from_telegram_and_prompts_carry_it(conn, settings):
+    """The bootstrap user was created from .env without a name; the first Telegram message fills it in
+    (never overwriting a name that is already set). The prompt block then tells the model how to address them."""
+    from agent.model import user_profile
+
+    user = await user_repo.create(conn, control_source="telegram", control_thread_key="990", language="tr")
+    assert user["display_name"] is None
+    user, created = await user_repo.get_or_create_by_control(conn, "telegram", "990", display_name="Aşkın Kadir Çekim")
+    assert not created and user["display_name"] == "Aşkın Kadir Çekim"
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "990", display_name="Someone Else")
+    assert user["display_name"] == "Aşkın Kadir Çekim"
+
+    block = user_profile({"user": {"display_name": "Aşkın Kadir Çekim", "emails": ["kadircekim.07@gmail.com"], "profile": "Karlsruhe'de öğrenci"}})
+    assert block.startswith("Name: Aşkın Kadir Çekim") and "first name" in block
+    assert "kadircekim.07@gmail.com" in block and "wrote themselves" in block and block.endswith("Karlsruhe'de öğrenci")
+    assert user_profile({"user": {}}).startswith("(no profile yet")

@@ -17,7 +17,8 @@ What the system currently has as their profile (may be EMPTY, a placeholder, or 
 only; NEVER restate anything from it that the sampled data does not show, especially places, employers or roles):
 {profile}
 
-Write in {language}. Be honest and modest: you saw metadata, not content. Every fact and every sentence of the profile suggestion must be traceable to the sampled metadata below.
+If a name is given above, use it exactly as written; never derive or reorder the person's name from an email address
+(kadircekim@… says nothing about which part is the first name). Write in {language}. Be honest and modest: you saw metadata, not content. Every fact and every sentence of the profile suggestion must be traceable to the sampled metadata below.
 Propose 3-6 durable facts worth remembering (who they deal with most and in what role, recurring topics, what seems urgent for them, rhythms
 like weekly reports). Skip anything sensitive or embarrassing (health, finances beyond invoices, private
 relationships, religion, politics) and skip newsletters/marketing. Life situations that may be sensitive (job
@@ -31,6 +32,9 @@ would keep if they confirm."""
 
 def render_facts(service: str, facts: list[dict[str, Any]]) -> str:
     lines = [f"service: {service}", f"sample size: {len(facts)} items", ""]
+    me = [f.get("email") for f in facts if f.get("kind") == "self" and f.get("email")]
+    if me:
+        lines.append(f"the person's own mailbox address: {', '.join(map(str, me))}")
     contacts = [f for f in facts if f.get("kind") == "contact"]
     subjects = [f for f in facts if f.get("kind") == "subject"]
     docs = [f for f in facts if f.get("kind") in ("document", "workspace", "database")]
@@ -48,7 +52,7 @@ def render_facts(service: str, facts: list[dict[str, Any]]) -> str:
         lines.append("documents / workspaces:")
         for d in docs[:40]:
             lines.append(f"- [{d.get('service', service)}] {d.get('title') or d.get('name')} ({d.get('updated', '')})")
-    other = [f for f in facts if f.get("kind") not in ("contact", "subject", "document", "workspace", "database")]
+    other = [f for f in facts if f.get("kind") not in ("self", "contact", "subject", "document", "workspace", "database")]
     for o in other[:20]:
         lines.append(f"- {o}")
     return "\n".join(lines)
