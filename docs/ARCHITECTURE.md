@@ -56,10 +56,10 @@ flowchart TB
 1. **Ingest.** Each adapter is an `async for` over its source: Composio's realtime socket (or the webhook gateway),
    Telegram's `getUpdates`. Every item is inserted as an `observation` with a natural key
    (`user_id, source, source_key`); duplicates are dropped by the database, so replays and backfills are safe.
-   A Telegram voice note is turned into text right here (Amazon Transcribe streaming, OGG/Opus straight in,
-   language identified among the person's client language and `STT_LANGUAGES`; Mistral Voxtral on Bedrock as the
-   alternative engine): the observation carries the bracketed transcript in `payload.control`, so no worker
-   knows it was spoken. A failed transcription still reaches the agent as a note it can relay.
+   A Telegram voice note is turned into text right here (Mistral Voxtral on Bedrock by default, OGG/Opus decoded
+   to MP3 in memory; Amazon Transcribe streaming as the other engine, language identified among the person's
+   client language and `STT_LANGUAGES`): the observation carries the bracketed transcript in `payload.control`,
+   so no worker knows it was spoken. A failed transcription still reaches the agent as a note it can relay.
 2. **Claim.** The consumer loop claims the next `new` observation with `FOR UPDATE SKIP LOCKED`. A claim older than
    5 minutes is recovered by the maintenance loop; after 5 attempts an observation is marked `failed`.
 3. **Route by data.** Observations from a person's own control channel (Telegram, later WhatsApp) are commands,

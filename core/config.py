@@ -26,9 +26,10 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
 
-    # Voice notes. "transcribe": Amazon Transcribe streaming (needs transcribe:StartStreamTranscription on the key);
-    # "voxtral": Mistral Voxtral via Bedrock Converse (no extra right; for accounts where Transcribe is denied).
-    STT_ENGINE: Literal["transcribe", "voxtral"] = "transcribe"
+    # Voice notes. "voxtral": Mistral Voxtral via Bedrock Converse (no right beyond bedrock:Converse; the default
+    # while our AWS organisation still denies Transcribe streaming). "transcribe": Amazon Transcribe streaming
+    # (needs transcribe:StartStreamTranscription on the key).
+    STT_ENGINE: Literal["transcribe", "voxtral"] = "voxtral"
     STT_MODEL_ID: str = "mistral.voxtral-small-24b-2507"
     # Candidate locales for language identification, at most five, one dialect per language; the person's client
     # language is put first. Base codes ("tr") are fine for Voxtral, Transcribe wants locales ("tr-TR").
