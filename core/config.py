@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # language is put first. Base codes ("tr") are fine for Voxtral, Transcribe wants locales ("tr-TR").
     STT_LANGUAGES: str = "en-US,de-DE,tr-TR,fr-FR,es-ES"
     VOICE_MAX_S: int = 600                     # longer voice notes are not transcribed (the person is told)
+    # Photos and screenshots are described by a vision model before the agent sees them; empty = CHAT_MODEL_ID.
+    VISION_MODEL_ID: str = ""
+    # The public web in chat: duckduckgo (no key), tavily (TAVILY_API_KEY) or off.
+    WEB_SEARCH_ENGINE: Literal["duckduckgo", "tavily", "off"] = "duckduckgo"
+    TAVILY_API_KEY: str = ""
 
     @property
     def stt_languages(self) -> list[str]:

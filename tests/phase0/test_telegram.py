@@ -169,3 +169,108 @@ async def test_voice_note_failure_still_reaches_the_agent(settings):
     # no transcriber wired at all (e.g. a stub deployment): same shape, nothing crashes
     obs = await _first(TelegramAdapter(settings=s, http=_voice_http([_voice_update(23)], []), poll_timeout=0))
     assert control_text(obs) == "[voice message, 4 s, could not be transcribed: no transcriber configured]"
+
+
+class FakeDescriber:
+    def __init__(self, text: str = "A shop listing: SimonsVoss Transponder 3064, normally 37 to 40 euro.", fail: Exception | None = None) -> None:
+        self.text, self.fail, self.calls = text, fail, []
+
+    async def describe(self, image, *, fmt, language, caption):
+        from core.vision import Description
+        self.calls.append({"bytes": len(image), "fmt": fmt, "language": language, "caption": caption})
+        if self.fail:
+            raise self.fail
+        return Description(text=self.text, took_ms=7)
+
+
+def _photo_update(update_id: int, caption: str | None = "Bu nedir", reply_to: dict | None = None, document: dict | None = None) -> dict:
+    msg = {"message_id": 9, "date": 3, "chat": {"id": 7}, "from": {"id": 7, "first_name": "Aslı", "language_code": "tr"}}
+    if document:
+        msg["document"] = document
+    else:
+        msg["photo"] = [{"file_id": "small", "file_unique_id": "s", "width": 90, "height": 160, "file_size": 1200},
+                        {"file_id": "big", "file_unique_id": "b", "width": 720, "height": 1280, "file_size": 88000}]
+    if caption:
+        msg["caption"] = caption
+    if reply_to:
+        msg["reply_to_message"] = reply_to
+    return {"update_id": update_id, "message": msg}
+
+
+def _file_http(updates: list[dict], seen: list, *, file_bytes: bytes = b"\xff\xd8" + b"j" * 500):
+    def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", 1)[-1]
+        if request.url.path.startswith("/file/"):
+            seen.append(("download", request.url.path))
+            return httpx.Response(200, content=file_bytes)
+        payload = json.loads(request.content)
+        seen.append((method, payload))
+        if method == "getUpdates":
+            return httpx.Response(200, json={"ok": True, "result": [] if payload.get("offset") else updates})
+        if method == "getFile":
+            return httpx.Response(200, json={"ok": True, "result": {"file_id": payload["file_id"], "file_path": f"photos/{payload['file_id']}.jpg"}})
+        return httpx.Response(200, json={"ok": True, "result": True})
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://api.telegram.org/bott")
+
+
+async def test_photo_becomes_text_for_the_agent(settings):
+    from core.routing import agent_text, control_event
+
+    s = settings.model_copy(update={"TELEGRAM_BOT_TOKEN": "t"})
+    seen: list = []
+    vision = FakeDescriber()
+    quoted = {"message_id": 4, "from": {"id": 1, "is_bot": True, "first_name": "Peyk"}, "chat": {"id": 7},
+              "text": "İki iş ilanı var bugün. MHP (Porsche şirketi) Junior AI Engineer arıyor."}
+    adapter = TelegramAdapter(settings=s, http=_file_http([_photo_update(30, reply_to=quoted)], seen), poll_timeout=0,
+                              describer=vision, users=FakeDirectory("tr"))
+    obs = await _first(adapter)
+    assert [m for m, _ in seen] == ["getUpdates", "getFile", "download"]
+    assert seen[1][1] == {"file_id": "big"}                       # the largest size, not the thumbnail
+    assert vision.calls == [{"bytes": 502, "fmt": "jpeg", "language": "tr", "caption": "Bu nedir"}]
+    ev = control_event(obs)
+    assert ev.text == "Bu nedir\n[photo, automatic description] A shop listing: SimonsVoss Transponder 3064, normally 37 to 40 euro."
+    assert ev.reply_to == '[replying to your message: "İki iş ilanı var bugün. MHP (Porsche şirketi) Junior AI Engineer arıyor."]'
+    assert agent_text(obs).startswith('[replying to your message: "İki iş ilanı') and agent_text(obs).endswith("40 euro.")
+    assert ev.message_id == 9 and ev.display_name == "Aslı" and ev.callback is None
+    assert obs.payload["image"] == {"file_id": "big", "mime_type": "image/jpeg", "file_size": 88000, "took_ms": 7, "chars": 68}
+
+    # no caption, no vision model: the agent still gets the message, as a note it can relay; nothing downloaded
+    seen.clear()
+    adapter = TelegramAdapter(settings=s, http=_file_http([_photo_update(31, caption=None)], seen), poll_timeout=0)
+    obs = await _first(adapter)
+    assert [m for m, _ in seen] == ["getUpdates"]
+    assert control_event(obs).text == "[photo, could not be viewed: no vision model configured]"
+    assert obs.payload["image"]["error"] == "no vision model configured"
+
+    # an image sent as a file keeps its type; a PDF "document" is not an image at all (plain message, no control)
+    seen.clear()
+    png = {"file_id": "doc1", "file_unique_id": "d", "mime_type": "image/png", "file_name": "shot.png", "file_size": 4000}
+    adapter = TelegramAdapter(settings=s, http=_file_http([_photo_update(32, document=png)], seen), poll_timeout=0, describer=vision)
+    obs = await _first(adapter)
+    assert vision.calls[-1]["fmt"] == "png" and control_event(obs).text.startswith("Bu nedir\n[photo, automatic description]")
+    pdf = {"file_id": "doc2", "file_unique_id": "e", "mime_type": "application/pdf", "file_name": "a.pdf", "file_size": 4000}
+    assert TelegramAdapter.image_of(_photo_update(33, document=pdf)["message"]) is None
+
+    # too large for the model: refused without a download, the person is told
+    seen.clear()
+    huge = _photo_update(34)
+    huge["message"]["photo"][-1]["file_size"] = 5_000_000
+    adapter = TelegramAdapter(settings=s, http=_file_http([huge], seen), poll_timeout=0, describer=vision)
+    obs = await _first(adapter)
+    assert [m for m, _ in seen] == ["getUpdates"] and "larger than the model takes" in control_event(obs).text
+
+
+def test_reply_context_is_a_separate_field():
+    from core.routing import agent_text, control_event, reply_context
+
+    own = {"message_id": 2, "from": {"id": 7, "is_bot": False, "first_name": "Aslı"}, "text": "  Vezne   ne demek "}
+    upd = {"update_id": 40, "message": {"message_id": 5, "chat": {"id": 7}, "from": {"id": 7, "first_name": "Aslı"},
+                                        "text": "Bunun hakkında biraz daha bilgi alabilir miyim", "reply_to_message": own}}
+    obs = TelegramAdapter.update_to_observation(upd, USER_ID)
+    ev = control_event(obs)
+    assert ev.text == "Bunun hakkında biraz daha bilgi alabilir miyim"       # commands and draft edits see the words only
+    assert ev.reply_to == '[replying to their own earlier message: "Vezne ne demek"]'
+    assert agent_text(obs) == '[replying to their own earlier message: "Vezne ne demek"]\nBunun hakkında biraz daha bilgi alabilir miyim'
+    assert reply_context({"reply_to_message": {"from": {"is_bot": True}, "photo": [{}]}}) == '[replying to your message: "(a photo)"]'
+    assert reply_context({"reply_to_message": {"from": {"is_bot": True}, "text": "x" * 700}}).endswith("x…\"]")
+    assert reply_context({"text": "plain"}) is None and control_event(TelegramAdapter.update_to_observation({"update_id": 1, "message": {"text": "hi", "chat": {"id": 1}}}, USER_ID)).reply_to is None

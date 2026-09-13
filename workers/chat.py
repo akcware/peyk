@@ -19,7 +19,8 @@ from core.log import get_logger
 from core.models import Observation
 from core.phrases import phrase
 from core.repo import job_repo, memory_repo, observation_repo, user_repo
-from core.routing import control_event, control_text
+from core.routing import agent_text, control_event, control_text
+from core.web import WebSearcher, make_web_searcher
 
 log = get_logger("workers.chat")
 
@@ -27,7 +28,7 @@ HISTORY_TURNS = 10
 RECENT_HOURS = 48
 RECENT_LIMIT = 50
 MAX_ROUNDS = 2            # NeedMore / FindContact rounds
-MAX_DOC_ROUNDS = 4        # document search -> read -> answer needs more hops; each hop is one API call
+MAX_DOC_ROUNDS = 4        # document/web search -> read -> answer needs more hops; each hop is one API call
 STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, restart) is not answered
 BUBBLE_MARK = re.compile(r"^\s*(?:---|\*\*\*|___)\s*$", re.MULTILINE)   # the agent's "new bubble here" line
 MAX_BUBBLES = 3
@@ -77,7 +78,7 @@ def _turn_text(obs: Observation) -> tuple[str, str] | None:
     text = control_text(obs)
     if not text or text.startswith("/") or "callback_query" in obs.payload:
         return None
-    return "user", text
+    return "user", agent_text(obs)
 
 
 async def build_history(conn: psycopg.AsyncConnection, obs: Observation, *, turns: int = HISTORY_TURNS) -> list[dict[str, str]]:
@@ -239,15 +240,37 @@ async def user_payload(conn: psycopg.AsyncConnection, obs: Observation, registry
     return u, state
 
 
+_web_searchers: dict[tuple[str, str], WebSearcher | None] = {}
+
+
+def default_web(settings: Settings) -> WebSearcher | None:
+    """One searcher per configuration for the process (it owns an HTTP client); None when the web is off."""
+    key = (settings.WEB_SEARCH_ENGINE, settings.TAVILY_API_KEY)
+    if key not in _web_searchers:
+        _web_searchers[key] = make_web_searcher(settings.WEB_SEARCH_ENGINE, tavily_api_key=settings.TAVILY_API_KEY)
+    return _web_searchers[key]
+
+
+def chat_text(obs: Observation) -> str:
+    """The person's turn as the agent reads it: the reply-context line (if they tapped reply) and their text,
+    with a Telegram command turned into plain words."""
+    from workers.commands import as_chat_text
+
+    ev = control_event(obs)
+    return "\n".join(p for p in (ev.reply_to, as_chat_text(ev.text)) if p)
+
+
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                    embedder: Embedder, now: datetime | None = None, contact_search=None, registry=None,
                    user: dict | None = None, state: dict | None = None, mode: str | None = None,
-                   first_reflex: str = "") -> tuple[str, list[dict[str, Any]]]:
-    """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore)."""
+                   first_reflex: str = "", web: WebSearcher | None | bool = False) -> tuple[str, list[dict[str, Any]]]:
+    """Runs the (bounded) agent rounds; returns (reply, intents without NeedMore). `web` False = the configured
+    searcher, None = no web this turn."""
     now = now or datetime.now(tz=UTC)
-    from workers.commands import as_chat_text
+    if web is False:
+        web = default_web(settings)
 
-    text = as_chat_text(control_text(obs))
+    text = chat_text(obs)
     if user is None:
         user, state = await user_payload(conn, obs, registry)
     history = await build_history(conn, obs)
@@ -275,6 +298,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     seen_ids = {r["id"] for r in recent}
     payload["contacts"] = []
     payload["documents"] = {"search": {}, "read": {}}
+    payload["web"] = {"enabled": web is not None, "search": {}, "open": {}}
     data_rounds = 0
     for round_no in range(1, MAX_DOC_ROUNDS + 1):
         out = await agent.chat(payload)
@@ -282,13 +306,28 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         lookups = [i for i in intents if i.get("intent") == "FindContact"]
         need = [i for i in intents if i.get("intent") == "NeedMore"]
         docq = [i for i in intents if i.get("intent") == "DocumentQuery"]
-        if not need and not lookups and not docq:
+        webq = [i for i in intents if i.get("intent") == "WebQuery"]
+        if not need and not lookups and not docq and not webq:
             break
         if (need or lookups) and data_rounds >= MAX_ROUNDS - 1:
             break                       # NeedMore/FindContact stay bounded to MAX_ROUNDS agent calls
-        if docq and not need and not lookups and round_no == MAX_DOC_ROUNDS:
+        if (docq or webq) and not need and not lookups and round_no == MAX_DOC_ROUNDS:
             break
         data_rounds += 1
+        if webq and web is not None:
+            for q in webq:
+                op, key = str(q.get("op") or "search"), str(q.get("key") or "")
+                try:
+                    if op == "open":
+                        payload["web"]["open"][key] = await web.open(str(q.get("url") or ""))
+                    else:
+                        payload["web"]["search"][key] = await web.search(str(q.get("query") or ""))
+                except Exception as e:  # noqa: BLE001 - the agent is told, and answers without the page
+                    log.warning("chat.web_query_failed", op=op, error=str(e)[:200])
+                    payload["web"][op if op == "open" else "search"][key] = {"error": str(e)[:200]} if op == "open" else []
+            log.info("chat.web_query", round=round_no, count=len(webq))
+            if not need and not lookups and not docq:
+                continue
         if docq and registry is not None:
             try:
                 adapter = registry.get("composio")
@@ -321,7 +360,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         payload["recent_observations"] = fresh + payload["recent_observations"]
         payload["message"] = text  # same question, more data
         log.info("chat.need_more", round=round_no, query=q.get("query"), added=len(fresh))
-    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact", "DocumentQuery")]
+    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact", "DocumentQuery", "WebQuery")]
 
 
 async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, final: bool = True) -> bool:
@@ -338,14 +377,14 @@ async def collect_burst(conn: psycopg.AsyncConnection, obs: Observation, setting
     """People type in bursts ("he" / "y", or a question split over three lines). Wait a short debounce after the
     message arrived, then absorb newer unprocessed plain messages from the same thread into this turn.
     Returns (merged text, absorbed observations)."""
-    from workers.commands import as_chat_text, is_remind
+    from workers.commands import is_remind
 
     debounce = float(getattr(settings, "CHAT_DEBOUNCE_S", 0) or 0)
     received = obs.received_at or obs.occurred_at
     wait = debounce - (datetime.now(tz=UTC) - received).total_seconds()
     if wait > 0:
         await asyncio.sleep(wait)
-    parts = [as_chat_text(control_text(obs))]
+    parts = [chat_text(obs)]
     absorbed: list[Observation] = []
     if debounce > 0:
         for extra in await observation_repo.claim_followups(conn, obs):
@@ -354,7 +393,7 @@ async def collect_burst(conn: psycopg.AsyncConnection, obs: Observation, setting
                 # not a plain message: give it back to the queue untouched
                 await conn.execute("update observation set status = 'new', claimed_at = null, attempts = attempts - 1 where id = %s", (extra.id,))
                 continue
-            parts.append(as_chat_text(ev.text))
+            parts.append(chat_text(extra))
             absorbed.append(extra)
     if absorbed:
         log.info("chat.burst_merged", observation_id=str(obs.id), absorbed=len(absorbed))
@@ -363,7 +402,7 @@ async def collect_burst(conn: psycopg.AsyncConnection, obs: Observation, setting
 
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                          notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None,
-                         registry=None) -> str:
+                         registry=None, web: WebSearcher | None | bool = False) -> str:
     now = now or datetime.now(tz=UTC)
     received = obs.received_at or obs.occurred_at
     if now - received > STALE_AFTER:
@@ -419,7 +458,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     try:
         reply, intents = await converse(conn, obs, settings=settings, agent=agent, embedder=embedder, now=now,
                                         contact_search=contact_search, registry=registry, user=user, state=state,
-                                        first_reflex=first_reflex)
+                                        first_reflex=first_reflex, web=web)
     except Exception as e:  # noqa: BLE001
         log.error("chat.converse_failed", observation_id=str(obs.id), error=str(e)[:300])
         reply, intents = phrase((user or {}).get("language"), "stuck"), []

@@ -102,6 +102,21 @@ long-term memory. Rules:
   revisit earlier questions in the conversation in that reply — only the event.
 - If the person asks to delete their account or data, call delete_my_data and reply in one calm sentence that
   a confirmation is coming; do not argue, do not delete anything yourself, do not describe internals.
+- Photos and screenshots the person sends reach you as text: their caption, then a line
+  "[photo, automatic description] …" written by someone who looked at the picture for you. Treat it as what you
+  saw: answer about the image directly ("Bu bir SimonsVoss transponder, 37-40 euro civarı"), never say you
+  cannot see images, never mention that it was described. If the description says a part was unreadable, say
+  what you could not make out. "[photo, could not be viewed: …]" means it really failed: say so in one plain
+  sentence and ask them to send it again or tell you what it shows.
+- A line "[replying to your message: "…"]" (or "…their own earlier message…") at the start means the person
+  tapped reply on that message: "bu", "bunun hakkında", "this one" refer to the quoted message, not to the
+  last topic of the conversation. Never repeat the quoted text back.
+- The public web: when the question is about the world rather than their own mail, calendar or documents (a
+  company, a product, a place, a word, an employer in a job ad, something recent), call web_search, then
+  open_web_page on the best result when the snippets are not enough. Both work in rounds like documents. Answer
+  in your own words with the source's name; give the link only if they ask for it. Do not search for what you
+  know well enough to answer; do search when facts may be recent or specific. If the search fails, say what
+  you know and that you could not check online.
 - Do not invent observations. If nothing matches, say so."""
 
 
@@ -124,11 +139,16 @@ def render_capabilities(payload: dict[str, Any]) -> str:
         "- search and read their documents in connected Notion / Google Drive / Google Docs, and create Notion pages or",
         "  Google Docs for them — creation is a draft they approve in chat first",
         "- connect services for them by sending a login link (they never type passwords in chat)",
+        "- read the photos and screenshots they send, and listen to their voice notes (both reach you as text)",
         f"Services that can be connected: {', '.join(available)} — nothing else (no Outlook, Slack, WhatsApp, Notion …).",
         f"Connected right now: {', '.join(connected) or 'none'}.",
     ]
     if pending:
         lines.append(f"Connection in progress: {', '.join(pending)}.")
+    if (payload.get("web") or {}).get("enabled", True):
+        lines.append("You can also search the public web and read a web page (news, companies, products, places, general facts).")
+    else:
+        lines.append("You have no web access right now: you cannot search the internet or open links.")
     lines.append("When asked what is connected or what can be connected, answer EXACTLY from these two lists — never from memory")
     lines.append("of earlier turns. Never mention internal tool names, models or systems. Describe abilities in plain words.")
     return "\n".join(lines)
@@ -154,6 +174,12 @@ Decide two things for the incoming message:
   Questions about what you can do, which services exist or are connected: answer directly from the facts above
   (needs_work false) — never invent services or abilities that are not listed.
   Requests to delete their account or data: needs_work true (the full flow handles confirmation).
+  Questions about the world that you do not know for sure or that may have changed (a company, a product, a
+  place, prices, news): needs_work true — the full answer will check the web.
+  A photo reaches you as text: the person's caption, then "[photo, automatic description] …" written by
+  someone who looked at it for you. Answer about the picture as if you saw it (needs_work false when the
+  description already holds the answer); never say you cannot see images, never mention the description.
+  A line "[replying to your message: "…"]" means they tapped reply on that message: "bu" is that message.
 - message: what to say right now, in the language the person writes in. If needs_work is true, one short,
   natural sentence that says what you are about to do (e.g. "Tabii, bugün gelen maillere hemen bakıyorum.",
   "Hatırlatıcıyı ayarlıyorum."). It must NOT contain any concrete decision the full answer will make — no
@@ -199,6 +225,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     memory: list[dict[str, Any]] = ctx.get("memory_hits") or []
     contacts: list[dict[str, Any]] = ctx.get("contacts") or []
     documents: dict[str, Any] = ctx.get("documents") or {}      # {"search": {query: [...]}, "read": {"svc:id": {...}}}
+    web: dict[str, Any] = ctx.get("web") or {}                  # {"enabled": bool, "search": {q: [...]}, "open": {url: {...}}}
 
     @tool
     def search_observations(query: str, source: str = "", since_iso: str = "") -> list[dict]:
@@ -368,6 +395,36 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"requested": True, "note": "confirmation buttons will follow your reply"}
 
     @tool
+    def web_search(query: str) -> dict:
+        """Search the public web (companies, products, places, news, general facts) when the answer is not in the
+        person's own mail, calendar or documents. Works in rounds: a call may return a note and you are re-run
+        with the results. Then open_web_page for the details.
+
+        Args:
+            query: a short search query in the most useful language (usually the language of the thing itself)
+        """
+        key = " ".join(query.lower().split())
+        cached = (web.get("search") or {}).get(key)
+        if cached is not None:
+            return {"results": cached}
+        intents.append({"intent": "WebQuery", "op": "search", "query": query, "key": key})
+        return {"results": [], "note": "searching; you will be re-run with the results"}
+
+    @tool
+    def open_web_page(url: str) -> dict:
+        """Read the text of a public web page: a result from web_search or a link the person sent.
+
+        Args:
+            url: the page address (http or https)
+        """
+        key = url.strip()
+        cached = (web.get("open") or {}).get(key)
+        if cached is not None:
+            return cached
+        intents.append({"intent": "WebQuery", "op": "open", "url": key, "key": key})
+        return {"text": "", "note": "loading; you will be re-run with the page"}
+
+    @tool
     def need_more(query: str, since_days: int = 7) -> dict:
         """Ask the system to load more observations matching a query, then re-run this conversation.
 
@@ -378,7 +435,10 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    return [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, search_documents, read_document, create_document, delete_my_data, need_more]
+    tools = [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, search_documents, read_document, create_document, delete_my_data, need_more]
+    if web.get("enabled", True):
+        tools += [web_search, open_web_page]
+    return tools
 
 
 @lru_cache

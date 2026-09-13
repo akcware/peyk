@@ -130,7 +130,7 @@ def test_chat_contract_and_tools():
         {"id": "2", "source": "calendar", "summary": "Standup", "occurred_at": "2026-09-10T07:00:00+00:00"},
     ], "memory_hits": [{"text": "Uses Postgres", "score": 0.9}, {"text": "Lives in Berlin", "score": 0.5}]}
     tools = {t.tool_name: t for t in make_tools(ctx, intents)}
-    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "connect_service", "set_profile", "confirm_learned", "search_documents", "read_document", "create_document", "delete_my_data", "need_more"}
+    assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "connect_service", "set_profile", "confirm_learned", "search_documents", "read_document", "create_document", "delete_my_data", "need_more", "web_search", "open_web_page"}
     fn = {name: t._tool_func for name, t in tools.items()}
     assert [o["id"] for o in fn["search_observations"]("invoice mara")] == ["1"]
     assert [o["id"] for o in fn["search_observations"]("", "calendar")] == ["2"]
@@ -372,3 +372,87 @@ async def test_reply_goes_out_as_bubbles(conn, settings):
             if o.kind == "message_out" and o.payload.get("in_reply_to") == str(q.id) and o.payload.get("stage") != "ack"]
     assert [o.payload["text"] for o in outs] == ["Mara yazmış, toplantıyı soruyor.\n\nCevap yazayım mı?"]
     assert await chat.already_answered(conn, q)
+
+
+class FakeWeb:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    async def search(self, query, *, max_results=6):
+        self.calls.append(("search", query))
+        return [{"title": "MHP – A Porsche Company", "url": "https://www.mhp.com/en/", "snippet": "IT consultancy, Ludwigsburg"}]
+
+    async def open(self, url, *, max_chars=6000):
+        self.calls.append(("open", url))
+        if "fail" in url:
+            raise ValueError("boom")
+        return {"url": url, "title": "MHP", "text": "MHP was founded in 1996, Porsche holds 100 %."}
+
+
+async def test_web_search_round(conn, settings):
+    """Agent asks the web -> worker searches, then opens the page -> agent re-run with the data; nothing persisted."""
+    web = FakeWeb()
+    calls: list[dict] = []
+
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": ""}
+        calls.append(payload)
+        w = payload["web"]
+        assert w["enabled"] is True
+        if not w["search"]:
+            return {"task": "chat", "reply": "searching", "intents": [{"intent": "WebQuery", "op": "search", "query": "MHP Porsche", "key": "mhp porsche"}]}
+        if not w["open"]:
+            url = w["search"]["mhp porsche"][0]["url"]
+            return {"task": "chat", "reply": "opening", "intents": [{"intent": "WebQuery", "op": "open", "url": url, "key": url},
+                                                                   {"intent": "WebQuery", "op": "open", "url": "https://fail.example/", "key": "https://fail.example/"}]}
+        page = w["open"]["https://www.mhp.com/en/"]
+        assert w["open"]["https://fail.example/"] == {"error": "boom"}
+        return {"task": "chat", "reply": f"MHP: {page['text']}", "intents": [{"intent": "MemoryWrite", "text": "Interested in MHP"}]}
+
+    tg = FakeTelegram()
+    msg = await observation_repo.insert(conn, tg_text("800", "MHP nedir", datetime.now(tz=UTC)))
+    reply = await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle),
+                                      notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder(), web=web)
+    assert reply == "MHP: MHP was founded in 1996, Porsche holds 100 %." and len(calls) == 3
+    assert web.calls == [("search", "MHP Porsche"), ("open", "https://www.mhp.com/en/"), ("open", "https://fail.example/")]
+    outs = [o for o in await observation_repo.list_by_thread(conn, USER_ID, "777", limit=10) if o.kind == "message_out"]
+    assert outs[0].payload["intents"] == ["MemoryWrite"]      # WebQuery never persisted as an intent
+
+    # web off: the agent is told, the tools are not offered
+    calls.clear()
+    msg = await observation_repo.insert(conn, tg_text("801", "MHP nedir", datetime.now(tz=UTC)))
+
+    def handle_off(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": ""}
+        calls.append(payload)
+        return {"task": "chat", "reply": "no web", "intents": []}
+    await chat.handle_message(conn, msg, settings=settings, agent=AgentClient("local", handle_fn=handle_off),
+                              notifier=triage.Notifier(tg, "777", USER_ID), embedder=FakeEmbedder(), web=None)
+    assert calls[0]["web"] == {"enabled": False, "search": {}, "open": {}}
+    intents: list = []
+    assert "web_search" not in {t.tool_name for t in make_tools({"web": {"enabled": False}}, intents)}
+    tools = {t.tool_name: t for t in make_tools({"web": {"enabled": True, "search": {"mhp": [{"url": "u"}]}, "open": {"u": {"text": "t"}}}}, intents)}
+    assert tools["web_search"]._tool_func("  MHP ") == {"results": [{"url": "u"}]} and tools["open_web_page"]._tool_func("u") == {"text": "t"}
+    tools["open_web_page"]._tool_func("https://x.example/")
+    assert intents == [{"intent": "WebQuery", "op": "open", "url": "https://x.example/", "key": "https://x.example/"}]
+    assert chat.default_web(settings.model_copy(update={"WEB_SEARCH_ENGINE": "off"})) is None
+
+
+async def test_reply_context_reaches_the_agent_and_history(conn, settings):
+    """The person taps reply on the assistant's message: the agent (and later history) sees the quoted line."""
+    t0 = datetime.now(tz=UTC) - timedelta(minutes=3)
+    await observation_repo.insert(conn, tg_out("1", "İki iş ilanı var bugün. MHP Junior AI Engineer arıyor.", t0))
+    quoted = {"message_id": 41, "from": {"id": 1, "is_bot": True}, "text": "İki iş ilanı var bugün. MHP Junior AI Engineer arıyor."}
+    first = tg_text("900", "Bunun hakkında biraz daha bilgi alabilir miyim", t0 + timedelta(minutes=1))
+    first.payload["message"]["reply_to_message"] = quoted
+    first = await observation_repo.insert(conn, first)
+    agent, calls = scripted_agent([{"reply": "MHP, Porsche'nin danışmanlık şirketi."}])
+    await chat.handle_message(conn, first, settings=settings, agent=agent, notifier=triage.Notifier(FakeTelegram(), "777", USER_ID),
+                              embedder=FakeEmbedder(), web=None)
+    assert calls[0]["message"] == ('[replying to your message: "İki iş ilanı var bugün. MHP Junior AI Engineer arıyor."]\n'
+                                   "Bunun hakkında biraz daha bilgi alabilir miyim")
+    later = await observation_repo.insert(conn, tg_text("901", "Peyk?", datetime.now(tz=UTC)))
+    history = await chat.build_history(conn, later)
+    assert history[-2]["text"].startswith('[replying to your message: "İki iş ilanı') and history[-1]["role"] == "assistant"

@@ -60,6 +60,12 @@ flowchart TB
    to MP3 in memory; Amazon Transcribe streaming as the other engine, language identified among the person's
    client language and `STT_LANGUAGES`): the observation carries the bracketed transcript in `payload.control`,
    so no worker knows it was spoken. A failed transcription still reaches the agent as a note it can relay.
+   A photo or screenshot takes the same road (`core/vision.py`): the largest size is downloaded and a vision model
+   (the chat model, via Bedrock Converse) writes a description for an assistant that cannot see it — every readable
+   text verbatim, what it most likely is — which follows the person's caption in `payload.control` as
+   `[photo, automatic description] …`. When the person taps *reply* on a message, the quoted text travels as
+   `ControlEvent.reply_to` (a bracketed line the agent reads before their words), kept apart from `text` so command
+   parsing and draft edits see the person's words only.
 2. **Claim.** The consumer loop claims the next `new` observation with `FOR UPDATE SKIP LOCKED`. A claim older than
    5 minutes is recovered by the maintenance loop; after 5 attempts an observation is marked `failed`.
 3. **Route by data.** Observations from a person's own control channel (Telegram, later WhatsApp) are commands,
@@ -107,6 +113,7 @@ Chat tools and the intents they produce:
 | `set_profile`, `confirm_learned` | save what the person told or confirmed | `ProfileUpdate`, `LearnConfirm` |
 | `search_documents`, `read_document` | find and read Notion pages, Drive files, Google Docs | — |
 | `create_document` | create a page or doc in the person's own workspace | `DocumentCreate` → created immediately, link sent |
+| `web_search`, `open_web_page` | the public web (DuckDuckGo, no key; Tavily optional) and a page's text, for questions about the world | `WebQuery` → resolved in the round loop, never persisted |
 | `delete_my_data` | start account deletion | `DeleteAccountRequest` → two confirmations |
 
 System events (a service connected, a link expired, the morning brief) are also voiced by the chat agent in an

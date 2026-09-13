@@ -1,5 +1,5 @@
 """Telegram via Bot API directly with httpx. Five endpoints: getUpdates, sendMessage, editMessageText,
-answerCallbackQuery, getFile (voice notes). No library, so the output channel's failure modes are visible."""
+answerCallbackQuery, getFile (voice notes, photos). No library, so the output channel's failure modes are visible."""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +14,7 @@ from core.adapter import Capabilities, UserDirectory
 from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
+from core.routing import reply_context
 from core.stt import (
     TELEGRAM_VOICE_ENCODING,
     TELEGRAM_VOICE_SAMPLE_RATE,
@@ -22,6 +23,7 @@ from core.stt import (
     voice_failed_text,
     voice_text,
 )
+from core.vision import MAX_IMAGE_BYTES, Describer, image_format, photo_failed_text, photo_text
 
 log = get_logger("telegram.adapter")
 
@@ -37,6 +39,7 @@ class TelegramAdapter:
         poll_timeout: int = 25,
         users: UserDirectory | None = None,
         transcriber: Transcriber | None = None,
+        describer: Describer | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._http = http
@@ -44,6 +47,7 @@ class TelegramAdapter:
         self._offset: int | None = None
         self._users = users
         self._transcriber = transcriber
+        self._describer = describer
 
     @property
     def http(self) -> httpx.AsyncClient:
@@ -131,6 +135,8 @@ class TelegramAdapter:
                 msg = update.get("message") or {}
                 if msg.get("voice"):
                     await self.attach_voice_text(obs, msg, display_name=name, language=spoken)
+                elif self.image_of(msg) is not None:
+                    await self.attach_image_text(obs, msg, display_name=name, language=spoken)
                 yield obs
 
     async def attach_voice_text(self, obs: Observation, msg: dict[str, Any], *, display_name: str | None,
@@ -140,7 +146,8 @@ class TelegramAdapter:
         the agent gets a note it can relay instead."""
         voice = msg["voice"]
         duration = int(voice.get("duration") or 0)
-        control: dict[str, Any] = {"message_id": msg.get("message_id"), "display_name": display_name}
+        control: dict[str, Any] = {"message_id": msg.get("message_id"), "display_name": display_name,
+                                   "reply_to": reply_context(msg)}
         note: dict[str, Any] = {"duration_s": duration, "file_id": voice.get("file_id")}
         try:
             if self._transcriber is None:
@@ -160,6 +167,52 @@ class TelegramAdapter:
             control["text"] = voice_failed_text(duration, str(e))
             log.warning("telegram.voice_failed", chat=obs.thread_key, duration_s=duration, error=str(e))
         obs.payload = {**obs.payload, "control": control, "voice": note}
+
+    @staticmethod
+    def image_of(msg: dict[str, Any]) -> dict[str, Any] | None:
+        """The image in a message: the largest size of a `photo`, or a `document` whose MIME type is an image
+        (a picture sent "as file"). {file_id, file_size, mime_type} or None."""
+        sizes = msg.get("photo")
+        if isinstance(sizes, list) and sizes:
+            best = max(sizes, key=lambda p: (p.get("file_size") or 0, (p.get("width") or 0) * (p.get("height") or 0)))
+            return {"file_id": best.get("file_id"), "file_size": best.get("file_size"), "mime_type": "image/jpeg"}
+        doc = msg.get("document") or {}
+        if str(doc.get("mime_type") or "").startswith("image/"):
+            return {"file_id": doc.get("file_id"), "file_size": doc.get("file_size"), "mime_type": doc.get("mime_type")}
+        return None
+
+    async def attach_image_text(self, obs: Observation, msg: dict[str, Any], *, display_name: str | None,
+                                language: str | None) -> None:
+        """A photo becomes text before anyone downstream sees it, like a voice note: payload['control'] carries the
+        caption plus a bracketed automatic description, payload['image'] what happened. A failure never drops the
+        message; the agent gets a note it can relay."""
+        image = self.image_of(msg) or {}
+        caption = msg.get("caption")
+        control: dict[str, Any] = {"message_id": msg.get("message_id"), "display_name": display_name,
+                                   "reply_to": reply_context(msg)}
+        note: dict[str, Any] = {"file_id": image.get("file_id"), "mime_type": image.get("mime_type"),
+                                "file_size": image.get("file_size")}
+        try:
+            if self._describer is None:
+                raise RuntimeError("no vision model configured")
+            fmt = image_format(image.get("mime_type"))
+            if fmt is None:
+                raise ValueError(f"unsupported image type {image.get('mime_type')}")
+            if (image.get("file_size") or 0) > MAX_IMAGE_BYTES:
+                raise ValueError("larger than the model takes (3.7 MB)")
+            data = await self.download_file(str(image["file_id"]))
+            if len(data) > MAX_IMAGE_BYTES:
+                raise ValueError("larger than the model takes (3.7 MB)")
+            d = await self._describer.describe(data, fmt=fmt, language=language, caption=caption)
+            note.update(took_ms=d.took_ms, chars=len(d.text))
+            control["text"] = photo_text(d.text, caption)
+            log.info("telegram.photo_described", chat=obs.thread_key, bytes=len(data), format=fmt, ms=d.took_ms,
+                     chars=len(d.text))
+        except Exception as e:  # noqa: BLE001 - the message must still reach the agent
+            note["error"] = str(e)
+            control["text"] = photo_failed_text(str(e), caption)
+            log.warning("telegram.photo_failed", chat=obs.thread_key, error=str(e))
+        obs.payload = {**obs.payload, "control": control, "image": note}
 
     async def download_file(self, file_id: str) -> bytes:
         """getFile, then the file endpoint (a different URL prefix than the bot methods). Bot API serves up to 20 MB."""

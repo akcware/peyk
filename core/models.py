@@ -64,6 +64,7 @@ class ControlEvent(BaseModel):
     callback_id: str | None = None       # channel handle to acknowledge the tap
     message_id: int | str | None = None  # the channel message the tap belongs to
     display_name: str | None = None
+    reply_to: str | None = None          # the quoted message when the person tapped reply, as a bracketed line
 
 
 class Person(BaseModel):
