@@ -117,7 +117,7 @@ Chat tools and the intents they produce:
 | `set_profile`, `confirm_learned` | save what the person told or confirmed | `ProfileUpdate`, `LearnConfirm` |
 | `search_documents`, `read_document` | find and read Notion pages, Drive files, Google Docs | — |
 | `create_document` | create a page or doc in the person's own workspace | `DocumentCreate` → created immediately, link sent |
-| `find_events`, `find_free_time` | read the person's Google Calendar: a window's events, free and busy time | `CalendarQuery` → resolved in the round loop |
+| `find_events`, `find_free_time` | read the person's Google Calendar: a window's events, free and busy time, told on the clock of where the person is now (set_profile moves it within the turn) | `CalendarQuery` → resolved in the round loop |
 | `create_event`, `update_event`, `cancel_event`, `respond_to_invite` | write to the primary calendar | `CalendarWrite` → a private event is written at once, link sent; anything that notifies other people becomes an approval card |
 | `web_search`, `open_web_page` | the public web (DuckDuckGo, no key; Tavily optional) and a page's text, for questions about the world | `WebQuery` → resolved in the round loop, never persisted |
 | `delete_my_data` | start account deletion | `DeleteAccountRequest` → two confirmations |

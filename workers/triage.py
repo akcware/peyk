@@ -172,7 +172,7 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
     user = await user_repo.get(conn, obs.user_id) or {}
     observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload,
                    "user": {"profile": user.get("profile") or "", "language": user.get("language") or "", "display_name": user.get("display_name"),
-                            "emails": user_repo.own_emails(user)}}
+                            "emails": user_repo.own_emails(user), "timezone": user.get("timezone") or ""}}
     result, meta = await agent.triage(observation, ctx)
     await budget_repo.insert_triage(conn, obs.id, urgency=result.urgency, category=result.category, reason=result.reason,
                                     summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))

@@ -9,6 +9,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import psycopg
 
@@ -33,6 +34,35 @@ STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, res
 BUBBLE_MARK = re.compile(r"^\s*(?:---|\*\*\*|___)\s*$", re.MULTILINE)   # the agent's "new bubble here" line
 MAX_BUBBLES = 3
 CONTEXT_SKIP_KINDS = ("tick", "event_snapshot")   # scheduler ticks and calendar baselines are state, not things that happened
+TIME_KEYS = ("start_time", "was_start")          # calendar times the chat agent may say out loud
+
+
+def zone_of(name: Any) -> ZoneInfo | None:
+    """An IANA zone a person can be in (Europe/Istanbul); None for a country, an offset or garbage ("Turkey", "UTC+3")."""
+    if not name or not isinstance(name, str) or ("/" not in name and name != "UTC"):
+        return None
+    try:
+        return ZoneInfo(name)
+    except (ValueError, KeyError):
+        return None
+
+
+def local_times(d: dict[str, Any], tz: str | None) -> dict[str, Any]:
+    """The calendar times of a compact observation as the person's clock shows them now (a traveller's, too)."""
+    zone = zone_of(tz)
+    if zone is None:
+        return d
+    out = dict(d)
+    for k in TIME_KEYS:
+        v = out.get(k)
+        if isinstance(v, str) and len(v) > 10:
+            try:
+                dt = datetime.fromisoformat(v)
+            except ValueError:
+                continue
+            if dt.tzinfo:
+                out[k] = dt.astimezone(zone).isoformat()
+    return out
 
 
 def split_bubbles(text: str) -> list[str]:
@@ -96,7 +126,7 @@ async def build_history(conn: psycopg.AsyncConnection, obs: Observation, *, turn
     return list(reversed(out))
 
 
-def compact(obs: Observation, urgency: int | None = None) -> dict[str, Any]:
+def compact(obs: Observation, urgency: int | None = None, tz: str | None = None) -> dict[str, Any]:
     p = obs.payload
     d = {"id": str(obs.id), "source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(),
          "thread_key": obs.thread_key}
@@ -108,11 +138,11 @@ def compact(obs: Observation, urgency: int | None = None) -> dict[str, Any]:
         d["snippet"] = html.unescape(str(snippet))[:240]
     if urgency is not None:
         d["urgency"] = urgency
-    return d
+    return local_times(d, tz)
 
 
 async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, settings: Settings, *, since: datetime,
-                              limit: int = RECENT_LIMIT, query: str | None = None) -> list[dict[str, Any]]:
+                              limit: int = RECENT_LIMIT, query: str | None = None, tz: str | None = None) -> list[dict[str, Any]]:
     if query:
         terms = [t for t in query.lower().split() if t]
         clauses = " and ".join("payload::text ilike %s" for _ in terms)
@@ -134,7 +164,7 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
     notified = {r["observation_id"]: r["sent_at"] for r in await cur.fetchall()}
     out = []
     for o in rows:
-        d = compact(o, tri[o.id]["urgency"] if o.id in tri else None)
+        d = compact(o, tri[o.id]["urgency"] if o.id in tri else None, tz=tz)
         if o.id in tri and tri[o.id]["summary"]:
             d["summary"] = tri[o.id]["summary"]
         if o.id in notified:
@@ -220,6 +250,9 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                 continue
             if kind == "ProfileUpdate":
                 fields = {k: (it.get(k) or "").strip() or None for k in ("profile", "language", "timezone", "display_name")}
+                if fields["timezone"] and zone_of(fields["timezone"]) is None:   # a country or an offset breaks every clock after it
+                    log.warning("chat.bad_timezone", timezone=fields["timezone"])
+                    fields["timezone"] = None
                 await user_repo.update(conn, obs.user_id, **fields)
                 if fields.get("language") and notifier is not None and hasattr(notifier, "language"):
                     notifier.language = fields["language"]      # buttons and fixed texts follow the switch at once
@@ -329,21 +362,17 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     text = chat_text(obs)
     if user is None:
         user, state = await user_payload(conn, obs, registry)
+    tz = (user or {}).get("timezone") or settings.TIMEZONE      # where the person is now (set_profile moves it)
     history = await build_history(conn, obs)
-    recent = await recent_observations(conn, obs.user_id, settings, since=now - timedelta(hours=RECENT_HOURS))
+    recent = await recent_observations(conn, obs.user_id, settings, since=now - timedelta(hours=RECENT_HOURS), tz=tz)
     try:
         hits = await memory_repo.search(conn, obs.user_id, await embedder.embed(text), k=5)
         memory_hits = [{"text": h["text"], "score": float(h["score"])} for h in hits]
     except Exception as e:  # noqa: BLE001
         log.warning("chat.memory_search_failed", error=str(e))
         memory_hits = []
-    tz = (user or {}).get("timezone") or settings.TIMEZONE
-    try:
-        from zoneinfo import ZoneInfo
-
-        now_local = now.astimezone(ZoneInfo(tz))
-    except Exception:  # noqa: BLE001
-        now_local = now.astimezone()
+    zone = zone_of(tz)
+    now_local = now.astimezone(zone) if zone is not None else now.astimezone()
     payload = {"message": text, "history": history, "recent_observations": recent, "memory_hits": memory_hits,
                "now_iso": now_local.isoformat(), "timezone": tz, "user": user or {}, "user_state": state or {}}
     if mode:
@@ -360,11 +389,17 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     for round_no in range(1, MAX_DOC_ROUNDS + 1):
         out = await agent.chat(payload)
         reply, intents = out["reply"], out["intents"]
+        moved_to = next((str(i["timezone"]) for i in intents if i.get("intent") == "ProfileUpdate" and zone_of(i.get("timezone"))), None)
+        if moved_to and moved_to != tz:   # the person said where they are: later rounds read and tell times in that zone
+            tz = moved_to
+            payload.update(timezone=tz, now_iso=now.astimezone(ZoneInfo(tz)).isoformat(), user={**(payload.get("user") or {}), "timezone": tz},
+                           recent_observations=[local_times(r, tz) for r in payload["recent_observations"]])
+            log.info("chat.timezone_moved", round=round_no, timezone=tz)
         lookups = [i for i in intents if i.get("intent") == "FindContact"]
         need = [i for i in intents if i.get("intent") == "NeedMore"]
         docq = [i for i in intents if i.get("intent") == "DocumentQuery"]
         webq = [i for i in intents if i.get("intent") == "WebQuery"]
-        calq = [i for i in intents if i.get("intent") == "CalendarQuery"]
+        calq = list({str(i.get("key")): i for i in intents if i.get("intent") == "CalendarQuery"}.values())   # asked twice, read once
         if not need and not lookups and not docq and not webq and not calq:
             break
         if (need or lookups) and data_rounds >= MAX_ROUNDS - 1:
@@ -417,7 +452,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
                 continue
         q = need[0]
         more = await recent_observations(conn, obs.user_id, settings, since=now - timedelta(days=int(q.get("since_days") or 7)),
-                                         query=q.get("query"))
+                                         query=q.get("query"), tz=tz)
         fresh = [m for m in more if m["id"] not in seen_ids]
         seen_ids |= {m["id"] for m in fresh}
         payload["recent_observations"] = fresh + payload["recent_observations"]

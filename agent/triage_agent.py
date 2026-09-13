@@ -6,8 +6,10 @@ event or a WhatsApp message goes through the same template (phase 5 gate)."""
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from functools import lru_cache
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from strands import Agent
 
@@ -34,6 +36,8 @@ Rules:
 - Marketing that pretends to be urgent ("last chance!") is 1.
 - Never rate above 3 unless there is a concrete reason in the text (deadline, question, money, meeting time).
 - Rate 5 only when waiting an hour would have a real cost.
+- Timestamps in the event fields (start_time, was_start, ...) are already in the person's current time zone: say
+  clock times exactly as they appear there.
 - A calendar change carries `change`: invited (someone invited the person), moved (the organizer changed the
   time; was_start is the old start), changed (a new title or place), cancelled, guest_answered (a guest answered
   the person's own invitation; answer says how). A change to something today or tomorrow is 4, a later one 3; a
@@ -47,13 +51,31 @@ Rules:
   Example (English): Mara (client) reminds you invoice #2041 is due Friday; no reply needed."""
 
 
-def render_observation(payload: dict[str, Any], *, max_text: int = 1200) -> str:
-    """Generic key/value rendering. No per-source template — see phase 5."""
+def _zone(name: Any) -> ZoneInfo | None:
+    try:
+        return ZoneInfo(str(name)) if name else None
+    except (ValueError, KeyError):
+        return None
+
+
+def _in_zone(text: str, zone: ZoneInfo | None) -> str:
+    """An ISO timestamp with an offset, shown on the person's clock; anything else unchanged."""
+    if zone is None or len(text) <= 10 or "T" not in text:
+        return text
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return text
+    return dt.astimezone(zone).isoformat() if dt.tzinfo else text
+
+
+def render_observation(payload: dict[str, Any], *, max_text: int = 1200, zone: ZoneInfo | None = None) -> str:
+    """Generic key/value rendering. No per-source template — see phase 5. Timestamps are shown in `zone`."""
     lines: list[str] = []
     for key, value in payload.items():
         if value in (None, "", [], {}):
             continue
-        text = ", ".join(map(str, value)) if isinstance(value, list) else str(value)
+        text = ", ".join(map(str, value)) if isinstance(value, list) else _in_zone(str(value), zone)
         text = text.replace("\r", "").strip()
         if len(text) > max_text:
             text = text[:max_text] + " …[truncated]"
@@ -67,14 +89,12 @@ def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | 
     occurred = observation.get("occurred_at", "")
     ctx = sender_context or {}
     ctx_lines = [f"{k}: {v}" for k, v in ctx.items() if v not in (None, "", [])]
-    parts = [
-        f"source: {src}",
-        f"kind: {kind}",
-        f"occurred_at: {occurred}",
-        "",
-        "--- event ---",
-        render_observation(observation.get("payload") or {}),
-    ]
+    tz = str((observation.get("user") or {}).get("timezone") or "")
+    zone = _zone(tz)
+    parts = [f"source: {src}", f"kind: {kind}", f"occurred_at: {_in_zone(str(occurred), zone)}"]
+    if zone is not None:
+        parts.append(f"the person's time zone now: {tz} (every timestamp below is shown in it)")
+    parts += ["", "--- event ---", render_observation(observation.get("payload") or {}, zone=zone)]
     if ctx_lines:
         parts += ["", "--- sender context ---", *ctx_lines]
     parts += ["", "Return the triage result."]

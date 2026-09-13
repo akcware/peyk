@@ -15,7 +15,7 @@ from agent.client import AgentClient
 from agent.schemas import TriageResult
 from core.adapter import AdapterRegistry
 from core.models import Observation
-from core.repo import observation_repo, user_repo
+from core.repo import budget_repo, observation_repo, user_repo
 from tests.phase1.test_worker_flow import FakeTelegram
 from workers import calendar_sync, chat, pretriage, triage
 
@@ -236,3 +236,30 @@ async def test_calendar_setup_once_idempotent_and_kept_out_of_chat(conn, setting
     moved = await observation_repo.insert(conn, obs_of(uid, change(start_time="2026-09-15T14:00:00+02:00", end_time="2026-09-15T15:00:00+02:00")))
     verdict = await pretriage.review(conn, moved, NOW)
     assert verdict.news and verdict.obs.payload["change"] == "moved" and verdict.obs.payload["was_start"] == "2026-09-15T12:00:00+02:00"
+
+
+async def test_calendar_news_shares_the_daily_quota_with_mail(conn, settings):
+    """What passes pretriage is gated like mail: one rolling daily quota for both, the reserve kept for urgency 5."""
+    user = await user_repo.create(conn, control_source="telegram", control_thread_key="903")
+    uid = user["id"]
+    await user_repo.add_own_email(conn, uid, ME)
+    tg = FakeTelegram()
+    notifier = triage.Notifier(tg, "903", uid)
+    normal, _ = triage_agent(4)
+    urgent, _ = triage_agent(5)
+
+    async def gate_reason(o: Observation, agent=normal) -> str | None:
+        stored = await observation_repo.insert(conn, o)
+        await triage.handle(stored, settings=settings, agent=agent, notifier=notifier)
+        return ((await budget_repo.get_triage(conn, stored.id)) or {}).get("gate_reason")
+
+    # defaults: 5 in 24 h, the last 2 kept for urgency 5 -> three ordinary notifications, whatever their source
+    assert await gate_reason(mail(uid, "q1", "Invoice 1")) == "ok"
+    assert await gate_reason(obs_of(uid, change(event_id="q-inv", event_type="created"))) == "ok"          # an invite takes a slot
+    assert await gate_reason(mail(uid, "q2", "Invoice 2")) == "ok"
+    assert await gate_reason(mail(uid, "q3", "Invoice 3")) == "quota_exhausted"                           # ...so this mail waits
+    assert await gate_reason(obs_of(uid, change(event_id="q-gone", summary="Retro", event_type="deleted", status="cancelled"))) == "quota_exhausted"
+    assert await gate_reason(obs_of(uid, change(event_id="q-new", summary="Board", event_type="created")), agent=urgent) == "urgency_bypass"
+    # the person's own edits never reach the gate, so they cost nothing
+    assert await gate_reason(obs_of(uid, change(event_id="q-own", event_type="created", organizer_email=ME, attendees=[]))) is None
+    assert len(tg.sent) == 4

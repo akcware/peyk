@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from strands import Agent, tool
 
@@ -90,6 +91,14 @@ long-term memory. Rules:
   deadline, a decision, what it says), do not stop at titles: pick the best-matching result and call
   read_document, then answer from the text. To write something for the person (notes, a summary, a plan) call
   create_document; say a draft is ready for approval, never that it was created.
+- Time zones: Now is in the person's CURRENT time zone, and the calendar tools read and write in it. Their
+  calendar may be kept in another zone (home, where they live): say every time as the tools give it, never the
+  calendar's own offset. When the person says where they are or that they are travelling ("Türkiye'deyim", "this
+  week I'm in London"), call set_profile with that place's IANA zone (Europe/Istanbul, Europe/London) in the same
+  turn, before you look at or write the calendar. When a clock time matters (a meeting, "am I free at 3", a
+  reminder) and you have a reason to doubt where they are now (they mentioned a trip or a flight, a mail shows
+  travel, a time they mention does not fit Now) but nothing tells you for sure, ask one short question first
+  instead of guessing ("Hâlâ Türkiye'de misin? Saati ona göre ayarlayayım."). With no such reason, use Now.
 - Calendar: for their schedule ("yarın ne var", "am I free at 3", "Ekin'le ne zaman görüşüyorum") call
   find_events, or find_free_time to find an open slot, with a window in their timezone (see Now).
   search_observations only holds events that already pinged them. Both work in rounds like documents. If Google
@@ -229,6 +238,17 @@ def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
     return {"needs_work": ack.needs_work, "message": ack.message.strip()}
 
 
+def valid_zone(name: Any) -> bool:
+    """An IANA zone name zoneinfo knows (Europe/Istanbul), not a country or an offset ("Turkey", "UTC+3")."""
+    if not name or not isinstance(name, str):
+        return False
+    try:
+        ZoneInfo(name)
+    except (ValueError, KeyError):
+        return False
+    return "/" in name or name == "UTC"
+
+
 def _match(obs: dict[str, Any], query: str, source: str | None) -> bool:
     if source and obs.get("source") != source:
         return False
@@ -243,7 +263,9 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     documents: dict[str, Any] = ctx.get("documents") or {}      # {"search": {query: [...]}, "read": {"svc:id": {...}}}
     web: dict[str, Any] = ctx.get("web") or {}                  # {"enabled": bool, "search": {q: [...]}, "open": {url: {...}}}
     calendar: dict[str, Any] = ctx.get("calendar") or {}        # {"events": {key: [...]}, "free": {key: {...}}}
-    tz = str(ctx.get("timezone") or (ctx.get("user") or {}).get("timezone") or "UTC")
+    # The person's CURRENT time zone. set_profile(timezone=...) in this same turn moves it: a traveller who says where
+    # they are gets their calendar read, written and told in that zone right away.
+    zone = {"tz": str(ctx.get("timezone") or (ctx.get("user") or {}).get("timezone") or "UTC")}
     calendar_on = "googlecalendar" in ((ctx.get("user_state") or {}).get("connected") or [])
     not_connected = {"error": "Google Calendar is not connected; offer to connect it (connect_service) instead of guessing"}
 
@@ -255,6 +277,19 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
             return None
         except (TypeError, ValueError):
             return {"error": f"{name} must be ISO-8601 with offset, e.g. 2026-09-14T12:00:00+02:00"}
+
+    def _in_zone(value: Any) -> Any:
+        """An ISO time as the person's clock shows it now; dates (all-day) and anything else unchanged."""
+        if not isinstance(value, str) or len(value) <= 10:
+            return value
+        try:
+            dt = datetime.fromisoformat(value)
+            return dt.astimezone(ZoneInfo(zone["tz"])).isoformat() if dt.tzinfo else value
+        except (ValueError, KeyError):   # ZoneInfoNotFoundError is a KeyError
+            return value
+
+    def _local_times(items: list) -> list:
+        return [{**i, "start": _in_zone(i.get("start")), "end": _in_zone(i.get("end"))} for i in items if isinstance(i, dict)]
 
     def _known_event(event_id: str) -> dict[str, Any] | None:
         for found in (calendar.get("events") or {}).values():
@@ -277,7 +312,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return True
 
     def _write(event: dict[str, Any]) -> dict:
-        event = {"intent": "CalendarWrite", "timezone": tz, **event}
+        event = {"intent": "CalendarWrite", "timezone": zone["tz"], **event}
         intents.append(event)
         if _confirm(event):
             return {"status": "a confirm card follows your reply", "note": "say it is ready for their tap; nothing happens before it"}
@@ -385,17 +420,25 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     @tool
     def set_profile(profile: str = "", language: str = "", timezone: str = "", display_name: str = "") -> dict:
         """Save what you learned about the person: a short profile (who they are, what is urgent for them),
-        their language (ISO code like tr, en, de), IANA timezone (e.g. Europe/Berlin) and how to address them.
+        their language (ISO code like tr, en, de), the IANA time zone of where they are NOW and how to address them.
+        Call it with timezone as soon as they say where they are, also while travelling; times you read or write
+        afterwards in this turn use it.
 
         Args:
             profile: 1-3 sentences, third person
             language: ISO 639-1 code
-            timezone: IANA timezone name
+            timezone: IANA zone of their current location, e.g. Europe/Istanbul while in Turkey, Europe/Berlin at home
             display_name: how to address the person
         """
+        note: dict[str, Any] = {}
+        if timezone and not valid_zone(timezone):
+            note = {"timezone_error": f"{timezone!r} is not an IANA zone name; use one like Europe/Istanbul"}
+            timezone = ""
+        if timezone:
+            zone["tz"] = timezone
         intents.append({"intent": "ProfileUpdate", "profile": profile, "language": language, "timezone": timezone,
                         "display_name": display_name})
-        return {"saved": True}
+        return {"saved": True, **note}
 
     @tool
     def search_documents(query: str, service: str = "") -> dict:
@@ -446,7 +489,8 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     def find_events(start_iso: str, end_iso: str, query: str = "") -> dict:
         """Read the person's Google Calendar: the events between two moments, e.g. their day tomorrow, what is
         planned with someone this week, or whether a time is taken. Works in rounds like documents: a call may
-        return a note and you are re-run with the events. Each event has an id for update/cancel/answer.
+        return a note and you are re-run with the events. Each event has an id for update/cancel/answer. Times come
+        back in the person's current time zone (the one in Now), whatever zone the calendar itself is kept in.
 
         Args:
             start_iso: window start, ISO-8601 with offset in the person's timezone (see Now), e.g. 2026-09-14T00:00:00+02:00
@@ -461,14 +505,15 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         key = f"{start_iso}|{end_iso}|{' '.join(query.lower().split())}"
         cached = (calendar.get("events") or {}).get(key)
         if cached is not None:
-            return {"events": cached} if isinstance(cached, list) else cached
+            return {"timezone": zone["tz"], "events": _local_times(cached)} if isinstance(cached, list) else cached
         intents.append({"intent": "CalendarQuery", "op": "events", "start": start_iso, "end": end_iso, "query": query, "key": key})
         return {"events": [], "note": "reading the calendar; you will be re-run with the events"}
 
     @tool
     def find_free_time(start_iso: str, end_iso: str) -> dict:
         """Free and busy stretches in the person's Google Calendar between two moments (e.g. tomorrow 09:00-18:00),
-        to suggest a time that works. Works in rounds like documents.
+        to suggest a time that works. Works in rounds like documents. Times come back in the person's current
+        time zone.
 
         Args:
             start_iso: window start, ISO-8601 with offset in the person's timezone
@@ -482,6 +527,8 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         key = f"{start_iso}|{end_iso}"
         cached = (calendar.get("free") or {}).get(key)
         if cached is not None:
+            if isinstance(cached, dict) and "error" not in cached:
+                return {"timezone": zone["tz"], "free": _local_times(cached.get("free") or []), "busy": _local_times(cached.get("busy") or [])}
             return cached
         intents.append({"intent": "CalendarQuery", "op": "free", "start": start_iso, "end": end_iso, "key": key})
         return {"free": [], "busy": [], "note": "reading the calendar; you will be re-run with the result"}
