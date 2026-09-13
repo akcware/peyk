@@ -82,7 +82,7 @@ async def test_backfill_via_action(settings):
     since = datetime(2026, 9, 1, tzinfo=UTC)
     out = [o async for o in adapter.backfill(conn, since)]
     assert len(calls) == 2 and calls[0]["slug"] == "GMAIL_FETCH_EMAILS"
-    assert calls[0]["args"]["query"] == "after:2026/09/01" and "page_token" not in calls[0]["args"]
+    assert calls[0]["args"]["query"] == f"after:{int(since.timestamp())}" and "page_token" not in calls[0]["args"]
     assert calls[1]["args"]["page_token"] == "page-2-token"
     assert [o.source_key for o in out] == ["19b1170000000001", "19b1170000000002", "19b1170000000003"]
     assert out[2].thread_key == "19b1170000000001"

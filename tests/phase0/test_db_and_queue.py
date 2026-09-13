@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
@@ -86,3 +87,26 @@ async def test_backfill_separate_queue(conn):
     await queue.complete(conn, live.id)
     assert (await observation_repo.get(conn, live.id)).status == "done"
     assert (await observation_repo.get(conn, old.id)).received_at - old.occurred_at > timedelta(hours=1)
+
+
+async def test_claim_skips_busy_people(conn):
+    other = UUID("00000000-0000-4000-8000-000000000002")
+    for key in ("mine-1", "mine-2"):
+        await observation_repo.insert(conn, _obs(key))
+    await observation_repo.insert(conn, _obs("theirs", user_id=other))
+    mine = await queue.claim_next(conn, None, exclude_users=[other])
+    assert mine.user_id == USER_ID
+    theirs = await queue.claim_next(conn, None, exclude_users=[USER_ID])      # I am busy: the other person is served
+    assert theirs.source_key == "theirs"
+    assert await queue.claim_next(conn, None, exclude_users=[USER_ID, other]) is None
+    rest = await queue.claim_next(conn, None)
+    assert rest.user_id == USER_ID and rest.id != mine.id
+
+
+async def test_touch_keeps_a_long_claim_from_looking_stale(conn):
+    stored = await observation_repo.insert(conn, _obs("long"))
+    await queue.claim_next(conn, USER_ID)
+    await conn.execute("update observation set claimed_at = now() - interval '6 minutes' where id = %s", (stored.id,))
+    await queue.touch(conn, stored.id)
+    assert await queue.recover_stale(conn, USER_ID) == 0
+    assert (await observation_repo.get(conn, stored.id)).status == "claimed"

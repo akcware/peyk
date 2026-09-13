@@ -3,7 +3,7 @@
 - connect():   checks a Gmail connected account exists for COMPOSIO_USER_ID; prints the dashboard hint if not.
 - subscribe(): COMPOSIO_DELIVERY=ws -> triggers.subscribe() (Pusher websocket, thread -> asyncio.Queue).
                COMPOSIO_DELIVERY=webhook -> empty iterator; events arrive through gateway/ instead.
-- backfill():  GMAIL_FETCH_EMAILS(query="after:YYYY/MM/DD") paged; is_backfill flag is a parameter so
+- backfill():  GMAIL_FETCH_EMAILS(query="after:<epoch seconds>") paged; is_backfill flag is a parameter so
                phase-2 reconcile can reuse it with is_backfill=False.
 - send():      phase 4.
 """
@@ -271,7 +271,9 @@ class ComposioAdapter:
         page_token: str | None = None
         while True:
             args: dict[str, Any] = {
-                "query": f"after:{since:%Y/%m/%d}",
+                # epoch seconds: a date means "since midnight", so every reconcile refetched the whole day and the
+                # first one after connecting replayed it as fresh mail
+                "query": f"after:{int(since.timestamp())}",
                 "max_results": self._page_size,
                 "verbose": False,
                 "include_payload": False,

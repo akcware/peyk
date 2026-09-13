@@ -28,6 +28,11 @@ async def get_triage(conn: psycopg.AsyncConnection, observation_id: UUID) -> dic
     return await cur.fetchone()
 
 
+async def set_gate_reason(conn: psycopg.AsyncConnection, observation_id: UUID, reason: str) -> None:
+    """What the gate decided for a triaged observation (a workers/gate.py Reason)."""
+    await conn.execute("update triage set gate_reason = %s where observation_id = %s", (reason, observation_id))
+
+
 async def insert_sent(
     conn: psycopg.AsyncConnection, user_id: UUID, observation_id: UUID | None, *, thread_key: str | None,
     urgency: int | None, tg_message_id: int | None,

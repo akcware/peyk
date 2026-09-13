@@ -167,6 +167,7 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
                                     summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
     state = await gate_state.load(conn, obs, now)
     decision = gate.decide(obs, result, state)
+    await budget_repo.set_gate_reason(conn, obs.id, decision.reason)
     log.info("triage.decided", observation_id=str(obs.id), urgency=result.urgency, category=result.category,
              notify=decision.notify, reason=decision.reason, latency_ms=meta.get("latency_ms"))
     if decision.notify:
@@ -243,6 +244,9 @@ async def record_own_message(conn, obs: Observation) -> None:
 
 
 _user_locks: dict[UUID, asyncio.Lock] = {}
+_busy: set[UUID] = set()          # people with a turn in progress in this process
+_claim_lock = asyncio.Lock()
+HEARTBEAT_S = 60.0
 
 
 def _lock_for(user_id: UUID) -> asyncio.Lock:
@@ -252,8 +256,32 @@ def _lock_for(user_id: UUID) -> asyncio.Lock:
     return lock
 
 
+async def claim_for_consumer() -> Observation | None:
+    """Claims the oldest observation of someone without a turn in progress and marks them busy. A busy person's next
+    message stays `new` (their next turn can merge it) instead of parking a consumer on their lock — three consumers
+    waiting on one person once left everybody else unserved for minutes."""
+    async with _claim_lock:
+        async with db.connection() as conn:
+            obs = await queue.claim_next(conn, None, exclude_users=tuple(_busy))
+        if obs is not None:
+            _busy.add(obs.user_id)
+        return obs
+
+
+async def _heartbeat(obs_id: UUID) -> None:
+    """Keeps claimed_at fresh while a long turn runs, so recover_stale() never hands it to a second consumer."""
+    while True:
+        await asyncio.sleep(HEARTBEAT_S)
+        try:
+            async with db.connection() as conn:
+                await queue.touch(conn, obs_id)
+        except Exception as e:  # noqa: BLE001 - a missed beat only makes a recovery possible
+            log.warning("triage.heartbeat_failed", observation_id=str(obs_id), error=str(e))
+
+
 async def _consume_one(obs: Observation, *, settings, agent, notifier, tick_ctx, embedder, approval, notifiers) -> None:
     slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
+    beat = asyncio.create_task(_heartbeat(obs.id), name=f"heartbeat:{obs.id}")
     try:
         async with _lock_for(obs.user_id):     # one turn at a time per person; other people are not blocked
             await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
@@ -268,21 +296,24 @@ async def _consume_one(obs: Observation, *, settings, agent, notifier, tick_ctx,
             status = await queue.fail(conn, obs.id)
         slog.error("triage.failed", error=str(e), status=status, attempts=obs.attempts)
         await asyncio.sleep(min(2 ** obs.attempts, 30))
+    finally:
+        beat.cancel()
+        _busy.discard(obs.user_id)
 
 
 async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier | None = None, idle_sleep: float = 1.0,
               tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None, notifiers=None,
               concurrency: int | None = None) -> None:
-    """N consumers share the queue (FOR UPDATE SKIP LOCKED); a per-user lock keeps each person's turns in order,
-    so one slow turn (a throttled model call, a long document) never stalls everyone else."""
+    """N consumers share the queue (FOR UPDATE SKIP LOCKED). A consumer only claims work of people with no turn in
+    progress, so each person's turns stay in order and one slow turn (a throttled model call, a long document) never
+    stalls everyone else."""
     n = max(1, int(concurrency or getattr(settings, "WORKER_CONCURRENCY", 3)))
 
     async def consumer(idx: int) -> None:
         while True:
             if idx == 0:
                 health.beat("triage")
-            async with db.connection() as conn:
-                obs = await queue.claim_next(conn, None)   # all users
+            obs = await claim_for_consumer()
             if obs is None:
                 await asyncio.sleep(idle_sleep)
                 continue

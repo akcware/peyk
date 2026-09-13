@@ -59,7 +59,7 @@ async def test_triage_worker_notifies_and_records(conn, settings):
     await triage.handle(stored, settings=settings, agent=fake_agent(4), notifier=notifier)
 
     row = await budget_repo.get_triage(conn, stored.id)
-    assert row["urgency"] == 4 and row["model_id"] == "fake-model" and row["latency_ms"] == 1
+    assert row["urgency"] == 4 and row["model_id"] == "fake-model" and row["latency_ms"] == 1 and row["gate_reason"] == "ok"
     assert len(tg.sent) == 1 and tg.sent[0]["chat"] == "777"
     assert "subject a" in tg.sent[0]["text"] and "❗" in tg.sent[0]["text"]
     buttons = tg.sent[0]["markup"]["inline_keyboard"][0]
@@ -80,7 +80,8 @@ async def test_triage_worker_silent_when_gate_blocks(conn, settings):
     stored = await observation_repo.insert(conn, gmail_obs("low"))
     await triage.handle(stored, settings=settings, agent=fake_agent(2, "newsletter"), notifier=notifier)
     assert tg.sent == []
-    assert (await budget_repo.get_triage(conn, stored.id))["urgency"] == 2   # triage recorded anyway
+    row = await budget_repo.get_triage(conn, stored.id)
+    assert row["urgency"] == 2 and row["gate_reason"] == "below_threshold"   # triage and the gate's reason recorded anyway
     cur = await conn.execute("select count(*) as n from sent_notification")
     assert (await cur.fetchone())["n"] == 0
 

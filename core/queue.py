@@ -1,6 +1,7 @@
 """Queue = observation.status + claimed_at + attempts. Postgres FOR UPDATE SKIP LOCKED, no broker."""
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import timedelta
 from uuid import UUID
 
@@ -17,16 +18,21 @@ _RETURNING = (
 )
 
 
-async def _claim(conn: psycopg.AsyncConnection, user_id: UUID | None, is_backfill: bool) -> Observation | None:
+async def _claim(conn: psycopg.AsyncConnection, user_id: UUID | None, is_backfill: bool,
+                 exclude_users: Collection[UUID] = ()) -> Observation | None:
     user_clause = "user_id = %s and " if user_id is not None else ""
-    params: tuple = (user_id, is_backfill) if user_id is not None else (is_backfill,)
+    busy_clause = "user_id <> all(%s) and " if exclude_users else ""
+    params: list = [user_id] if user_id is not None else []
+    if exclude_users:
+        params.append(list(exclude_users))
+    params.append(is_backfill)
     async with conn.transaction():
         cur = await conn.execute(
             f"""
             update observation set status = 'claimed', claimed_at = now(), attempts = attempts + 1
             where id = (
               select id from observation
-              where {user_clause}status = 'new' and is_backfill = %s
+              where {user_clause}{busy_clause}status = 'new' and is_backfill = %s
               order by received_at
               for update skip locked
               limit 1
@@ -39,9 +45,11 @@ async def _claim(conn: psycopg.AsyncConnection, user_id: UUID | None, is_backfil
     return Observation(**row) if row else None
 
 
-async def claim_next(conn: psycopg.AsyncConnection, user_id: UUID | None = None) -> Observation | None:
-    """Live queue: is_backfill = false. user_id=None claims across all users."""
-    return await _claim(conn, user_id, False)
+async def claim_next(conn: psycopg.AsyncConnection, user_id: UUID | None = None, *,
+                     exclude_users: Collection[UUID] = ()) -> Observation | None:
+    """Live queue: is_backfill = false. user_id=None claims across all users; `exclude_users` are people whose turn
+    is already in progress (their next observation waits for it)."""
+    return await _claim(conn, user_id, False, exclude_users)
 
 
 async def claim_next_backfill(conn: psycopg.AsyncConnection, user_id: UUID) -> Observation | None:
@@ -51,6 +59,11 @@ async def claim_next_backfill(conn: psycopg.AsyncConnection, user_id: UUID) -> O
 
 async def complete(conn: psycopg.AsyncConnection, obs_id: UUID) -> None:
     await conn.execute("update observation set status = 'done' where id = %s", (obs_id,))
+
+
+async def touch(conn: psycopg.AsyncConnection, obs_id: UUID) -> None:
+    """Heartbeat of a long turn: a claim that is still being worked on must not look stale to recover_stale()."""
+    await conn.execute("update observation set claimed_at = now() where id = %s and status = 'claimed'", (obs_id,))
 
 
 async def fail(conn: psycopg.AsyncConnection, obs_id: UUID, *, max_attempts: int = MAX_ATTEMPTS) -> str:
