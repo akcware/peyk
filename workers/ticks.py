@@ -13,6 +13,7 @@ from core.adapter import AdapterRegistry
 from core.config import Settings
 from core.log import get_logger
 from core.models import Content, Observation
+from core.phrases import phrase
 from core.repo import cursor_repo, observation_repo, user_repo
 
 log = get_logger("workers.ticks")
@@ -73,10 +74,11 @@ def when_label(at: datetime, now: datetime) -> str:
     return f"{day} {local:%H:%M} ({ago})"
 
 
-def render_brief(items: list[dict], now: datetime) -> str:
+def render_brief(items: list[dict], now: datetime, lang: str | None = None) -> str:
+    """Fallback brief when the agent cannot write one: short, in the person's language, no report headers."""
     if not items:
-        return f"☀️ Morning brief — {now:%a %d %b}\n\nNothing important in the last 24h. Enjoy the quiet."
-    lines = [f"☀️ Morning brief — {now:%a %d %b}", ""]
+        return phrase(lang, "brief_quiet")
+    lines = [phrase(lang, "brief_header"), ""]
     for it in items:
         p = it["payload"]
         who = p.get("from") or p.get("summary") or it["source"]
@@ -84,14 +86,13 @@ def render_brief(items: list[dict], now: datetime) -> str:
         mark = "‼️" if it["urgency"] >= 5 else "❗" if it["urgency"] == 4 else "•"
         lines.append(f"{mark} [{it['source']}] {who} — {subject}")
         lines.append(f"   {it.get('summary') or it['reason']}")
-    lines += ["", f"{len(items)} item(s) with urgency ≥ 3."]
     return "\n".join(lines)
 
 
 def brief_event_text(items: list[dict], now: datetime) -> str:
     """The system event handed to the agent: the important observations of the last 24h, compactly."""
     if not items:
-        return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — give the person a one-line good-morning brief saying it is quiet"
+        return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — say good morning and that it is quiet, one short line, like a text from a friend"
     lines = [(f"it is morning ({now:%a %d %b %H:%M}); write the person's morning brief from these {len(items)} items of the last 24h "
               "(urgency 1-5; each says when it arrived and whether you already told the person about it):")]
     for it in items:
@@ -106,7 +107,9 @@ def brief_event_text(items: list[dict], now: datetime) -> str:
         ("Verification codes, one-time passwords and login/password-setup links expire within minutes: when such an item is older "
          "than an hour, do not tell the person to use it — leave it out, or at most say a fresh one can be requested."),
         "Mail the person already answered is not in this list; what you already told them about is a reminder, not news.",
-        "Group by what needs action today vs. what can wait; 4-8 short lines; no bullets with raw headers; end with one sentence on what you would do first",
+        ("Write it like a short morning text, not a report: no headings, no bold, no bullets, no raw subject lines. "
+         "At most 5 short lines in total. Say first what needs doing today (1-3 lines), then, after a line holding only ---, "
+         "one line on what can wait and one sentence on what you would do first. Skip anything that is neither."),
     ]
     return "\n".join(lines)
 
@@ -115,7 +118,7 @@ async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
     now = local_now(await user_repo.get(conn, obs.user_id), ctx.settings)
     items = await brief_items(conn, obs.user_id, now - timedelta(hours=24))
     notifier = await ctx.notifier_for(conn, obs.user_id)
-    fallback = render_brief(items, now)
+    fallback = render_brief(items, now, getattr(notifier, "language", None))
     if ctx.agent is not None and ctx.embedder is not None:
         from workers import chat
 

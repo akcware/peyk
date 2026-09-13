@@ -20,6 +20,7 @@ from core.config import Settings
 from core.identity import display_name_from_header, normalize_email
 from core.log import get_logger
 from core.models import Content, Observation
+from core.phrases import phrase
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
 from workers import account, chat, commands, contacts, feedback, gate, gate_state, health, ticks
@@ -48,10 +49,11 @@ def strip_md(text: str) -> str:
 class Notifier:
     """Sends gated notifications to the control channel and records them."""
 
-    def __init__(self, adapter: SourceAdapter, chat_id: str, user_id: UUID) -> None:
+    def __init__(self, adapter: SourceAdapter, chat_id: str, user_id: UUID, language: str | None = None) -> None:
         self.adapter = adapter
         self.chat_id = chat_id
         self.user_id = user_id
+        self.language = language          # ISO code of the person; fixed texts (buttons, acks) follow it
         self._conn = None
 
     async def _connection(self):
@@ -75,18 +77,18 @@ class Notifier:
         return f"{head}\n\n{body}"
 
     @staticmethod
-    def buttons(sent_id: UUID) -> dict:
+    def buttons(sent_id: UUID, lang: str | None = None) -> dict:
         return {"inline_keyboard": [[
-            {"text": "👍 useful", "callback_data": f"fb:useful:{sent_id}"},
-            {"text": "👎 noise", "callback_data": f"fb:noise:{sent_id}"},
-            {"text": "🔇 mute thread", "callback_data": f"mute:thread:{sent_id}"},
+            {"text": phrase(lang, "fb_useful"), "callback_data": f"fb:useful:{sent_id}"},
+            {"text": phrase(lang, "fb_noise"), "callback_data": f"fb:noise:{sent_id}"},
+            {"text": phrase(lang, "fb_mute"), "callback_data": f"mute:thread:{sent_id}"},
         ]]}
 
     async def send(self, conn, obs: Observation, triage: TriageResult) -> UUID:
         sent_id = await budget_repo.insert_sent(conn, self.user_id, obs.id, thread_key=obs.thread_key, urgency=triage.urgency, tg_message_id=None)
         handle = await self._connection()
         text = self.render(obs, triage)
-        mid = await self.adapter.send(handle, self.chat_id, Content(text=text, reply_markup=self.buttons(sent_id)))
+        mid = await self.adapter.send(handle, self.chat_id, Content(text=text, reply_markup=self.buttons(sent_id, self.language)))
         await conn.execute("update sent_notification set tg_message_id = %s where id = %s", (int(mid), sent_id))
         # The notification is something *we said* in the control thread: record it so the chat agent knows about it.
         await observation_repo.insert(conn, Observation(
@@ -182,7 +184,7 @@ async def handle_command(conn, obs: Observation, *, settings: Settings, notifier
             return
         await job_repo.create(conn, obs.user_id, run_at=r.run_at, kind="followup", payload={"note": r.note}, created_by="user")
         local = r.run_at.astimezone(ZoneInfo(settings.TIMEZONE))
-        await notifier.send_text(f"⏰ Will remind you at {local:%a %H:%M}: {r.note}")
+        await notifier.send_text(phrase(getattr(notifier, "language", None), "remind_set", when=f"{local:%a %H:%M}", note=r.note))
         return
     await notifier.send_text("Commands: /remind <1h|09:30|tomorrow [09:30]> <note>")
 
@@ -204,7 +206,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
                 elif data.startswith("del:"):
                     text = await account.on_callback(conn, obs.user_id, data, notifier, tick_ctx.registry if tick_ctx else None)
                 else:
-                    text = await feedback.apply(conn, obs)
+                    text = await feedback.apply(conn, obs, getattr(notifier, "language", None))
                 await notifier.ack(obs, text)
             elif commands.is_remind(control_text(obs)):
                 await handle_command(conn, obs, settings=settings, notifier=notifier, now=now)

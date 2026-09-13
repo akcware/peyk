@@ -12,6 +12,7 @@ import psycopg
 
 from core.log import get_logger
 from core.models import Observation
+from core.phrases import phrase
 from core.repo import budget_repo
 from core.routing import callback_data
 
@@ -30,7 +31,7 @@ def parse_callback(data: str | None) -> tuple[str, str, UUID] | None:
         return None
 
 
-async def apply(conn: psycopg.AsyncConnection, obs: Observation) -> str | None:
+async def apply(conn: psycopg.AsyncConnection, obs: Observation, lang: str | None = None) -> str | None:
     """Apply the feedback carried by a callback observation. Returns a short ack text for the user."""
     parsed = parse_callback(callback_data(obs))
     if parsed is None:
@@ -39,14 +40,14 @@ async def apply(conn: psycopg.AsyncConnection, obs: Observation) -> str | None:
     action, arg, sent_id = parsed
     if action == "fb" and arg in ("useful", "noise"):
         ok = await budget_repo.set_feedback(conn, obs.user_id, sent_id, arg)
-        return ("Noted: useful 👍" if arg == "useful" else "Noted: noise 👎") if ok else "Unknown notification"
+        return phrase(lang, "noted_useful" if arg == "useful" else "noted_noise") if ok else phrase(lang, "unknown_notification")
     if action == "mute" and arg == "thread":
         cur = await conn.execute("select thread_key from sent_notification where id = %s and user_id = %s", (sent_id, obs.user_id))
         row = await cur.fetchone()
         if not row or not row["thread_key"]:
-            return "Nothing to mute"
+            return phrase(lang, "nothing_to_mute")
         await budget_repo.add_mute(conn, obs.user_id, "thread", row["thread_key"], until=None)
-        return "Thread muted 🔇"
+        return phrase(lang, "muted")
     log.warning("feedback.unknown_action", action=action, arg=arg)
     return None
 

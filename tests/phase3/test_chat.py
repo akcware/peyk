@@ -338,3 +338,37 @@ def test_profile_never_leaks_from_env(monkeypatch):
     monkeypatch.setenv("USER_PROFILE", "someone else's profile")
     assert "someone else" not in user_profile({"user": {"profile": ""}})
     assert user_profile({"user": {"profile": "Student in Karlsruhe"}}) == "Student in Karlsruhe"
+
+
+def test_split_bubbles():
+    assert chat.split_bubbles("one line") == ["one line"]
+    assert chat.split_bubbles("first\n---\nsecond\n\n---\n\nthird") == ["first", "second", "third"]
+    assert chat.split_bubbles("a\n---\nb\n---\nc\n---\nd") == ["a", "b", "c\n\nd"]          # capped at 3, rest folded
+    assert chat.split_bubbles("---\nonly\n---\n") == ["only"]                                 # stray markers vanish
+    assert chat.split_bubbles("not --- a marker") == ["not --- a marker"]                     # only a whole line counts
+    assert chat.split_bubbles("") == []
+    assert chat.bubble_pause("x" * 1000, 1.2) == 1.2 and chat.bubble_pause("hi", 0) == 0
+
+
+async def test_reply_goes_out_as_bubbles(conn, settings):
+    """A reply with --- markers becomes separate Telegram messages with a typing action between them; history
+    records the whole reply once, markers removed."""
+    def handle(payload):
+        if payload["task"] == "chat_ack":
+            return {"task": "chat_ack", "needs_work": True, "message": "Bakıyorum."}
+        return {"task": "chat", "reply": "Mara yazmış, toplantıyı soruyor.\n---\nCevap yazayım mı?", "intents": []}
+
+    tg = FakeTelegram()
+    tg.actions = []
+    async def send_chat_action(chat_id, action="typing"):
+        tg.actions.append(action)
+    tg.send_chat_action = send_chat_action
+    notifier = triage.Notifier(tg, "777", USER_ID, language="tr")
+    q = await observation_repo.insert(conn, tg_text("700", "mara ne dedi?", datetime.now(tz=UTC)))
+    await chat.handle_message(conn, q, settings=settings, agent=AgentClient("local", handle_fn=handle), notifier=notifier, embedder=FakeEmbedder())
+    assert [m["text"] for m in tg.sent] == ["Bakıyorum.", "Mara yazmış, toplantıyı soruyor.", "Cevap yazayım mı?"]
+    assert tg.actions.count("typing") >= 3
+    outs = [o for o in await observation_repo.list_by_thread(conn, USER_ID, "777", limit=10)
+            if o.kind == "message_out" and o.payload.get("in_reply_to") == str(q.id) and o.payload.get("stage") != "ack"]
+    assert [o.payload["text"] for o in outs] == ["Mara yazmış, toplantıyı soruyor.\n\nCevap yazayım mı?"]
+    assert await chat.already_answered(conn, q)

@@ -16,6 +16,7 @@ import psycopg
 from core.adapter import AdapterRegistry
 from core.log import get_logger
 from core.models import Observation
+from core.phrases import phrase
 from core.repo import action_repo
 from core.routing import callback_data, control_text
 from workers import actions
@@ -39,8 +40,12 @@ class ApprovalFlow:
             self._connections[adapter.id] = await adapter.connect(user_id)
         return adapter, self._connections[adapter.id]
 
+    @property
+    def lang(self) -> str | None:
+        return getattr(self.notifier, "language", None)
+
     async def _show(self, conn, action: dict) -> None:
-        mid = await self.notifier.send_markup(actions.render_draft(action), actions.buttons(action))
+        mid = await self.notifier.send_markup(actions.render_draft(action, self.lang), actions.buttons(action, self.lang))
         log.info("approval.presented", action_id=str(action["id"]), tg_message_id=mid)
 
     # ---- entry points ----
@@ -67,31 +72,33 @@ class ApprovalFlow:
                 current = await action_repo.get(conn, action_id)
                 if current and current["status"] in ("awaiting_approval", "failed"):
                     await self._show(conn, current)
-                return "Draft changed — approve the newest version"
+                return phrase(self.lang, "draft_changed")
             except actions.InvalidTransition as e:
                 return str(e)
             try:
                 adapter, handle = await self._conn_for(action["channel"], obs.user_id)
                 sent = await actions.send(conn, action_id, adapter, handle)
             except Exception as e:  # noqa: BLE001
-                await self._edit(tg_mid, f"⚠️ Send failed: {e}\nTap Send again to retry.", actions.buttons(action))
-                return "Send failed"
-            await self._edit(tg_mid, f"✅ Sent (id {sent['external_id']})\n\n{sent['content'].get('body', '')}", None)
-            return "Sent"
+                await self._edit(tg_mid, "⚠️ " + phrase(self.lang, "send_failed", error=e), actions.buttons(action, self.lang))
+                return phrase(self.lang, "ack_send_failed")
+            # Replace the card with the sent text: what went out stays visible, the id does not (it is logged).
+            log.info("approval.sent", action_id=str(action_id), external_id=sent["external_id"])
+            await self._edit(tg_mid, f"{phrase(self.lang, 'sent')}\n\n{sent['content'].get('body', '')}", None)
+            return phrase(self.lang, "ack_sent")
         if verb == "edit":
             action = await action_repo.get(conn, action_id)
             if action is None or action["status"] not in ("awaiting_approval", "failed"):
-                return "Nothing to edit"
+                return phrase(self.lang, "nothing_to_edit")
             await action_repo.set_pending_edit(conn, obs.user_id, obs.thread_key or "", action_id)
-            await self.notifier.send_text("✏️ Send the corrected text as your next message (or 'edit: ...').")
-            return "Waiting for your correction"
+            await self.notifier.send_text(phrase(self.lang, "edit_prompt"))
+            return phrase(self.lang, "ack_waiting_edit")
         if verb == "reject":
             try:
                 await actions.reject(conn, action_id)
             except actions.InvalidTransition as e:
                 return str(e)
-            await self._edit(tg_mid, "❌ Cancelled", None)
-            return "Cancelled"
+            await self._edit(tg_mid, phrase(self.lang, "cancelled"), None)
+            return phrase(self.lang, "ack_cancelled")
         return None
 
     async def maybe_apply_edit(self, conn: psycopg.AsyncConnection, obs: Observation) -> bool:
@@ -106,7 +113,7 @@ class ApprovalFlow:
         if pending is None:
             open_actions = await action_repo.list_open(conn, obs.user_id)
             if not open_actions:
-                await self.notifier.send_text("No draft to edit.")
+                await self.notifier.send_text(phrase(self.lang, "no_draft"))
                 return True
             pending = open_actions[0]["id"]
         action = await action_repo.get(conn, pending)

@@ -63,10 +63,10 @@ class Notifiers:
             return self._cache[user_id]
         user = await user_repo.get(conn, user_id)
         if user is None:
-            source, thread_key = self.settings.CONTROL_SOURCE, self.settings.TELEGRAM_CHAT_ID
+            source, thread_key, lang = self.settings.CONTROL_SOURCE, self.settings.TELEGRAM_CHAT_ID, self.settings.USER_LANGUAGE
         else:
-            source, thread_key = user["control_source"], user["control_thread_key"]
-        notifier = Notifier(self.registry.get(source), thread_key, user_id)
+            source, thread_key, lang = user["control_source"], user["control_thread_key"], user.get("language") or self.settings.USER_LANGUAGE
+        notifier = Notifier(self.registry.get(source), thread_key, user_id, language=lang)
         self._cache[user_id] = notifier
         return notifier
 

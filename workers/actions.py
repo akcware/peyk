@@ -18,6 +18,7 @@ import psycopg
 from core.adapter import DOCUMENT_CHANNELS, SourceAdapter
 from core.log import get_logger
 from core.models import Content
+from core.phrases import phrase
 from core.repo import action_repo
 
 log = get_logger("workers.actions")
@@ -33,33 +34,33 @@ class InvalidTransition(Exception):
     pass
 
 
-def render_draft(action: dict) -> str:
+def render_draft(action: dict, lang: str | None = None) -> str:
+    """The approval card, in the person's language. No ids or hashes: the buttons carry them."""
     c = action["content"]
     doc_label = DOCUMENT_CHANNELS.get(action.get("channel") or "")
     if doc_label:   # a document to create: subject is its title, thread_key its parent page/folder
-        lines = [f"📝 Draft — {doc_label}"]
+        lines = ["📝 " + phrase(lang, "draft_doc", label=doc_label)]
         if c.get("subject"):
-            lines.append(f"Title: {c['subject']}")
+            lines.append(phrase(lang, "title", title=c["subject"]))
         if action.get("thread_key"):
-            lines.append(f"Parent: {action['thread_key']}")
+            lines.append(phrase(lang, "parent", parent=action["thread_key"]))
     else:
-        lines = ["📝 Draft" + (" (reply in thread)" if action.get("thread_key") else "")]
+        lines = ["📝 " + phrase(lang, "draft_reply" if action.get("thread_key") else "draft")]
         if c.get("to"):
-            lines.append(f"To: {', '.join(c['to'])}")
+            lines.append(phrase(lang, "to", to=", ".join(c["to"])))
         if c.get("subject"):
-            lines.append(f"Subject: {c['subject']}")
+            lines.append(phrase(lang, "subject", subject=c["subject"]))
     lines += ["", c.get("body", "")]
-    lines += ["", f"#{str(action['id'])[:8]} · v{action['content_hash'][:8]}"]
     return "\n".join(lines)
 
 
-def buttons(action: dict) -> dict:
+def buttons(action: dict, lang: str | None = None) -> dict:
     aid, h = action["id"].hex, action["content_hash"][:HASH_PREFIX]   # hex uuid keeps callback_data <= 64 bytes
-    verb = "Create" if action.get("channel") in DOCUMENT_CHANNELS else "Send"
+    verb = "btn_create" if action.get("channel") in DOCUMENT_CHANNELS else "btn_send"
     return {"inline_keyboard": [[
-        {"text": f"✅ {verb}", "callback_data": f"act:approve:{aid}:{h}"},
-        {"text": "✏️ Edit", "callback_data": f"act:edit:{aid}:{h}"},
-        {"text": "❌ Cancel", "callback_data": f"act:reject:{aid}:{h}"},
+        {"text": phrase(lang, verb), "callback_data": f"act:approve:{aid}:{h}"},
+        {"text": phrase(lang, "btn_edit"), "callback_data": f"act:edit:{aid}:{h}"},
+        {"text": phrase(lang, "btn_cancel"), "callback_data": f"act:reject:{aid}:{h}"},
     ]]}
 
 

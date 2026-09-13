@@ -181,4 +181,4 @@ async def test_document_create_is_direct_and_links(conn, settings):
     msg2 = await observation_repo.insert(conn, tg_text("777", "4", "uzun bir şey yaz", USER_ID))
     await chat.handle_message(conn, msg2, settings=settings, agent=AgentClient("local", handle_fn=boom), notifier=triage.Notifier(tg, "777", USER_ID),
                               embedder=FakeEmbedder(), registry=registry)
-    assert [m["text"] for m in tg.sent] == ["Bakıyorum.", "I got stuck on that one — could you ask again?"]
+    assert [m["text"] for m in tg.sent] == ["Bakıyorum.", "I got stuck on that one, could you ask again?"]

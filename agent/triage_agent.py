@@ -39,7 +39,8 @@ Rules:
   the person about this, 1-2 sentences, max 320 characters.
   The summary MUST be written in {language} — the person's language — even when the event text is in another
   language. Name who it is from, what it is about, what (if anything) the person must do and by when.
-  Do not paste the text; paraphrase. Example (English): Mara (client) reminds you invoice #2041 is due Friday; no reply needed."""
+  Do not paste the text; paraphrase. Spoken, plain words: no em dashes (—), no bold, no ids.
+  Example (English): Mara (client) reminds you invoice #2041 is due Friday; no reply needed."""
 
 
 def render_observation(payload: dict[str, Any], *, max_text: int = 1200) -> str:

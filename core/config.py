@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     RECONCILE_LOOKBACK_MINUTES: int = 15
 
     CHAT_DEBOUNCE_S: float = 2.5               # merge messages a person sends within this window into one turn
+    CHAT_BUBBLE_PAUSE_S: float = 1.2           # max pause (with "typing…") between the bubbles of one reply; 0 = send at once
     WORKER_CONCURRENCY: int = 3                # parallel queue consumers (turns stay ordered per user)
     HEALTH_PORT: int = 8080                    # workers' HTTP health endpoint (0 = disabled)
 

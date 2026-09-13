@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -16,6 +17,7 @@ from core.config import Settings
 from core.embeddings import Embedder
 from core.log import get_logger
 from core.models import Observation
+from core.phrases import phrase
 from core.repo import job_repo, memory_repo, observation_repo, user_repo
 from core.routing import control_event, control_text
 
@@ -27,6 +29,43 @@ RECENT_LIMIT = 50
 MAX_ROUNDS = 2            # NeedMore / FindContact rounds
 MAX_DOC_ROUNDS = 4        # document search -> read -> answer needs more hops; each hop is one API call
 STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, restart) is not answered
+BUBBLE_MARK = re.compile(r"^\s*(?:---|\*\*\*|___)\s*$", re.MULTILINE)   # the agent's "new bubble here" line
+MAX_BUBBLES = 3
+
+
+def split_bubbles(text: str) -> list[str]:
+    """A reply -> the Telegram bubbles it becomes. The agent marks a natural pause with a line holding only ---;
+    at most MAX_BUBBLES (the rest is folded into the last one). No marker: one bubble. Empty parts vanish."""
+    parts = [p.strip() for p in BUBBLE_MARK.split(text or "") if p and p.strip()]
+    if not parts:
+        return []
+    if len(parts) > MAX_BUBBLES:
+        parts = parts[:MAX_BUBBLES - 1] + ["\n\n".join(parts[MAX_BUBBLES - 1:])]
+    return parts
+
+
+def bubble_pause(text: str, max_s: float) -> float:
+    """How long a person would visibly "type" the next bubble: ~0.4 s plus 1 s per 120 chars, capped."""
+    return min(max_s, 0.4 + len(text) / 120.0) if max_s > 0 else 0.0
+
+
+async def send_reply(notifier, text: str, settings: Settings | None = None) -> tuple[str, str]:
+    """Send one agent reply as 1-3 bubbles with a typing pause between them. Returns (last message id,
+    the text as sent = bubbles joined by blank lines, markers removed) — the latter is what history records."""
+    send = getattr(notifier, "send_rich", None) or notifier.send_text
+    typing = getattr(notifier, "typing", None)
+    max_pause = float(getattr(settings, "CHAT_BUBBLE_PAUSE_S", 0) or 0) if settings is not None else 0.0
+    bubbles = split_bubbles(text) or [text]
+    mid = ""
+    for i, part in enumerate(bubbles):
+        if i:
+            if typing:
+                await typing()
+            pause = bubble_pause(part, max_pause)
+            if pause:
+                await asyncio.sleep(pause)
+        mid = await send(part)
+    return mid, "\n\n".join(bubbles)
 
 
 def _turn_text(obs: Observation) -> tuple[str, str] | None:
@@ -135,11 +174,14 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                     created = await adapter.create_document(handle, str(it.get("service") or "googledocs"), str(it.get("title") or "Untitled"),
                                                             str(it.get("body") or ""), it.get("parent") or None)
                     url = document_url(str(it.get("service")), str(created.get("id") or ""), created.get("url"))
-                    await notifier.send_text(f"📄 {it.get('title') or 'Document'}\n{url}" if url else f"📄 {it.get('title')}: created (id {created.get('id')})")
+                    lang = getattr(notifier, "language", None)
+                    title = it.get("title") or "Document"
+                    await notifier.send_text(phrase(lang, "doc_created", title=title, url=url) if url else phrase(lang, "doc_created_nolink", title=title))
+                    log.info("chat.document_created", document_id=str(created.get("id") or ""))
                     applied.append("DocumentCreate")
                 except Exception as e:  # noqa: BLE001
                     log.error("chat.document_create_failed", error=str(e))
-                    await notifier.send_text("Belgeyi oluşturamadım; biraz sonra tekrar deneyebilirim.")
+                    await notifier.send_text(phrase(getattr(notifier, "language", None), "doc_failed"))
                 continue
             if kind == "LearnConfirm":
                 from workers import learn
@@ -150,6 +192,8 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
             if kind == "ProfileUpdate":
                 fields = {k: (it.get(k) or "").strip() or None for k in ("profile", "language", "timezone", "display_name")}
                 await user_repo.update(conn, obs.user_id, **fields)
+                if fields.get("language") and notifier is not None and hasattr(notifier, "language"):
+                    notifier.language = fields["language"]      # buttons and fixed texts follow the switch at once
                 applied.append("ProfileUpdate")
                 continue
             if kind == "MemoryWrite" and it.get("text"):
@@ -332,7 +376,6 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     typing = getattr(notifier, "typing", None)
     if typing:
         await typing()
-    send = getattr(notifier, "send_rich", None) or notifier.send_text
     import time as _time
 
     t_start = _time.perf_counter()
@@ -359,7 +402,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     t_ack = _time.perf_counter()
     if ack and ack["message"]:
         first_reflex = ack["message"]
-        mid = await send(ack["message"])
+        mid, _ = await send_reply(notifier, ack["message"], settings)
         await observation_repo.insert(conn, Observation(
             user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",
             occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,
@@ -379,13 +422,12 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
                                         first_reflex=first_reflex)
     except Exception as e:  # noqa: BLE001
         log.error("chat.converse_failed", observation_id=str(obs.id), error=str(e)[:300])
-        reply, intents = ("Bu sefer takıldım; bir kez daha sorar mısın?" if (user or {}).get("language") == "tr"
-                          else "I got stuck on that one — could you ask again?"), []
+        reply, intents = phrase((user or {}).get("language"), "stuck"), []
     if state.get("is_new"):
         await user_repo.merge_state(conn, obs.user_id, {"greeted": True})
     if not reply:
         reply = "(no reply)"
-    mid = await send(reply)
+    mid, reply = await send_reply(notifier, reply, settings)
     await observation_repo.insert(conn, Observation(
         user_id=obs.user_id, source=obs.source, source_key=f"out:{mid}", kind="message_out",
         occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,
@@ -420,8 +462,7 @@ async def react_to_event(conn: psycopg.AsyncConnection, user_id: UUID, event_tex
     text = reply.strip() or (fallback or "")
     if not text:
         return ""
-    send = getattr(notifier, "send_rich", None) or notifier.send_text
-    mid = await send(text)
+    mid, text = await send_reply(notifier, text, settings)
     await observation_repo.insert(conn, Observation(
         user_id=user_id, source=user_row["control_source"], source_key=f"out:{mid}", kind="message_out",
         occurred_at=datetime.now(tz=UTC), thread_key=thread_key, payload={"text": text, "kind": "event_reaction", "event": event_text}))

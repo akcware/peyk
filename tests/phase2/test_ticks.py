@@ -37,14 +37,15 @@ async def test_morning_brief_content(conn, settings):
     assert "subject a" in text and "subject b" in text and "subject e" in text
     assert "subject c" not in text and "subject d" not in text and "subject old" not in text
     assert text.index("subject a") < text.index("subject e") < text.index("subject b")   # urgency desc
-    assert "3 item(s)" in text
+    assert "Good morning" in text and "item(s)" not in text
     assert "Nothing important" in ticks.render_brief([], now)
+    assert ticks.render_brief([], now, "tr").startswith("Günaydın")
 
     tg = FakeTelegram()
     notifier = triage.Notifier(tg, "777", USER_ID)
     tick = await _tick(conn, "morning_brief")
     await triage.handle(tick, settings=settings, agent=fake_agent(1), notifier=notifier)
-    assert len(tg.sent) == 1 and "Morning brief" in tg.sent[0]["text"]
+    assert len(tg.sent) == 1 and "Good morning" in tg.sent[0]["text"]
 
 
 async def test_followup_and_remind_command(conn, settings):
@@ -56,7 +57,7 @@ async def test_followup_and_remind_command(conn, settings):
     await triage.handle(cmd, settings=settings, agent=fake_agent(1), notifier=notifier)
     jobs = await job_repo.pending_of_kind(conn, USER_ID, "followup")
     assert len(jobs) == 1 and jobs[0]["payload"] == {"note": "test note"} and jobs[0]["created_by"] == "user"
-    assert "Will remind you" in tg.sent[-1]["text"]
+    assert "I'll remind you" in tg.sent[-1]["text"]
 
     fired = await scheduler.fire_due(conn, USER_ID, jobs[0]["run_at"] + timedelta(seconds=1), settings.TIMEZONE)
     assert fired == 1

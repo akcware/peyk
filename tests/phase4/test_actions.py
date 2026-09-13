@@ -178,7 +178,7 @@ async def test_telegram_flow_draft_edit_approve_old_button(conn, settings):
     # Old message's Send button -> rejected, nothing sent, draft re-presented
     old_send = await observation_repo.insert(conn, _cb(old_buttons[0]["callback_data"], "4", draft_msg["message_id"]))
     await triage.handle(old_send, settings=settings, agent=None, notifier=notifier, approval=flow)
-    assert gmail.sent == [] and tg.acks[-1][1].startswith("Draft changed")
+    assert gmail.sent == [] and tg.acks[-1][1].startswith("The draft changed")
     assert (await action_repo.get(conn, action["id"]))["status"] == "awaiting_approval"
 
     # New Send -> sent with v2, Telegram message edited
@@ -187,7 +187,7 @@ async def test_telegram_flow_draft_edit_approve_old_button(conn, settings):
     assert len(gmail.sent) == 1 and gmail.sent[0]["body"].endswith("15:00?") and gmail.sent[0]["thread_key"] == "th-mara"
     final = await action_repo.get(conn, action["id"])
     assert final["status"] == "sent" and final["external_id"] == "gmail-msg-1"
-    assert tg.edits[-1]["message_id"] == new_msg["message_id"] and tg.edits[-1]["text"].startswith("✅ Sent")
+    assert tg.edits[-1]["message_id"] == new_msg["message_id"] and tg.edits[-1]["text"].startswith("Sent 👍")
 
     # pressing Send again on the sent draft: idempotent, no second mail
     again = await observation_repo.insert(conn, _cb(new_buttons[0]["callback_data"], "6", new_msg["message_id"]))
@@ -203,3 +203,27 @@ async def test_telegram_flow_draft_edit_approve_old_button(conn, settings):
     cancel = await observation_repo.insert(conn, _cb(tg.sent[-1]["markup"]["inline_keyboard"][0][2]["callback_data"], "8", tg.sent[-1]["message_id"]))
     await triage.handle(cancel, settings=settings, agent=None, notifier=notifier, approval=flow)
     assert (await action_repo.get(conn, b["id"]))["status"] == "rejected"
+
+
+async def test_draft_card_is_plain_and_localized(conn):
+    """The approval card carries no id/hash footer, and card + buttons follow the person's language."""
+    a = await action_repo.create(conn, USER_ID, channel="gmail", thread_key=None,
+                                 content={"body": "Merhaba Nezir", "to": ["nezir@example.test"], "subject": "Fatura"})
+    en = actions.render_draft(a)
+    assert en == "📝 Draft\nTo: nezir@example.test\nSubject: Fatura\n\nMerhaba Nezir"
+    assert str(a["id"])[:8] not in en and a["content_hash"][:8] not in en
+    tr = actions.render_draft(a, "tr")
+    assert tr.startswith("📝 Taslak\nKime: nezir@example.test\nKonu: Fatura")
+    assert [b["text"] for b in actions.buttons(a, "tr")["inline_keyboard"][0]] == ["✅ Gönder", "✏️ Düzelt", "❌ Vazgeç"]
+    assert [b["text"] for b in actions.buttons(a)["inline_keyboard"][0]] == ["✅ Send", "✏️ Edit", "❌ Cancel"]
+    assert actions.buttons(a, "tr")["inline_keyboard"][0][0]["callback_data"] == actions.buttons(a)["inline_keyboard"][0][0]["callback_data"]
+
+
+def test_phrases_fall_back_to_english():
+    from core.phrases import TEXTS, phrase
+
+    assert phrase("tr", "sent") == "Gönderdim 👍" and phrase("de", "sent") == "Gesendet 👍"
+    assert phrase(None, "sent") == "Sent 👍" and phrase("xx", "sent") == "Sent 👍" and phrase("tr-TR", "sent") == "Gönderdim 👍"
+    assert phrase("tr", "send_failed", error="boom").startswith("Gönderemedim: boom")
+    assert set(TEXTS["tr"]) == set(TEXTS["en"]) == set(TEXTS["de"])          # every language covers every key
+    assert not any("—" in v for v in TEXTS["tr"].values() if not v.startswith("Taslak —"))

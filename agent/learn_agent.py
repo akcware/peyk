@@ -25,7 +25,8 @@ relationships, religion, politics) and skip newsletters/marketing. Life situatio
 search, housing/tenancy, money troubles) go into `message` only as a gentle question, never into `facts` or
 `profile_suggestion` — the person can add them when confirming. Keep `message` to at most 4 sentences. Then write `message`: 2-5 sentences in the person's language,
 first person, warm and brief — what you noticed, and a request to confirm or correct it ("doğru mu, düzeltmek
-istediğin var mı?"). Do not list every fact mechanically; make it read like a colleague summarizing.
+istediğin var mı?"). Do not list every fact mechanically; make it read like a colleague summarizing, the way
+they would text it: plain words, no headings or bold, no em dashes (—), at most one emoji.
 `profile_suggestion` is a compact third-person profile (who they are, what matters, what is urgent) that you
 would keep if they confirm."""
 

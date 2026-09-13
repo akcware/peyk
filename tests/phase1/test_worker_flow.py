@@ -102,13 +102,13 @@ async def test_feedback_roundtrip(conn, settings):
     await triage.handle(noise, settings=settings, agent=fake_agent(5), notifier=notifier)
     cur = await conn.execute("select user_feedback from sent_notification where id = %s", (sent_id,))
     assert (await cur.fetchone())["user_feedback"] == "noise"
-    assert tg.acks[-1] == ("cq1", "Noted: noise 👎")
+    assert tg.acks[-1] == ("cq1", "Got it, less of that 👎")
 
     mute = await observation_repo.insert(conn, cb(f"mute:thread:{sent_id}", "2"))
     await triage.handle(mute, settings=settings, agent=fake_agent(5), notifier=notifier)
     cur = await conn.execute("select kind, value from mute_rule")
     assert [(r["kind"], r["value"]) for r in await cur.fetchall()] == [("thread", "th-fb")]
-    assert tg.acks[-1][1] == "Thread muted 🔇"
+    assert tg.acks[-1][1] == "Muted that thread 🔇"
     assert len(tg.sent) == 1  # control-channel observations never get triaged/notified
 
     # a follow-up in the muted thread, even urgency 5, is silent
