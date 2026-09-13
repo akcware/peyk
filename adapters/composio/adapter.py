@@ -61,16 +61,32 @@ class ComposioAdapter:
                 log.warning("composio.toolkit_versions_unpinned",
                             hint="set COMPOSIO_TOOLKIT_VERSIONS=gmail=...,googlecalendar=... (see scripts/composio_setup.py --status); "
                                  "tools.execute will fail without it")
-            # Bounded: a slow Composio call must never hold a chat turn for minutes (20 s per request, one retry).
+            # Interactive calls (a person is waiting): 20 s per request, one retry. Background work uses
+            # `background_client` (90 s) — see _execute(..., background=True).
             self._client = Composio(api_key=self._settings.COMPOSIO_API_KEY, toolkit_versions=versions or None,
                                     timeout=20.0, max_retries=1)
         return self._client
 
-    def _execute(self, slug: str, arguments: dict[str, Any], composio_user_id: str | None = None) -> dict[str, Any]:
+    @property
+    def background_client(self) -> Any:
+        if getattr(self, "_bg_client", None) is None:
+            from composio import Composio
+
+            self._bg_client = Composio(api_key=self._settings.COMPOSIO_API_KEY,
+                                       toolkit_versions=self._settings.composio_toolkit_versions or None,
+                                       timeout=90.0, max_retries=2)
+        return self._bg_client
+
+    def _execute(self, slug: str, arguments: dict[str, Any], composio_user_id: str | None = None, *,
+                 background: bool = False) -> dict[str, Any]:
         uid = composio_user_id or self._settings.COMPOSIO_USER_ID
         if self._execute_override is not None:
             return self._execute_override(slug, arguments, user_id=uid)
-        return self.client.tools.execute(slug, arguments, user_id=uid)
+        client = self.background_client if background else self.client
+        return client.tools.execute(slug, arguments, user_id=uid)
+
+    def _execute_bg(self, slug: str, arguments: dict[str, Any], composio_user_id: str | None = None) -> dict[str, Any]:
+        return self._execute(slug, arguments, composio_user_id, background=True)
 
     async def _composio_user_id(self, user_id: UUID) -> str:
         if self._users is not None:
@@ -148,7 +164,7 @@ class ComposioAdapter:
         sampler = PROFILE_SAMPLERS.get(toolkit)
         if sampler is None:
             return []
-        return await asyncio.to_thread(sampler, self._execute, conn.data.get("composio_user_id"))
+        return await asyncio.to_thread(sampler, self._execute_bg, conn.data.get("composio_user_id"))
 
     async def disconnect_all(self, conn: Connection) -> dict[str, int]:
         """Right-to-erasure on the Composio side: delete this user's trigger instances and connected accounts
@@ -262,7 +278,7 @@ class ComposioAdapter:
             }
             if page_token:
                 args["page_token"] = page_token
-            resp = await asyncio.to_thread(self._execute, slug, args, conn.data.get("composio_user_id"))
+            resp = await asyncio.to_thread(self._execute_bg, slug, args, conn.data.get("composio_user_id"))
             if not resp.get("successful", True):
                 raise RuntimeError(f"{slug} failed: {resp.get('error')}")
             data = resp.get("data") or {}

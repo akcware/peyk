@@ -92,8 +92,8 @@ def brief_event_text(items: list[dict], now: datetime) -> str:
     """The system event handed to the agent: the important observations of the last 24h, compactly."""
     if not items:
         return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — give the person a one-line good-morning brief saying it is quiet"
-    lines = [f"it is morning ({now:%a %d %b %H:%M}); write the person's morning brief from these {len(items)} items of the last 24h "
-             "(urgency 1-5; each says when it arrived and whether you already told the person about it):"]
+    lines = [(f"it is morning ({now:%a %d %b %H:%M}); write the person's morning brief from these {len(items)} items of the last 24h "
+              "(urgency 1-5; each says when it arrived and whether you already told the person about it):")]
     for it in items:
         p = it["payload"]
         who = p.get("from") or p.get("summary") or it["source"]
@@ -103,8 +103,8 @@ def brief_event_text(items: list[dict], now: datetime) -> str:
         lines.append(f"- [{it['source']}] u{it['urgency']} {when}{told} — {who} — {subject}: {it.get('summary') or it['reason']}")
     lines += [
         "Rules: address the person by first name. Say when things came in — never present yesterday's mail as if it just arrived.",
-        "Verification codes, one-time passwords and login/password-setup links expire within minutes: when such an item is older "
-        "than an hour, do not tell the person to use it — leave it out, or at most say a fresh one can be requested.",
+        ("Verification codes, one-time passwords and login/password-setup links expire within minutes: when such an item is older "
+         "than an hour, do not tell the person to use it — leave it out, or at most say a fresh one can be requested."),
         "Mail the person already answered is not in this list; what you already told them about is a reminder, not news.",
         "Group by what needs action today vs. what can wait; 4-8 short lines; no bullets with raw headers; end with one sentence on what you would do first",
     ]
@@ -135,8 +135,8 @@ def local_now(user: dict | None, settings: Settings) -> datetime:
         if tz:
             try:
                 return datetime.now(tz=ZoneInfo(str(tz)))
-            except Exception:  # noqa: BLE001 - unknown zone name
-                continue
+            except Exception as e:  # noqa: BLE001 - unknown zone name: try the next fallback
+                log.warning("brief.bad_timezone", timezone=str(tz), error=str(e))
     return datetime.now(tz=UTC)
 
 

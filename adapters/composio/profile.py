@@ -15,6 +15,10 @@ from collections.abc import Callable
 from email.utils import parseaddr
 from typing import Any
 
+from core.log import get_logger
+
+log = get_logger("composio.profile")
+
 ExecuteFn = Callable[[str, dict[str, Any], str | None], dict[str, Any]]
 
 
@@ -24,12 +28,6 @@ def sample_gmail(execute: ExecuteFn, composio_user_id: str, *, days: int = 30, m
 
     since = (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y/%m/%d")
     facts: list[dict[str, Any]] = []
-    try:   # the mailbox owner: one call, so their own sent mail is never read as someone writing to them
-        me = (execute("GMAIL_GET_PROFILE", {}, composio_user_id).get("data") or {}).get("emailAddress")
-        if me:
-            facts.append({"kind": "self", "email": str(me).lower()})
-    except Exception:  # noqa: BLE001 - optional; the sender of sent mail (below) covers it too
-        pass
     for query, direction in ((f"after:{since} in:inbox -category:promotions", "in"), (f"after:{since} in:sent", "out")):
         page_token, fetched = None, 0
         counter: Counter[tuple[str, str]] = Counter()
@@ -59,6 +57,14 @@ def sample_gmail(execute: ExecuteFn, composio_user_id: str, *, days: int = 30, m
                 break
         for (name, email), n in counter.most_common(12):
             facts.append({"kind": "contact", "direction": direction, "name": name, "email": email, "count": n})
+    if not any(f.get("kind") == "self" for f in facts):
+        # nothing sent recently: ask Gmail who the mailbox owner is, so their own mail is never read as someone writing to them
+        try:
+            me = (execute("GMAIL_GET_PROFILE", {}, composio_user_id).get("data") or {}).get("emailAddress")
+            if me:
+                facts.append({"kind": "self", "email": str(me).lower()})
+        except Exception as e:  # noqa: BLE001 - optional: the next mail they send teaches the address too
+            log.warning("profile.gmail_owner_failed", error=str(e))
     return facts
 
 
