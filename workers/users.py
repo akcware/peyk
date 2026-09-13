@@ -38,6 +38,13 @@ class DbUserDirectory:
             user = await user_repo.get(conn, user_id)
         return (user or {}).get("composio_user_id") or self._settings.COMPOSIO_USER_ID
 
+    async def language_of(self, user_id: UUID) -> str | None:
+        """The language the person actually uses with us (set at first contact, adjusted by the agent), which
+        beats the messaging client's UI language as a hint — a German phone does not make the voice note German."""
+        async with db.connection() as conn:
+            user = await user_repo.get(conn, user_id)
+        return (user or {}).get("language") or None
+
 
 async def ensure_bootstrap_user(settings: Settings) -> dict | None:
     """Migrates the single-user .env configuration into app_user (idempotent)."""

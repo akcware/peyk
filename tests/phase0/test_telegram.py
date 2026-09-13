@@ -75,7 +75,7 @@ class FakeTranscriber:
 
 def _voice_update(update_id: int, duration: int = 4) -> dict:
     return {"update_id": update_id, "message": {
-        "message_id": 3, "date": 3, "chat": {"id": 7}, "from": {"id": 7, "first_name": "Aslı", "language_code": "tr"},
+        "message_id": 3, "date": 3, "chat": {"id": 7}, "from": {"id": 7, "first_name": "Aslı", "language_code": "de"},
         "voice": {"file_id": "AwACAgQAAxk", "file_unique_id": "u1", "duration": duration, "mime_type": "audio/ogg", "file_size": 9000}}}
 
 
@@ -101,6 +101,26 @@ async def _first(adapter: TelegramAdapter):
         return obs
 
 
+class FakeDirectory:
+    """The person writes to us in Turkish (stored language) although the phone's UI is German."""
+
+    def __init__(self, language: str | None) -> None:
+        self.language, self.seen_client_language = language, None
+
+    async def resolve_control(self, source, thread_key, *, display_name=None, language=None):
+        self.seen_client_language = language
+        return USER_ID
+
+    async def resolve_composio(self, composio_user_id):
+        return None
+
+    async def composio_user_id(self, user_id):
+        return "default"
+
+    async def language_of(self, user_id):
+        return self.language
+
+
 async def test_voice_note_becomes_text_for_the_agent(settings):
     from core.routing import control_event
 
@@ -112,7 +132,15 @@ async def test_voice_note_becomes_text_for_the_agent(settings):
     obs = await _first(adapter)
     assert [m for m, _ in seen] == ["getUpdates", "getFile", "download"]
     assert seen[1][1] == {"file_id": "AwACAgQAAxk"}
-    assert stt.calls == [{"bytes": 504, "encoding": "ogg-opus", "rate": 48000, "languages": ["tr-TR", "en-US", "de-DE"]}]
+    assert stt.calls == [{"bytes": 504, "encoding": "ogg-opus", "rate": 48000, "languages": ["de-DE", "en-US", "tr-TR"]}]
+
+    # with a directory, the language the person uses with us leads the hint, not the phone's UI language
+    seen.clear()
+    stt, users = FakeTranscriber(), FakeDirectory("tr")
+    adapter = TelegramAdapter(settings=s, http=_voice_http([_voice_update(24)], seen), poll_timeout=0, transcriber=stt, users=users)
+    obs = await _first(adapter)
+    assert users.seen_client_language == "de" and obs.user_id == USER_ID
+    assert stt.calls[0]["languages"] == ["tr-TR", "en-US", "de-DE"]
     ev = control_event(obs)                                   # what every worker reads
     assert ev.text == "[voice message, 4 s, automatic transcript] yarın dokuzda toplantı"
     assert ev.message_id == 3 and ev.display_name == "Aslı" and ev.callback is None

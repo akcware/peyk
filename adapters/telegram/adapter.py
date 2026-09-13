@@ -122,11 +122,15 @@ class TelegramAdapter:
                 frm = (update.get("message") or update.get("callback_query") or {}).get("from") or {}
                 name = " ".join(x for x in (frm.get("first_name"), frm.get("last_name")) if x) or None
                 lang = (frm.get("language_code") or "").split("-")[0].lower() or None   # Telegram client language
+                spoken = lang
                 if self._users is not None and obs.thread_key:
                     obs.user_id = await self._users.resolve_control(self.id, obs.thread_key, display_name=name, language=lang)
+                    language_of = getattr(self._users, "language_of", None)
+                    if language_of is not None:   # the language the person uses with us beats the phone's UI language
+                        spoken = (await language_of(obs.user_id)) or lang
                 msg = update.get("message") or {}
                 if msg.get("voice"):
-                    await self.attach_voice_text(obs, msg, display_name=name, language=lang)
+                    await self.attach_voice_text(obs, msg, display_name=name, language=spoken)
                 yield obs
 
     async def attach_voice_text(self, obs: Observation, msg: dict[str, Any], *, display_name: str | None,

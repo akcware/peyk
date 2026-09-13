@@ -30,6 +30,8 @@ class UserDirectory(Protocol):
 
     async def composio_user_id(self, user_id: UUID) -> str: ...
 
+    async def language_of(self, user_id: UUID) -> str | None: ...
+
 
 @runtime_checkable
 class SourceAdapter(Protocol):
