@@ -50,7 +50,7 @@ everything it holds about you.
 | Service | What Peyk does with it |
 |---|---|
 | Gmail | watches new mail, summarizes, drafts replies and new mails for approval |
-| Google Calendar | knows your day, pings you 15 minutes before an event |
+| Google Calendar | knows your day, tells you when someone invites you, moves or cancels a meeting or answers your invite (once, even when Google also mails it), pings you 15 minutes before an event, puts today's events in the morning brief, and adds, moves or cancels events when you ask (anything that tells other people waits for your tap) |
 | Notion, Google Docs, Google Drive | finds and reads your documents; writes pages and docs for you and sends the link |
 | Telegram | where you talk to Peyk (WhatsApp next — the control channel is an adapter) |
 

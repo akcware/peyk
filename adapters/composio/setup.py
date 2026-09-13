@@ -11,8 +11,12 @@ TOOLKITS: dict[str, dict] = {
     "googlecalendar": {
         "label": "Google Calendar",
         "auth_config_env": "COMPOSIO_CALENDAR_AUTH_CONFIG_ID",
-        "triggers": {"GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER": {
-            "calendarId": "primary", "minutesBeforeStart": 15, "countdownWindowMinutes": 5, "interval": 1, "includeAllDay": False}},
+        "triggers": {
+            "GOOGLECALENDAR_EVENT_STARTING_SOON_TRIGGER": {
+                "calendarId": "primary", "minutesBeforeStart": 15, "countdownWindowMinutes": 5, "interval": 1, "includeAllDay": False},
+            # every change with the full event; workers/pretriage.py decides what is news (config verified 2026-09-14)
+            "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER": {"calendarId": "primary", "interval": 2, "showDeleted": True},
+        },
     },
     # Document services: search/read/create surfaces for the chat agent (adapters/composio/documents.py) and
     # profile samplers (profile.py). No triggers on purpose: their trigger types (NOTION_PAGE_CREATED/UPDATED,

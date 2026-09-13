@@ -46,6 +46,11 @@ async def get(conn: psycopg.AsyncConnection, obs_id: UUID) -> Observation | None
     return _row(row) if row else None
 
 
+async def update_payload(conn: psycopg.AsyncConnection, obs_id: UUID, payload: dict[str, Any]) -> None:
+    """What a review learned (e.g. what a calendar change was) is kept with the observation for later readers."""
+    await conn.execute("update observation set payload = %s where id = %s", (Jsonb(payload), obs_id))
+
+
 async def count(conn: psycopg.AsyncConnection, user_id: UUID, **where: Any) -> int:
     clauses = ["user_id = %s"]
     params: list[Any] = [user_id]

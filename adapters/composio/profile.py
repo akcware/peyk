@@ -4,7 +4,7 @@ connected, so the agent can propose what it learned (people, topics, rhythms) an
 Contract: sampler(execute, composio_user_id) -> list[dict] of compact facts, e.g.
   {"kind": "contact", "name": "...", "email": "...", "count": 12}
   {"kind": "subject", "text": "...", "from": "...", "when": "2026-09-01"}
-  {"kind": "document", "title": "...", "updated": "..."}   (notion / drive / docs samplers add their own kinds)
+  {"kind": "document", "title": "...", "updated": "..."}   (notion / drive / docs / calendar samplers add their own kinds)
 No bodies, no attachments: metadata only. Keep each sampler to a few API calls.
 `execute(slug, arguments, composio_user_id)` is ComposioAdapter._execute.
 """
@@ -16,6 +16,8 @@ from email.utils import parseaddr
 from typing import Any
 
 from core.log import get_logger
+
+from .calendar import sample_googlecalendar
 
 log = get_logger("composio.profile")
 
@@ -111,6 +113,7 @@ def sample_googledocs(execute: ExecuteFn, composio_user_id: str) -> list[dict[st
 # toolkit slug -> sampler. New services register here.
 PROFILE_SAMPLERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "gmail": sample_gmail,
+    "googlecalendar": sample_googlecalendar,
     "notion": sample_notion,
     "googledrive": sample_googledrive,
     "googledocs": sample_googledocs,

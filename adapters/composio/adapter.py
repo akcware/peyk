@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -20,8 +20,16 @@ from core.config import Settings, get_settings
 from core.log import get_logger
 from core.models import Connection, Content, Observation
 
+from . import calendar as gcal
 from .documents import CREATORS, DOCUMENT_SERVICES, READERS, SEARCHERS
-from .mappings import ACTION_ITEMS_PATH, ACTION_MAPPINGS, ACTION_NEXT_PAGE_PATH, apply, get_path
+from .mappings import (
+    ACTION_ITEMS_PATH,
+    ACTION_MAPPINGS,
+    ACTION_NEXT_PAGE_PATH,
+    apply,
+    get_path,
+    parse_timestamp,
+)
 from .profile import PROFILE_SAMPLERS
 from .setup import TOOLKITS
 from .webhook import to_observation
@@ -159,6 +167,37 @@ class ComposioAdapter:
             raise NotSupported(f"cannot create documents in {service!r}")
         return await asyncio.to_thread(creator, self._execute, conn.data.get("composio_user_id"), title, body_markdown, parent)
 
+    # ---- Google Calendar (calendar.py): read for the chat agent and the brief, write for chat and approval ----
+    async def calendar_events(self, conn: Connection, start: str, end: str, query: str = "", *,
+                              tz: str | None = None) -> list[dict[str, Any]]:
+        """Events overlapping [start, end] on the primary calendar, compact (see calendar.compact_event)."""
+        return await asyncio.to_thread(gcal.list_events, self._execute, conn.data.get("composio_user_id"), start, end, query, tz=tz)
+
+    async def calendar_free(self, conn: Connection, start: str, end: str, tz: str | None) -> dict[str, Any]:
+        """{"free": [{start, end}], "busy": [{start, end}]} for the primary calendar."""
+        return await asyncio.to_thread(gcal.find_free_slots, self._execute, conn.data.get("composio_user_id"), start, end, tz)
+
+    async def calendar_write(self, conn: Connection, event: dict[str, Any]) -> dict[str, Any]:
+        """create | update | delete | rsvp on the primary calendar -> {"id", "url"}."""
+        return await asyncio.to_thread(gcal.write, self._execute, conn.data.get("composio_user_id"), event)
+
+    async def calendar_owner(self, conn: Connection) -> str:
+        """The address the person's primary calendar belongs to ('' when Google does not say)."""
+        return await asyncio.to_thread(gcal.calendar_owner, self._execute_bg, conn.data.get("composio_user_id"))
+
+    async def calendar_snapshot(self, conn: Connection, start: str, end: str) -> list[Observation]:
+        """Every event in the window as a done `event_snapshot` observation: the state the first reported change
+        of each event is compared with. Never triaged, never notified, never shown to the chat agent."""
+        events = await asyncio.to_thread(gcal.snapshot_events, self._execute_bg, conn.data.get("composio_user_id"), start, end)
+        out: list[Observation] = []
+        for e in events:
+            state = {k: v for k, v in e.items() if k != "id"}
+            out.append(Observation(user_id=conn.user_id, source="calendar", kind="event_snapshot",
+                                   source_key=f"snapshot:{e['id']}:{state.get('updated_at') or ''}",
+                                   occurred_at=parse_timestamp(state.get("updated_at")) or datetime.now(tz=UTC),
+                                   thread_key=e["id"], payload=state, is_backfill=True, status="done"))
+        return out
+
     async def sample_for_profile(self, conn: Connection, toolkit: str) -> list[dict[str, Any]]:
         """Metadata sample of the person's recent activity in a toolkit (see profile.py). [] if none registered."""
         sampler = PROFILE_SAMPLERS.get(toolkit)
@@ -191,9 +230,18 @@ class ComposioAdapter:
         return removed
 
     async def enable_triggers(self, conn: Connection, toolkit: str, connected_account_id: str) -> list[str]:
-        cfg = TOOLKITS.get(toolkit) or {}
+        """Create the toolkit's triggers for this account and return the new ids. Safe to repeat: triggers the account
+        already has (disabled ones too) are left alone, so a trigger added to TOOLKITS later reaches people who
+        connected before it existed. If the account's triggers cannot be listed, nothing is created (no duplicates)."""
+        wanted = (TOOLKITS.get(toolkit) or {}).get("triggers") or {}
+        if not wanted:
+            return []
+        active = await asyncio.to_thread(self.client.triggers.list_active, connected_account_ids=[connected_account_id], show_disabled=True)
+        have = {str(getattr(t, "trigger_name", "") or "").upper() for t in getattr(active, "items", None) or []}
         ids: list[str] = []
-        for slug, trigger_config in (cfg.get("triggers") or {}).items():
+        for slug, trigger_config in wanted.items():
+            if slug.upper() in have:
+                continue
             r = await asyncio.to_thread(self.client.triggers.create, slug, user_id=conn.data["composio_user_id"],
                                         connected_account_id=connected_account_id, trigger_config=trigger_config)
             ids.append(str(getattr(r, "trigger_id", r)))
@@ -329,8 +377,12 @@ class ComposioAdapter:
         return list(found.values())[:limit]
 
     async def send(self, conn: Connection, thread_key: str, content: Content) -> str:
-        """Gmail only. thread_key -> GMAIL_REPLY_TO_THREAD, else GMAIL_SEND_EMAIL. Returns the Gmail message id."""
+        """An approved action goes out: a calendar change (content.extra["event"]), a document (CREATORS), or a Gmail
+        mail (thread_key -> GMAIL_REPLY_TO_THREAD, else GMAIL_SEND_EMAIL). Returns the external id."""
         channel = content.extra.get("channel", "gmail")
+        if content.extra.get("event"):
+            done = await self.calendar_write(conn, content.extra["event"])
+            return str(done.get("id") or "")
         if channel in CREATORS:   # "send" = create the approved document
             created = await self.create_document(conn, channel, content.subject or "Untitled", content.text, thread_key or None)
             return str(created.get("id") or "")

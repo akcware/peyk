@@ -111,6 +111,12 @@ async def check_connection(conn: psycopg.AsyncConnection, user_id: UUID, job_pay
         pending.pop(toolkit, None)
         await user_repo.merge_state(conn, user_id, {"connected": connected, "pending": pending, "connected_checked_at": datetime.now(tz=UTC).isoformat()})
         await job_repo.cancel_matching(conn, user_id, "await_connection", "toolkit", toolkit)
+        try:   # a calendar also needs its owner address and an event baseline before its changes can be news
+            from workers import calendar_sync
+
+            await calendar_sync.ensure(conn, user_id, registry, force=toolkit == calendar_sync.TOOLKIT)
+        except Exception as e:  # noqa: BLE001 - the reconcile tick retries
+            log.warning("onboarding.calendar_sync_failed", error=str(e)[:200])
         label = TOOLKITS[toolkit]["label"]
         fallback = f"✅ {label} connected. I'm watching it now."
         if react is not None:

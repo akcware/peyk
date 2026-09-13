@@ -32,6 +32,7 @@ MAX_DOC_ROUNDS = 4        # document/web search -> read -> answer needs more hop
 STALE_AFTER = timedelta(minutes=10)   # a control message this old (backlog, restart) is not answered
 BUBBLE_MARK = re.compile(r"^\s*(?:---|\*\*\*|___)\s*$", re.MULTILINE)   # the agent's "new bubble here" line
 MAX_BUBBLES = 3
+CONTEXT_SKIP_KINDS = ("tick", "event_snapshot")   # scheduler ticks and calendar baselines are state, not things that happened
 
 
 def split_bubbles(text: str) -> list[str]:
@@ -99,7 +100,7 @@ def compact(obs: Observation, urgency: int | None = None) -> dict[str, Any]:
     p = obs.payload
     d = {"id": str(obs.id), "source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(),
          "thread_key": obs.thread_key}
-    for k in ("from", "to", "subject", "summary", "location"):
+    for k in ("from", "to", "subject", "summary", "location", "change", "start_time", "was_start"):
         if p.get(k):
             d[k] = p[k]
     snippet = p.get("snippet") or p.get("text") or ""
@@ -116,15 +117,15 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
         terms = [t for t in query.lower().split() if t]
         clauses = " and ".join("payload::text ilike %s" for _ in terms)
         cur = await conn.execute(
-            f"select id from observation where user_id = %s and occurred_at >= %s and source <> %s and kind <> 'tick' "
+            f"select id from observation where user_id = %s and occurred_at >= %s and source <> %s and kind <> all(%s) "
             f"and ({clauses}) order by occurred_at desc limit %s",
-            (user_id, since, settings.CONTROL_SOURCE, *[f"%{t}%" for t in terms], limit),
+            (user_id, since, settings.CONTROL_SOURCE, list(CONTEXT_SKIP_KINDS), *[f"%{t}%" for t in terms], limit),
         )
         ids = [r["id"] for r in await cur.fetchall()]
         rows = [await observation_repo.get(conn, i) for i in ids]
     else:
         rows = [o for o in await observation_repo.list_since(conn, user_id, since, limit=limit * 2)
-                if o.source != settings.CONTROL_SOURCE and o.kind != "tick"][:limit]
+                if o.source != settings.CONTROL_SOURCE and o.kind not in CONTEXT_SKIP_KINDS][:limit]
     if not rows:
         return []
     cur = await conn.execute("select observation_id, urgency, summary from triage where observation_id = any(%s)", ([o.id for o in rows],))
@@ -183,6 +184,33 @@ async def apply_intents(conn: psycopg.AsyncConnection, obs: Observation, intents
                 except Exception as e:  # noqa: BLE001
                     log.error("chat.document_create_failed", error=str(e))
                     await notifier.send_text(phrase(getattr(notifier, "language", None), "doc_failed"))
+                continue
+            if kind == "CalendarWrite":
+                from workers import actions
+
+                event = {k: v for k, v in it.items() if k != "intent"}
+                lang = getattr(notifier, "language", None)
+                if actions.calendar_needs_confirmation(event):   # other people get told: a card, nothing before the tap
+                    if on_draft is None:
+                        log.info("chat.calendar_draft_ignored", op=event.get("op"))
+                        continue
+                    await on_draft(conn, obs, {"channel": "calendar", "subject": actions.event_title(event),
+                                               "body": event.get("description") or "", "to": list(event.get("attendees") or []),
+                                               "event": event})
+                    applied.append("CalendarDraft")
+                    continue
+                if registry is None or notifier is None:
+                    continue
+                adapter = registry.get("composio")
+                handle = await adapter.connect(obs.user_id)
+                try:
+                    done = await adapter.calendar_write(handle, event)
+                    await notifier.send_text(actions.event_done_line(event, lang, url=str(done.get("url") or "")))
+                    log.info("chat.calendar_written", op=event.get("op"), event_id=str(done.get("id") or ""))
+                    applied.append("CalendarWrite")
+                except Exception as e:  # noqa: BLE001
+                    log.error("chat.calendar_write_failed", op=event.get("op"), error=str(e)[:300])
+                    await notifier.send_text(phrase(lang, "cal_direct_failed"))
                 continue
             if kind == "LearnConfirm":
                 from workers import learn
@@ -260,6 +288,34 @@ def chat_text(obs: Observation) -> str:
     return "\n".join(p for p in (ev.reply_to, as_chat_text(ev.text)) if p)
 
 
+async def resolve_calendar(queries: list[dict[str, Any]], store: dict[str, dict], user_id: UUID, registry, tz: str) -> None:
+    """CalendarQuery intents -> results in the payload (events or free/busy), under the keys the tools look up.
+    A failure is stored as an error the agent can say out loud, never as an empty (falsely free) calendar."""
+    adapter = handle = None
+    if registry is not None:
+        try:
+            adapter = registry.get("composio")
+            handle = await adapter.connect(user_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("chat.calendar_unavailable", error=str(e)[:200])
+            adapter = None
+    for q in queries:
+        op, key = str(q.get("op") or "events"), str(q.get("key") or "")
+        bucket = "free" if op == "free" else "events"
+        if adapter is None:
+            store[bucket][key] = {"error": "the calendar cannot be read right now"}
+            continue
+        try:
+            if op == "free":
+                store["free"][key] = await adapter.calendar_free(handle, str(q.get("start")), str(q.get("end")), tz)
+            else:
+                store["events"][key] = await adapter.calendar_events(handle, str(q.get("start")), str(q.get("end")),
+                                                                     str(q.get("query") or ""), tz=tz)
+        except Exception as e:  # noqa: BLE001
+            log.warning("chat.calendar_query_failed", op=op, error=str(e)[:200])
+            store[bucket][key] = {"error": "the calendar could not be read just now"}
+
+
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                    embedder: Embedder, now: datetime | None = None, contact_search=None, registry=None,
                    user: dict | None = None, state: dict | None = None, mode: str | None = None,
@@ -299,6 +355,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     payload["contacts"] = []
     payload["documents"] = {"search": {}, "read": {}}
     payload["web"] = {"enabled": web is not None, "search": {}, "open": {}}
+    payload["calendar"] = {"events": {}, "free": {}}
     data_rounds = 0
     for round_no in range(1, MAX_DOC_ROUNDS + 1):
         out = await agent.chat(payload)
@@ -307,13 +364,19 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         need = [i for i in intents if i.get("intent") == "NeedMore"]
         docq = [i for i in intents if i.get("intent") == "DocumentQuery"]
         webq = [i for i in intents if i.get("intent") == "WebQuery"]
-        if not need and not lookups and not docq and not webq:
+        calq = [i for i in intents if i.get("intent") == "CalendarQuery"]
+        if not need and not lookups and not docq and not webq and not calq:
             break
         if (need or lookups) and data_rounds >= MAX_ROUNDS - 1:
             break                       # NeedMore/FindContact stay bounded to MAX_ROUNDS agent calls
-        if (docq or webq) and not need and not lookups and round_no == MAX_DOC_ROUNDS:
+        if (docq or webq or calq) and not need and not lookups and round_no == MAX_DOC_ROUNDS:
             break
         data_rounds += 1
+        if calq:
+            await resolve_calendar(calq, payload["calendar"], obs.user_id, registry, tz)
+            log.info("chat.calendar_query", round=round_no, count=len(calq))
+            if not need and not lookups and not docq and not webq:
+                continue
         if webq and web is not None:
             for q in webq:
                 op, key = str(q.get("op") or "search"), str(q.get("key") or "")
@@ -360,7 +423,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
         payload["recent_observations"] = fresh + payload["recent_observations"]
         payload["message"] = text  # same question, more data
         log.info("chat.need_more", round=round_no, query=q.get("query"), added=len(fresh))
-    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact", "DocumentQuery", "WebQuery")]
+    return reply, [i for i in intents if i.get("intent") not in ("NeedMore", "FindContact", "DocumentQuery", "WebQuery", "CalendarQuery")]
 
 
 async def already_answered(conn: psycopg.AsyncConnection, obs: Observation, *, final: bool = True) -> bool:

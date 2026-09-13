@@ -70,7 +70,11 @@ flowchart TB
    5 minutes is recovered by the maintenance loop; after 5 attempts an observation is marked `failed`.
 3. **Route by data.** Observations from a person's own control channel (Telegram, later WhatsApp) are commands,
    button taps or chat. Everything else is a world event. There is no `if source == "gmail"` in the workers.
-4. **World events: triage, then gate.** The agent's `triage` task returns urgency 1–5, a category, a reason and a
+4. **World events: is it news, then triage, then gate.** First `workers/pretriage.py` drops what is not news:
+   a calendar change the person made themselves (or Peyk made for them), a replay, an edit nobody needs, or a change
+   they were told about minutes ago through the other channel (Google's own mail and the calendar trigger carry the
+   same news; whichever comes second stays quiet). A calendar change that is news gets `change` (invited, moved,
+   changed, cancelled, guest_answered), found by comparing with the event's previous state. The agent's `triage` task returns urgency 1–5, a category, a reason and a
    one-line summary in the person's language. The gate (`workers/gate.py`) then decides whether to notify — see
    [Interruption budget](#interruption-budget). A notification is sent with 👍 useful · 👎 noise · 🔇 mute buttons
    and recorded in `sent_notification`, so the chat later knows what "that mail" refers to.
@@ -113,6 +117,8 @@ Chat tools and the intents they produce:
 | `set_profile`, `confirm_learned` | save what the person told or confirmed | `ProfileUpdate`, `LearnConfirm` |
 | `search_documents`, `read_document` | find and read Notion pages, Drive files, Google Docs | — |
 | `create_document` | create a page or doc in the person's own workspace | `DocumentCreate` → created immediately, link sent |
+| `find_events`, `find_free_time` | read the person's Google Calendar: a window's events, free and busy time | `CalendarQuery` → resolved in the round loop |
+| `create_event`, `update_event`, `cancel_event`, `respond_to_invite` | write to the primary calendar | `CalendarWrite` → a private event is written at once, link sent; anything that notifies other people becomes an approval card |
 | `web_search`, `open_web_page` | the public web (DuckDuckGo, no key; Tavily optional) and a page's text, for questions about the world | `WebQuery` → resolved in the round loop, never persisted |
 | `delete_my_data` | start account deletion | `DeleteAccountRequest` → two confirmations |
 

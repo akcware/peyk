@@ -74,11 +74,51 @@ def when_label(at: datetime, now: datetime) -> str:
     return f"{day} {local:%H:%M} ({ago})"
 
 
-def render_brief(items: list[dict], now: datetime, lang: str | None = None) -> str:
+async def today_agenda(conn: psycopg.AsyncConnection, user_id, registry: AdapterRegistry | None, now: datetime) -> list[dict]:
+    """Today's events from the person's Google Calendar (compact dicts); [] when it is not connected or unreadable."""
+    user = await user_repo.get(conn, user_id)
+    if registry is None or "googlecalendar" not in (((user or {}).get("state") or {}).get("connected") or {}):
+        return []
+    try:
+        adapter = registry.get("composio")
+        handle = await adapter.connect(user_id)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return await adapter.calendar_events(handle, start.isoformat(), (start + timedelta(days=1)).isoformat(),
+                                             tz=getattr(now.tzinfo, "key", None))
+    except Exception as e:  # noqa: BLE001 - the brief goes out without the agenda
+        log.warning("brief.agenda_failed", error=str(e)[:200])
+        return []
+
+
+def _agenda_time(event: dict, now: datetime, lang: str | None = None) -> str:
+    if event.get("all_day"):
+        return phrase(lang, "all_day")
+    try:
+        return datetime.fromisoformat(str(event.get("start"))).astimezone(now.tzinfo).strftime("%H:%M")
+    except (TypeError, ValueError):
+        return str(event.get("start") or "")[11:16]
+
+
+def agenda_lines(agenda: list[dict], now: datetime) -> list[str]:
+    """Today's events for the agent: time, title, who (first three) and where."""
+    out = []
+    for e in agenda[:8]:
+        guests = ", ".join(str(g.get("name") or g.get("email")) for g in (e.get("guests") or [])[:3])
+        line = f"- {_agenda_time(e, now)} {e.get('title') or '(no title)'}"
+        if guests:
+            line += f" (with {guests})"
+        if e.get("location"):
+            line += f", at {e['location']}"
+        out.append(line)
+    return out
+
+
+def render_brief(items: list[dict], now: datetime, lang: str | None = None, agenda: list[dict] | None = None) -> str:
     """Fallback brief when the agent cannot write one: short, in the person's language, no report headers."""
-    if not items:
+    agenda = agenda or []
+    if not items and not agenda:
         return phrase(lang, "brief_quiet")
-    lines = [phrase(lang, "brief_header"), ""]
+    lines = [phrase(lang, "brief_header"), ""] if items else [phrase(lang, "brief_nothing_new")]
     for it in items:
         p = it["payload"]
         who = p.get("from") or p.get("summary") or it["source"]
@@ -86,11 +126,22 @@ def render_brief(items: list[dict], now: datetime, lang: str | None = None) -> s
         mark = "‼️" if it["urgency"] >= 5 else "❗" if it["urgency"] == 4 else "•"
         lines.append(f"{mark} [{it['source']}] {who} — {subject}")
         lines.append(f"   {it.get('summary') or it['reason']}")
+    if agenda:
+        lines += ["", phrase(lang, "brief_agenda")]
+        lines += [f"📅 {_agenda_time(e, now, lang)} {e.get('title') or ''}".rstrip() for e in agenda[:8]]
     return "\n".join(lines)
 
 
-def brief_event_text(items: list[dict], now: datetime) -> str:
-    """The system event handed to the agent: the important observations of the last 24h, compactly."""
+def brief_event_text(items: list[dict], now: datetime, agenda: list[dict] | None = None) -> str:
+    """The system event handed to the agent: the important observations of the last 24h and today's calendar."""
+    cal = agenda_lines(agenda or [], now)
+    if not items and cal:
+        return "\n".join([
+            f"it is morning ({now:%a %d %b %H:%M}); nothing with urgency >= 3 arrived in the last 24h, but today's calendar has:",
+            *cal,
+            ("Say good morning by first name and mention today's first event or two with their time, in one or two short "
+             "lines like a text from a friend. No headings, no bullets, no raw lists."),
+        ])
     if not items:
         return f"it is morning ({now:%a %d %b}); nothing with urgency >= 3 arrived in the last 24h — say good morning and that it is quiet, one short line, like a text from a friend"
     lines = [(f"it is morning ({now:%a %d %b %H:%M}); write the person's morning brief from these {len(items)} items of the last 24h "
@@ -111,6 +162,9 @@ def brief_event_text(items: list[dict], now: datetime) -> str:
          "At most 5 short lines in total. Say first what needs doing today (1-3 lines), then, after a line holding only ---, "
          "one line on what can wait and one sentence on what you would do first. Skip anything that is neither."),
     ]
+    if cal:
+        lines[1 + len(items):1 + len(items)] = ["today's calendar (the person's own schedule, not news):", *cal]
+        lines.append("Weave today's calendar into the first part: the next event with its time, at most three events, never the whole list.")
     return "\n".join(lines)
 
 
@@ -118,11 +172,12 @@ async def morning_brief(conn, obs: Observation, ctx: TickContext) -> None:
     now = local_now(await user_repo.get(conn, obs.user_id), ctx.settings)
     items = await brief_items(conn, obs.user_id, now - timedelta(hours=24))
     notifier = await ctx.notifier_for(conn, obs.user_id)
-    fallback = render_brief(items, now, getattr(notifier, "language", None))
+    agenda = await today_agenda(conn, obs.user_id, ctx.registry, now)
+    fallback = render_brief(items, now, getattr(notifier, "language", None), agenda)
     if ctx.agent is not None and ctx.embedder is not None:
         from workers import chat
 
-        sent = await chat.react_to_event(conn, obs.user_id, brief_event_text(items, now), settings=ctx.settings, agent=ctx.agent,
+        sent = await chat.react_to_event(conn, obs.user_id, brief_event_text(items, now, agenda), settings=ctx.settings, agent=ctx.agent,
                                          notifier=notifier, embedder=ctx.embedder, registry=ctx.registry, fallback=fallback,
                                          instruction="write the brief now")
         if sent:
@@ -168,6 +223,12 @@ async def reconcile(conn, obs: Observation, ctx: TickContext) -> None:
     ON CONFLICT DO NOTHING. Missed trigger events surface as fresh observations; seen ones are no-ops."""
     if ctx.registry is None:
         return
+    try:   # a connected calendar gets its triggers, owner address and event baseline once (a no-op afterwards)
+        from workers import calendar_sync
+
+        await calendar_sync.ensure(conn, obs.user_id, ctx.registry)
+    except Exception as e:  # noqa: BLE001 - mail reconcile must still run; the next tick retries
+        log.error("reconcile.calendar_sync_failed", error=str(e)[:300])
     lookback = timedelta(minutes=ctx.settings.RECONCILE_LOOKBACK_MINUTES)
     now = datetime.now(tz=UTC)
     for adapter in ctx.registry.ingestable():

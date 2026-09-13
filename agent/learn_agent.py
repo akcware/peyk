@@ -53,7 +53,13 @@ def render_facts(service: str, facts: list[dict[str, Any]]) -> str:
         lines.append("documents / workspaces:")
         for d in docs[:40]:
             lines.append(f"- [{d.get('service', service)}] {d.get('title') or d.get('name')} ({d.get('updated', '')})")
-    other = [f for f in facts if f.get("kind") not in ("self", "contact", "subject", "document", "workspace", "database")]
+    events = [f for f in facts if f.get("kind") == "event"]
+    if events:
+        lines.append("")
+        lines.append("calendar events (start, number of guests, whether the person organized it):")
+        for e in events[:60]:
+            lines.append(f"- {e.get('title')} — {e.get('when')} — {e.get('guests', 0)} guests{' — theirs' if e.get('mine') else ''}")
+    other = [f for f in facts if f.get("kind") not in ("self", "contact", "subject", "document", "workspace", "database", "event")]
     for o in other[:20]:
         lines.append(f"- {o}")
     return "\n".join(lines)

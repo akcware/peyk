@@ -7,7 +7,7 @@ Returns:  {"reply": str, "intents": [ {"intent": "MemoryWrite"|"ScheduleRequest"
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -90,6 +90,19 @@ long-term memory. Rules:
   deadline, a decision, what it says), do not stop at titles: pick the best-matching result and call
   read_document, then answer from the text. To write something for the person (notes, a summary, a plan) call
   create_document; say a draft is ready for approval, never that it was created.
+- Calendar: for their schedule ("yarın ne var", "am I free at 3", "Ekin'le ne zaman görüşüyorum") call
+  find_events, or find_free_time to find an open slot, with a window in their timezone (see Now).
+  search_observations only holds events that already pinged them. Both work in rounds like documents. If Google
+  Calendar is not connected, the tools say so: offer to connect it instead of guessing.
+- To put something in the calendar call create_event. Take the time the person gives as it is. Before adding or
+  moving an event, look at that day with find_events; if something overlaps, say so in one clause and ask
+  instead of silently choosing another time. No title given: make a short sensible one yourself, do not ask.
+  Default length is one hour. Guests by name: find_contact first. A calendar invitation already tells the
+  guests, so do not also draft a mail unless they ask for one.
+- The calendar tools tell you what happens next. Done right away (an event without guests, a change to a
+  private event): say it in a few words ("Ekledim, yarın 12:00."). A confirm card (anything that notifies other
+  people: guests, cancel_event, respond_to_invite): say it is ready for their tap, never that it is done.
+  Change, cancel or answer an event only by an id from find_events.
 - When you need someone's address, call find_contact(name) first; only ask the person if the lookup finds nothing.
   If find_contact returns nothing on the first try you will be re-run with lookup results — do not ask yet.
 - If the account state lists UNCONFIRMED proposed facts and the person's message confirms, corrects or partly
@@ -135,6 +148,8 @@ def render_capabilities(payload: dict[str, Any]) -> str:
         "- watch their connected mail and calendar, rate what matters, and ping them only within a daily interruption budget",
         "- answer questions about their recent mail, events and messages, and about what you already told them",
         "- draft replies or new mails that they approve in chat before anything is sent",
+        "- read their Google Calendar (a day's events, free time), add, move or cancel events and answer invitations;",
+        "  anything that notifies other people waits for their tap on a confirm card",
         "- set reminders and a morning brief; remember durable facts about them; look up contacts by name",
         "- search and read their documents in connected Notion / Google Drive / Google Docs, and create Notion pages or",
         "  Google Docs for them — creation is a draft they approve in chat first",
@@ -169,7 +184,8 @@ Now: {now}
 
 Decide two things for the incoming message:
 - needs_work: true if a proper answer requires looking at their emails, calendar, messages, long-term memory,
-  drafting a message for them, scheduling a reminder, or connecting a service. false for greetings, small talk,
+  drafting a message for them, scheduling a reminder, adding, moving or cancelling a calendar event, or
+  connecting a service. false for greetings, small talk,
   arithmetic, general knowledge, or anything you can answer right away from the conversation itself.
   Questions about what you can do, which services exist or are connected: answer directly from the facts above
   (needs_work false) — never invent services or abilities that are not listed.
@@ -226,6 +242,46 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
     contacts: list[dict[str, Any]] = ctx.get("contacts") or []
     documents: dict[str, Any] = ctx.get("documents") or {}      # {"search": {query: [...]}, "read": {"svc:id": {...}}}
     web: dict[str, Any] = ctx.get("web") or {}                  # {"enabled": bool, "search": {q: [...]}, "open": {url: {...}}}
+    calendar: dict[str, Any] = ctx.get("calendar") or {}        # {"events": {key: [...]}, "free": {key: {...}}}
+    tz = str(ctx.get("timezone") or (ctx.get("user") or {}).get("timezone") or "UTC")
+    calendar_on = "googlecalendar" in ((ctx.get("user_state") or {}).get("connected") or [])
+    not_connected = {"error": "Google Calendar is not connected; offer to connect it (connect_service) instead of guessing"}
+
+    def _bad_iso(value: str, name: str, required: bool = True) -> dict | None:
+        if not value and not required:
+            return None
+        try:
+            datetime.fromisoformat(value)
+            return None
+        except (TypeError, ValueError):
+            return {"error": f"{name} must be ISO-8601 with offset, e.g. 2026-09-14T12:00:00+02:00"}
+
+    def _known_event(event_id: str) -> dict[str, Any] | None:
+        for found in (calendar.get("events") or {}).values():
+            for e in found if isinstance(found, list) else []:
+                if e.get("id") == event_id:
+                    return e
+        return None
+
+    def _emails(guests: str) -> list[str]:
+        return [g.strip() for g in (guests or "").replace(";", ",").split(",") if g.strip()]
+
+    def _confirm(event: dict[str, Any]) -> bool:
+        """Same rule as workers.actions.calendar_needs_confirmation: whatever tells other people waits for a tap."""
+        op = event.get("op")
+        if op == "create":
+            return bool(event.get("attendees"))
+        if op == "update":
+            cur = event.get("current") or {}
+            return not cur or bool(cur.get("guests")) or not cur.get("organized_by_me") or bool(event.get("attendees_given"))
+        return True
+
+    def _write(event: dict[str, Any]) -> dict:
+        event = {"intent": "CalendarWrite", "timezone": tz, **event}
+        intents.append(event)
+        if _confirm(event):
+            return {"status": "a confirm card follows your reply", "note": "say it is ready for their tap; nothing happens before it"}
+        return {"status": "done right after your reply", "note": "say it is done, in a few words"}
 
     @tool
     def search_observations(query: str, source: str = "", since_iso: str = "") -> list[dict]:
@@ -387,6 +443,151 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"creating": True, "note": "the link will be sent right after your reply"}
 
     @tool
+    def find_events(start_iso: str, end_iso: str, query: str = "") -> dict:
+        """Read the person's Google Calendar: the events between two moments, e.g. their day tomorrow, what is
+        planned with someone this week, or whether a time is taken. Works in rounds like documents: a call may
+        return a note and you are re-run with the events. Each event has an id for update/cancel/answer.
+
+        Args:
+            start_iso: window start, ISO-8601 with offset in the person's timezone (see Now), e.g. 2026-09-14T00:00:00+02:00
+            end_iso: window end, ISO-8601 with offset
+            query: optional words to match (a name, a title); empty for everything in the window
+        """
+        if not calendar_on:
+            return not_connected
+        bad = _bad_iso(start_iso, "start_iso") or _bad_iso(end_iso, "end_iso")
+        if bad:
+            return bad
+        key = f"{start_iso}|{end_iso}|{' '.join(query.lower().split())}"
+        cached = (calendar.get("events") or {}).get(key)
+        if cached is not None:
+            return {"events": cached} if isinstance(cached, list) else cached
+        intents.append({"intent": "CalendarQuery", "op": "events", "start": start_iso, "end": end_iso, "query": query, "key": key})
+        return {"events": [], "note": "reading the calendar; you will be re-run with the events"}
+
+    @tool
+    def find_free_time(start_iso: str, end_iso: str) -> dict:
+        """Free and busy stretches in the person's Google Calendar between two moments (e.g. tomorrow 09:00-18:00),
+        to suggest a time that works. Works in rounds like documents.
+
+        Args:
+            start_iso: window start, ISO-8601 with offset in the person's timezone
+            end_iso: window end, ISO-8601 with offset
+        """
+        if not calendar_on:
+            return not_connected
+        bad = _bad_iso(start_iso, "start_iso") or _bad_iso(end_iso, "end_iso")
+        if bad:
+            return bad
+        key = f"{start_iso}|{end_iso}"
+        cached = (calendar.get("free") or {}).get(key)
+        if cached is not None:
+            return cached
+        intents.append({"intent": "CalendarQuery", "op": "free", "start": start_iso, "end": end_iso, "key": key})
+        return {"free": [], "busy": [], "note": "reading the calendar; you will be re-run with the result"}
+
+    @tool
+    def create_event(title: str, start_iso: str, end_iso: str = "", guests: str = "", location: str = "",
+                     description: str = "", video_call: bool = False) -> dict:
+        """Put an event in the person's Google Calendar. Without guests it goes in right away (their own calendar,
+        nobody is told) and a line with the link follows your reply. With guests, invitations go out, so a card
+        with a confirm button follows your reply and nothing happens before they tap it.
+
+        Args:
+            title: short title; if the person does not care, make a sensible one yourself (e.g. "Ekin ile toplantı")
+            start_iso: ISO-8601 with offset in the person's timezone, e.g. 2026-09-14T12:00:00+02:00
+            end_iso: optional end, ISO-8601 with offset; empty means one hour after the start
+            guests: email addresses to invite, comma separated (find_contact for names); empty for none
+            location: optional place or address
+            description: optional notes for the event
+            video_call: true only when they want an online meeting (adds a Google Meet link)
+        """
+        if not calendar_on:
+            return not_connected
+        bad = _bad_iso(start_iso, "start_iso") or _bad_iso(end_iso, "end_iso", required=False)
+        if bad:
+            return bad
+        if end_iso:
+            try:
+                if datetime.fromisoformat(end_iso) <= datetime.fromisoformat(start_iso):
+                    return {"error": "end_iso must be after start_iso"}
+            except TypeError:   # one naive, one with offset: the worker reads both in the person's zone
+                pass
+        end = end_iso or (datetime.fromisoformat(start_iso) + timedelta(hours=1)).isoformat()   # the card shows what gets written
+        return _write({"op": "create", "title": title.strip() or "(no title)", "start": start_iso, "end": end,
+                       "attendees": _emails(guests), "location": location, "description": description, "meet": bool(video_call)})
+
+    @tool
+    def update_event(event_id: str, title: str = "", start_iso: str = "", end_iso: str = "", guests: str = "",
+                     location: str = "", description: str = "") -> dict:
+        """Change an event you found with find_events: move it, rename it, change the place or the guests. Only
+        what you pass changes; a moved event keeps its length unless you give a new end. A private event changes
+        right away; when guests are involved they get an update, so a confirm card follows your reply.
+
+        Args:
+            event_id: the event's id from find_events (never guess one)
+            title: new title, or empty to keep it
+            start_iso: new start, ISO-8601 with offset, or empty to keep it
+            end_iso: new end, ISO-8601 with offset, or empty
+            guests: the COMPLETE new guest list, comma separated, only when the guest list should change; empty keeps it
+            location: new place, or empty to keep it
+            description: new notes, or empty to keep them
+        """
+        if not calendar_on:
+            return not_connected
+        current = _known_event(event_id)
+        if current is None:
+            return {"error": "unknown event_id: call find_events for that day first and use an id from its results"}
+        bad = _bad_iso(start_iso, "start_iso", required=False) or _bad_iso(end_iso, "end_iso", required=False)
+        if bad:
+            return bad
+        end = end_iso
+        if start_iso and not end_iso and current.get("start") and current.get("end") and not current.get("all_day"):
+            try:
+                length = datetime.fromisoformat(current["end"]) - datetime.fromisoformat(current["start"])
+                end = (datetime.fromisoformat(start_iso) + length).isoformat()
+            except (TypeError, ValueError):
+                end = ""
+        return _write({"op": "update", "event_id": event_id, "title": title.strip(), "start": start_iso, "end": end,
+                       "attendees": _emails(guests), "attendees_given": bool(guests.strip()), "location": location,
+                       "description": description, "current": current})
+
+    @tool
+    def cancel_event(event_id: str) -> dict:
+        """Delete an event you found with find_events from the person's calendar (guests are told it is off).
+        A confirm card follows your reply; nothing is deleted before they tap it.
+
+        Args:
+            event_id: the event's id from find_events
+        """
+        if not calendar_on:
+            return not_connected
+        current = _known_event(event_id)
+        if current is None:
+            return {"error": "unknown event_id: call find_events for that day first and use an id from its results"}
+        return _write({"op": "delete", "event_id": event_id, "current": current})
+
+    @tool
+    def respond_to_invite(event_id: str, response: str) -> dict:
+        """Answer an invitation you found with find_events (an event someone else organized). The organizer is
+        told, so a confirm card follows your reply.
+
+        Args:
+            event_id: the event's id from find_events
+            response: accepted | declined | tentative
+        """
+        if not calendar_on:
+            return not_connected
+        if response not in ("accepted", "declined", "tentative"):
+            return {"error": "response must be accepted, declined or tentative"}
+        current = _known_event(event_id)
+        if current is None:
+            return {"error": "unknown event_id: call find_events for that day first and use an id from its results"}
+        if current.get("organized_by_me"):
+            return {"error": "this is the person's own event; there is no invitation to answer"}
+        return _write({"op": "rsvp", "event_id": event_id, "response": response, "current": current})
+
+    @tool
     def delete_my_data() -> dict:
         """Start deleting the person's account and all their data (mail observations, memory, connections).
         Call this when they clearly ask to delete their account / data / "forget me". The system asks them to
@@ -435,7 +636,9 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         intents.append({"intent": "NeedMore", "query": query, "since_days": int(since_days)})
         return {"requested": True}
 
-    tools = [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile, confirm_learned, search_documents, read_document, create_document, delete_my_data, need_more]
+    tools = [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile,
+             confirm_learned, search_documents, read_document, create_document, find_events, find_free_time, create_event,
+             update_event, cancel_event, respond_to_invite, delete_my_data, need_more]
     if web.get("enabled", True):
         tools += [web_search, open_web_page]
     return tools

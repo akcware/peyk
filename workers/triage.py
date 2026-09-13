@@ -23,7 +23,18 @@ from core.models import Content, Observation
 from core.phrases import phrase
 from core.repo import budget_repo, identity_repo, job_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text, is_callback, is_control_channel
-from workers import account, chat, commands, contacts, feedback, gate, gate_state, health, ticks
+from workers import (
+    account,
+    chat,
+    commands,
+    contacts,
+    feedback,
+    gate,
+    gate_state,
+    health,
+    pretriage,
+    ticks,
+)
 
 log = get_logger("workers.triage")
 
@@ -232,8 +243,13 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
             # brief, never triaged or notified — and it tells us one of their own addresses.
             await record_own_message(conn, obs)
             return
-        # every other observation is a world event (message_in, event_starting, ...): triage + gate
-        await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
+        # every other observation is a world event (message_in, event_starting, ...): first "is this news at all?"
+        # (the person's own calendar edit, something they were just told about), then triage + gate
+        verdict = await pretriage.review(conn, obs, now)
+        if not verdict.news:
+            log.info("triage.not_news", observation_id=str(obs.id), kind=obs.kind, reason=verdict.reason)
+            return
+        await triage_and_gate(conn, verdict.obs, agent=agent, notifier=notifier, now=now)
 
 
 async def record_own_message(conn, obs: Observation) -> None:

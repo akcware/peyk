@@ -6,9 +6,12 @@ GMAIL_NEW_GMAIL_MESSAGE / GMAIL_FETCH_EMAILS; verify against the first real payl
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+
+from .calendar import review_change
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,35 @@ MAPPINGS: dict[str, Mapping] = {
             "minutes_until_start": "$.minutes_until_start",
             "organizer_email": "$.organizer_email",
             "description": "$.description",
+        },
+    ),
+    # Every change on the primary calendar with the full event. Payload keys verified against triggers.get_type on
+    # 2026-09-14: event_id, event_type (created | updated | deleted), summary, start_time, end_time, status,
+    # organizer_email/name, creator_email, attendees, created_at, updated_at, ... Whether a change is news for the
+    # person (their own edit, an invite, a move, a guest's answer) is decided before triage: see REVIEWS below.
+    "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_SYNC_TRIGGER": Mapping(
+        source="calendar",
+        kind="event_changed",
+        source_key="$.event_id",
+        source_key_template="{source_key}:{updated_at}",   # every change of an event is its own observation
+        occurred_at="$.updated_at",
+        thread_key="$.event_id",                           # same thread as event_starting: one mute covers both
+        payload_fields={
+            "change_type": "$.event_type",
+            "summary": "$.summary",
+            "start_time": "$.start_time",
+            "end_time": "$.end_time",
+            "status": "$.status",
+            "location": "$.location",
+            "organizer_email": "$.organizer_email",
+            "organizer_name": "$.organizer_name",
+            "creator_email": "$.creator_email",
+            "attendees": "$.attendees",
+            "hangout_link": "$.hangout_link",
+            "html_link": "$.html_link",
+            "description": "$.description",
+            "recurring_event_id": "$.recurring_event_id",
+            "updated_at": "$.updated_at",
         },
     ),
 }
@@ -159,3 +191,17 @@ def apply(mapping: Mapping, data: dict[str, Any]) -> dict[str, Any] | None:
         "thread_key": str(thread_key) if thread_key is not None else None,
         "payload": payload,
     }
+
+
+@dataclass(frozen=True)
+class Review:
+    """Before triage, an observation of a reviewed kind is compared with the previous state of its thread (the
+    newest earlier observation of one of `state_kinds`). The review returns None (not news) or the fields to merge
+    into the payload. Pure: workers/pretriage.py feeds it from the DB."""
+
+    review: Callable[[dict[str, Any], dict[str, Any] | None, set[str], datetime], dict[str, Any] | None]
+    state_kinds: tuple[str, ...]
+
+
+# observation kind -> review. event_snapshot rows are the calendar baseline written by workers/calendar_sync.py.
+REVIEWS: dict[str, Review] = {"event_changed": Review(review_change, ("event_changed", "event_snapshot"))}

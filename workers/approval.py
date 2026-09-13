@@ -27,9 +27,15 @@ EDIT_PREFIX = re.compile(r"^(edit|düzelt|duzelt)\s*:\s*", re.IGNORECASE)
 NOT_MODIFIED = "message is not modified"   # Telegram's answer to editing a message into what it already says
 
 
-def send_failure_key(error: BaseException) -> str:
+def send_failure_key(error: BaseException, *, calendar: bool = False) -> str:
     """Which fixed text explains a failed send. The raw error is logged (action.send_failed), never shown."""
     s = str(error).lower()
+    if calendar:
+        if "expired" in s or "401" in s or "unauthorized" in s or "invalid_grant" in s:
+            return "cal_failed_auth"
+        if "404" in s or "410" in s or "not found" in s or "deleted" in s:
+            return "cal_failed_missing"
+        return "cal_failed"
     if "thread" in s and ("404" in s or "not found" in s or "cannot access" in s):
         return "send_failed_thread"
     if "expired" in s or "401" in s or "unauthorized" in s or "invalid_grant" in s:
@@ -66,6 +72,8 @@ class ApprovalFlow:
 
     async def on_draft(self, conn: psycopg.AsyncConnection, obs: Observation, intent: dict[str, Any]) -> dict:
         content = {"body": intent.get("body", ""), "subject": intent.get("subject"), "to": list(intent.get("to") or [])}
+        if intent.get("event"):   # a calendar change: the card and the send read everything from here
+            content["event"] = intent["event"]
         action = await action_repo.create(conn, obs.user_id, channel=intent.get("channel") or "gmail",
                                           thread_key=intent.get("thread_key") or None, content=content)
         action = await actions.present(conn, action["id"])
@@ -89,16 +97,17 @@ class ApprovalFlow:
                 return phrase(self.lang, "draft_changed")
             except actions.InvalidTransition as e:
                 return str(e)
+            is_event = bool((action.get("content") or {}).get("event"))
             try:
                 adapter, handle = await self._conn_for(action["channel"], obs.user_id)
                 sent = await actions.send(conn, action_id, adapter, handle)
             except Exception as e:  # noqa: BLE001
-                await self._edit(tg_mid, "⚠️ " + phrase(self.lang, send_failure_key(e)), actions.buttons(action, self.lang))
+                await self._edit(tg_mid, "⚠️ " + phrase(self.lang, send_failure_key(e, calendar=is_event)), actions.buttons(action, self.lang))
                 return phrase(self.lang, "ack_send_failed")
-            # Replace the card with the sent text: what went out stays visible, the id does not (it is logged).
+            # Replace the card with what went out: the text stays visible, the id does not (it is logged).
             log.info("approval.sent", action_id=str(action_id), external_id=sent["external_id"])
-            await self._edit(tg_mid, f"{phrase(self.lang, 'sent')}\n\n{sent['content'].get('body', '')}", None)
-            return phrase(self.lang, "ack_sent")
+            await self._edit(tg_mid, actions.render_done(sent, self.lang), None)
+            return phrase(self.lang, "ack_cal_done" if is_event else "ack_sent")
         if verb == "edit":
             action = await action_repo.get(conn, action_id)
             if action is None or action["status"] not in ("awaiting_approval", "failed"):
@@ -108,10 +117,11 @@ class ApprovalFlow:
             return phrase(self.lang, "ack_waiting_edit")
         if verb == "reject":
             try:
-                await actions.reject(conn, action_id)
+                rejected = await actions.reject(conn, action_id)
             except actions.InvalidTransition as e:
                 return str(e)
-            await self._edit(tg_mid, phrase(self.lang, "cancelled"), None)
+            is_event = bool(((rejected or {}).get("content") or {}).get("event"))
+            await self._edit(tg_mid, phrase(self.lang, "cal_cancelled" if is_event else "cancelled"), None)
             return phrase(self.lang, "ack_cancelled")
         return None
 
@@ -125,7 +135,8 @@ class ApprovalFlow:
         elif pending is None:
             return False
         if pending is None:
-            open_actions = await action_repo.list_open(conn, obs.user_id)
+            # calendar cards have no Edit: they change by telling Peyk, so "edit:" never rewrites one
+            open_actions = [a for a in await action_repo.list_open(conn, obs.user_id) if not (a["content"] or {}).get("event")]
             if not open_actions:
                 await self.notifier.send_text(phrase(self.lang, "no_draft"))
                 return True
