@@ -13,7 +13,7 @@ from typing import Any
 
 from strands import Agent, tool
 
-from agent.model import build_model, user_language, user_profile
+from agent.model import build_model, retry_strategy, user_language, user_profile
 from agent.schemas import ChatAck
 
 CHAT_SYSTEM_PROMPT = """You are Peyk, a personal assistant for one person, reachable through Telegram.
@@ -164,6 +164,7 @@ def acknowledge(payload: dict[str, Any]) -> dict[str, Any]:
                                                capabilities=render_capabilities(payload)),
         messages=to_messages((payload.get("history") or [])[-4:]),
         callback_handler=None,
+        retry_strategy=retry_strategy(),
     )
     result = agent(str(payload.get("message") or ""), structured_output_model=ChatAck)
     ack: ChatAck = result.structured_output
@@ -423,6 +424,7 @@ def chat(payload: dict[str, Any]) -> dict[str, Any]:
         tools=[] if event_mode else make_tools(payload, intents),
         messages=to_messages(payload.get("history") or []),
         callback_handler=None,
+        retry_strategy=retry_strategy(),
     )
     result = agent(message)
     return {"reply": str(result).strip(), "intents": intents}

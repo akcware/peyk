@@ -56,3 +56,22 @@ def user_profile(payload: dict | None = None) -> str:
     deployment that would show one person's profile to another."""
     u = (payload or {}).get("user") or {}
     return (u.get("profile") or "").strip() or "(no profile yet — the person has not told you about themselves)"
+
+
+def retry_strategy():
+    """Short retry budget: Bedrock throttling must surface within ~30 s, not after minutes of silent backoff
+    (Strands' default is 6 attempts, 4→240 s delays). Throttles are logged so they are visible in production."""
+    import logging
+
+    from strands.event_loop._retry import ModelRetryStrategy
+
+    log = logging.getLogger("peyk.model")
+
+    class LoggingRetry(ModelRetryStrategy):
+        def is_retryable(self, exception: Exception) -> bool:
+            retryable = super().is_retryable(exception)
+            if retryable:
+                log.warning("bedrock throttled; retrying (%s)", type(exception).__name__)
+            return retryable
+
+    return LoggingRetry(max_attempts=4, initial_delay=2, max_delay=12)

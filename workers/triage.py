@@ -227,26 +227,51 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
         await triage_and_gate(conn, obs, agent=agent, notifier=notifier, now=now)
 
 
-async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier | None = None, idle_sleep: float = 1.0,
-              tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None, notifiers=None) -> None:
-    while True:
-        health.beat("triage")
-        async with db.connection() as conn:
-            obs = await queue.claim_next(conn, None)   # all users
-        if obs is None:
-            await asyncio.sleep(idle_sleep)
-            continue
-        slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
-        try:
+_user_locks: dict[UUID, asyncio.Lock] = {}
+
+
+def _lock_for(user_id: UUID) -> asyncio.Lock:
+    lock = _user_locks.get(user_id)
+    if lock is None:
+        lock = _user_locks[user_id] = asyncio.Lock()
+    return lock
+
+
+async def _consume_one(obs: Observation, *, settings, agent, notifier, tick_ctx, embedder, approval, notifiers) -> None:
+    slog = log.bind(observation_id=str(obs.id), source=obs.source, kind=obs.kind)
+    try:
+        async with _lock_for(obs.user_id):     # one turn at a time per person; other people are not blocked
             await handle(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
                          embedder=embedder, approval=approval, notifiers=notifiers)
+        async with db.connection() as conn:
+            await queue.complete(conn, obs.id)
+        slog.info("triage.done")
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        async with db.connection() as conn:
+            status = await queue.fail(conn, obs.id)
+        slog.error("triage.failed", error=str(e), status=status, attempts=obs.attempts)
+        await asyncio.sleep(min(2 ** obs.attempts, 30))
+
+
+async def run(settings: Settings, *, agent: AgentClient, notifier: Notifier | None = None, idle_sleep: float = 1.0,
+              tick_ctx: ticks.TickContext | None = None, embedder=None, approval=None, notifiers=None,
+              concurrency: int | None = None) -> None:
+    """N consumers share the queue (FOR UPDATE SKIP LOCKED); a per-user lock keeps each person's turns in order,
+    so one slow turn (a throttled model call, a long document) never stalls everyone else."""
+    n = max(1, int(concurrency or getattr(settings, "WORKER_CONCURRENCY", 3)))
+
+    async def consumer(idx: int) -> None:
+        while True:
+            if idx == 0:
+                health.beat("triage")
             async with db.connection() as conn:
-                await queue.complete(conn, obs.id)
-            slog.info("triage.done")
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            async with db.connection() as conn:
-                status = await queue.fail(conn, obs.id)
-            slog.error("triage.failed", error=str(e), status=status, attempts=obs.attempts)
-            await asyncio.sleep(min(2 ** obs.attempts, 30))
+                obs = await queue.claim_next(conn, None)   # all users
+            if obs is None:
+                await asyncio.sleep(idle_sleep)
+                continue
+            await _consume_one(obs, settings=settings, agent=agent, notifier=notifier, tick_ctx=tick_ctx,
+                               embedder=embedder, approval=approval, notifiers=notifiers)
+
+    await asyncio.gather(*(consumer(i) for i in range(n)))

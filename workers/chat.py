@@ -333,6 +333,9 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if typing:
         await typing()
     send = getattr(notifier, "send_rich", None) or notifier.send_text
+    import time as _time
+
+    t_start = _time.perf_counter()
     text, absorbed = await collect_burst(conn, obs, settings)
     if absorbed:   # the merged turn is what the agent sees and what history records
         obs = obs.model_copy(update={"payload": {**obs.payload, "control": {"text": text}}})
@@ -353,6 +356,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
         except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
             log.warning("chat.ack_failed", error=str(e))
     first_reflex = ""
+    t_ack = _time.perf_counter()
     if ack and ack["message"]:
         first_reflex = ack["message"]
         mid = await send(ack["message"])
@@ -387,8 +391,10 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
         occurred_at=datetime.now(tz=UTC), thread_key=obs.thread_key,
         payload={"text": reply, "in_reply_to": str(obs.id), "intents": [i.get("intent") for i in intents]},
     ))
+    t_reply = _time.perf_counter()
     applied = await apply_intents(conn, obs, intents, embedder=embedder, on_draft=on_draft, registry=registry, notifier=notifier)
-    log.info("chat.replied", observation_id=str(obs.id), intents=applied)
+    log.info("chat.replied", observation_id=str(obs.id), intents=applied, ack_ms=int((t_ack - t_start) * 1000),
+             answer_ms=int((t_reply - t_ack) * 1000), intents_ms=int((_time.perf_counter() - t_reply) * 1000))
     return reply
 
 

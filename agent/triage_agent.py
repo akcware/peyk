@@ -11,7 +11,7 @@ from typing import Any
 
 from strands import Agent
 
-from agent.model import build_model, model_id, user_language, user_profile
+from agent.model import build_model, model_id, retry_strategy, user_language, user_profile
 from agent.schemas import TriageResult
 
 TRIAGE_SYSTEM_PROMPT = """You triage incoming events for one person and rate how urgently they need to see each one.
@@ -87,6 +87,7 @@ def _agent(observation: dict[str, Any]) -> Agent:
         model=_model(),
         system_prompt=TRIAGE_SYSTEM_PROMPT.format(profile=user_profile(observation), language=user_language(user.get("language"))),
         callback_handler=None,
+        retry_strategy=retry_strategy(),
     )
 
 

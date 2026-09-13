@@ -7,7 +7,7 @@ from typing import Any
 
 from strands import Agent
 
-from agent.model import build_model, user_language, user_profile
+from agent.model import build_model, retry_strategy, user_language, user_profile
 from agent.schemas import LearnResult
 
 LEARN_SYSTEM_PROMPT = """You are Peyk, the person's personal assistant, who just got access to one of their services and looks at the
@@ -66,6 +66,7 @@ def learn(payload: dict[str, Any]) -> dict[str, Any]:
         model=_model(),
         system_prompt=LEARN_SYSTEM_PROMPT.format(profile=user_profile(payload), language=user_language(user.get("language"))),
         callback_handler=None,
+        retry_strategy=retry_strategy(),
     )
     prompt = render_facts(str(payload.get("service") or "service"), payload.get("facts") or [])
     result = agent(prompt + "\n\nReturn the learn result.", structured_output_model=LearnResult)
