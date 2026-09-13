@@ -125,7 +125,7 @@ async def test_reconcile_no_duplicate_notification(conn, settings):
     o = await observation_repo.insert(conn, Observation(user_id=USER_ID, source="gmail", source_key="19b1170000000002", kind="message_in",
                                                         occurred_at=datetime(2026, 9, 9, 8, 30, tzinfo=UTC), thread_key="19b1170000000002",
                                                         payload={"from": "Dr. Okafor <okafor@example-clinic.test>", "subject": "Appointment confirmation"}))
-    await triage.handle(o, settings=settings, agent=fake_agent(4), notifier=notifier)
+    await triage.handle(o, settings=settings, agent=fake_agent(4), notifier=notifier, now=o.occurred_at + timedelta(minutes=1))
     assert len(tg.sent) == 1
 
     ctx = ticks.TickContext(settings=settings, registry=registry, notifier=notifier)
@@ -133,7 +133,7 @@ async def test_reconcile_no_duplicate_notification(conn, settings):
     # replay the live queue for whatever reconcile added
     from core import queue
     while (nxt := await queue.claim_next(conn, USER_ID)) is not None:
-        await triage.handle(nxt, settings=settings, agent=fake_agent(4), notifier=notifier)
+        await triage.handle(nxt, settings=settings, agent=fake_agent(4), notifier=notifier, now=nxt.occurred_at + timedelta(minutes=1))
         await queue.complete(conn, nxt.id)
     cur = await conn.execute("select count(*) as n from sent_notification where observation_id = %s", (o.id,))
     assert (await cur.fetchone())["n"] == 1

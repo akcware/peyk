@@ -36,6 +36,9 @@ Rules:
 - Marketing that pretends to be urgent ("last chance!") is 1.
 - Never rate above 3 unless there is a concrete reason in the text (deadline, question, money, meeting time).
 - Rate 5 only when waiting an hour would have a real cost.
+- What the person said matters to them wins over these defaults: when the profile names kinds of events as urgent
+  or very important for them (e.g. meetings, bills, mail from a certain person), such an event that concerns them
+  (not marketing about it) is 5.
 - Timestamps in the event fields (start_time, was_start, ...) are already in the person's current time zone: say
   clock times exactly as they appear there.
 - A calendar change carries `change`: invited (someone invited the person), moved (the organizer changed the

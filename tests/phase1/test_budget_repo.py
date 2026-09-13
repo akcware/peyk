@@ -10,9 +10,9 @@ from workers import gate_state
 from workers.gate import decide
 
 
-def _obs(key: str, thread: str = "t1") -> Observation:
+def _obs(key: str, thread: str = "t1", occurred: datetime = datetime(2026, 9, 10, 13, 30, tzinfo=UTC)) -> Observation:
     return Observation(user_id=USER_ID, source="gmail", source_key=key, kind="message_in",
-                       occurred_at=datetime(2026, 9, 10, 9, 0, tzinfo=UTC), thread_key=thread,
+                       occurred_at=occurred, thread_key=thread,   # default: 30 min before the tests' `now`
                        payload={"from": "Mara <Mara@Example-Client.test>", "subject": key})
 
 
@@ -27,7 +27,8 @@ async def test_gate_state_from_db_and_quiet_hours_wrap(conn):
     st = await gate_state.load(conn, stored, now)
     assert st.settings.quiet_hours == (23, 8)
     night = now.replace(hour=23, minute=30)
-    assert decide(stored, TriageResult(urgency=3, category="person", reason="r"), await gate_state.load(conn, stored, night)).reason == "quiet_hours"
+    late = await observation_repo.insert(conn, _obs("late", occurred=night - timedelta(minutes=5)))
+    assert decide(late, TriageResult(urgency=3, category="person", reason="r"), await gate_state.load(conn, late, night)).reason == "quiet_hours"
 
 
 async def test_sent_today_cooldown_and_mutes(conn):
@@ -48,6 +49,7 @@ async def test_sent_today_cooldown_and_mutes(conn):
 
     assert await budget_repo.set_feedback(conn, USER_ID, sid, "noise")
     assert (await budget_repo.find_sent_by_tg_message(conn, USER_ID, 77))["user_feedback"] == "noise"
+    assert (await gate_state.load(conn, a, now)).sent_today == 0      # 👎 gives the slot back
 
     await budget_repo.add_mute(conn, USER_ID, "thread", "t2")
     await budget_repo.add_mute(conn, USER_ID, "sender", "old@example.test", until=now - timedelta(days=1))

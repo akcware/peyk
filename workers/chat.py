@@ -158,7 +158,8 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
                 if o.source != settings.CONTROL_SOURCE and o.kind not in CONTEXT_SKIP_KINDS][:limit]
     if not rows:
         return []
-    cur = await conn.execute("select observation_id, urgency, summary from triage where observation_id = any(%s)", ([o.id for o in rows],))
+    cur = await conn.execute("select observation_id, urgency, summary, gate_reason from triage where observation_id = any(%s)",
+                             ([o.id for o in rows],))
     tri = {r["observation_id"]: r for r in await cur.fetchall()}
     cur = await conn.execute("select observation_id, sent_at from sent_notification where observation_id = any(%s)", ([o.id for o in rows],))
     notified = {r["observation_id"]: r["sent_at"] for r in await cur.fetchall()}
@@ -169,6 +170,8 @@ async def recent_observations(conn: psycopg.AsyncConnection, user_id: UUID, sett
             d["summary"] = tri[o.id]["summary"]
         if o.id in notified:
             d["notified_at"] = notified[o.id].isoformat()
+        elif o.id in tri and tri[o.id]["gate_reason"] not in (None, "ok", "urgency_bypass"):
+            d["held_back"] = tri[o.id]["gate_reason"]    # seen but not pinged: the agent can say why
         out.append(d)
     return out
 
@@ -498,6 +501,14 @@ async def collect_burst(conn: psycopg.AsyncConnection, obs: Observation, setting
     return "\n".join(p for p in parts if p), absorbed
 
 
+def person_now(now: datetime, user: dict[str, Any] | None) -> datetime:
+    """`now` on the person's clock (their current zone); server time only when the zone is missing or unknown."""
+    try:
+        return now.astimezone(ZoneInfo(str((user or {}).get("timezone") or "")))
+    except (KeyError, ValueError):
+        return now.astimezone()
+
+
 async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
                          notifier, embedder: Embedder, on_draft=None, now: datetime | None = None, contact_search=None,
                          registry=None, web: WebSearcher | None | bool = False) -> str:
@@ -531,7 +542,7 @@ async def handle_message(conn: psycopg.AsyncConnection, obs: Observation, *, set
     if not onboarding_needed and not acked_before:
         try:
             history = await build_history(conn, obs, turns=4)
-            ack = await agent.chat_ack({"message": text, "history": history, "now_iso": now.astimezone().isoformat(),
+            ack = await agent.chat_ack({"message": text, "history": history, "now_iso": person_now(now, user).isoformat(),
                                         "user": user, "user_state": state})
         except Exception as e:  # noqa: BLE001 - the ack is a nicety; the real answer must still come
             log.warning("chat.ack_failed", error=str(e))

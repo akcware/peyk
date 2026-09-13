@@ -150,6 +150,7 @@ this decides whether it is worth interrupting. First matching rule wins:
 | Rule | Result |
 |---|---|
 | sender, thread or category muted | no |
+| it happened more than 3 h ago (found late: an outage, a replay) | no — the brief tells it with its age, whatever the urgency |
 | urgency ≥ 5 (bypass) | yes, unless the daily quota is fully used — bypass pierces cooldown and quiet hours, never the quota |
 | quiet hours | no |
 | urgency ≤ 2 | no |
@@ -158,7 +159,9 @@ this decides whether it is worth interrupting. First matching rule wins:
 | otherwise | yes |
 
 The reserve exists because a replay of labelled mail showed a busy morning of urgency-3/4 pings starving an
-afternoon emergency. Everything that did not knock lands in the 08:00 brief.
+afternoon emergency. A notification the person marks 👎 noise gives its slot back. What the person says is urgent
+for them goes into their profile, and triage rates such events 5. Everything that did not knock lands in the 08:00
+brief, and the reason it did not knock is stored with the triage (`triage.gate_reason`), so the chat can say why.
 
 ## Approval
 

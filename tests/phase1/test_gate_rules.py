@@ -14,9 +14,9 @@ NOW = datetime(2026, 9, 10, 14, 0, tzinfo=UTC)          # 14:00 — outside defa
 NIGHT = datetime(2026, 9, 10, 23, 30, tzinfo=UTC)       # inside (23, 8)
 
 
-def obs(sender="mara@example-client.test", thread="t1") -> Observation:
+def obs(sender="mara@example-client.test", thread="t1", occurred=NOW) -> Observation:
     return Observation(user_id=USER_ID, source="gmail", source_key="k", kind="message_in",
-                       occurred_at=NOW, thread_key=thread, payload={"from": f"Mara <{sender}>", "subject": "x"})
+                       occurred_at=occurred, thread_key=thread, payload={"from": f"Mara <{sender}>", "subject": "x"})
 
 
 def tri(urgency: int, category="person") -> TriageResult:
@@ -65,7 +65,18 @@ CASES = [
 
 @pytest.mark.parametrize("case_id,urgency,kw,expected", CASES, ids=[c[0] for c in CASES])
 def test_gate_rules(case_id, urgency, kw, expected):
-    assert decide(obs(), tri(urgency), state(**kw)) == expected
+    st = state(**kw)
+    assert decide(obs(occurred=st.now), tri(urgency), st) == expected   # every case arrived just now
+
+
+@pytest.mark.parametrize("age,urgency,expected", [
+    (timedelta(hours=4), 4, Decision(False, "stale")),
+    (timedelta(hours=4), 5, Decision(False, "stale")),               # found hours late: the brief, not a knock
+    (timedelta(hours=2, minutes=59), 4, Decision(True, "ok")),
+    (-timedelta(minutes=15), 5, Decision(True, "urgency_bypass")),   # a calendar event starting in 15 minutes
+])
+def test_stale_items_never_knock(age, urgency, expected):
+    assert decide(obs(occurred=NOW - age), tri(urgency), state()) == expected
 
 
 def test_quiet_hours_window():

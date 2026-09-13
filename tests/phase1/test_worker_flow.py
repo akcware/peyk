@@ -48,7 +48,7 @@ def fake_agent(urgency: int, category: str = "person") -> AgentClient:
 
 def gmail_obs(key: str, sender="Mara <mara@example-client.test>") -> Observation:
     return Observation(user_id=USER_ID, source="gmail", source_key=key, kind="message_in",
-                       occurred_at=datetime(2026, 9, 10, 9, 0, tzinfo=UTC), thread_key=f"th-{key}",
+                       occurred_at=datetime.now(tz=UTC), thread_key=f"th-{key}",
                        payload={"from": sender, "subject": f"subject {key}", "snippet": "hello there"})
 
 

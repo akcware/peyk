@@ -48,9 +48,11 @@ async def insert_sent(
 
 
 async def sent_today(conn: psycopg.AsyncConnection, user_id: UUID, now: datetime) -> int:
-    """Notifications sent in the last 24h (rolling window; simpler and stricter than calendar day)."""
+    """Notifications sent in the last 24h (rolling window; simpler and stricter than calendar day). One the person
+    marked 👎 noise gives its slot back: a wasted knock must not cost a later one that matters."""
     cur = await conn.execute(
-        "select count(*) as n from sent_notification where user_id = %s and sent_at > %s - interval '24 hours'",
+        "select count(*) as n from sent_notification where user_id = %s and sent_at > %s - interval '24 hours' "
+        "and user_feedback is distinct from 'noise'",
         (user_id, now),
     )
     return (await cur.fetchone())["n"]

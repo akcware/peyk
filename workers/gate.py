@@ -2,6 +2,8 @@
 this decides *worth interrupting?*. Rule order (first match wins):
 
   muted                              -> no   (muted_sender)
+  older than stale_after_minutes     -> no   (stale) — found hours late (an outage, a replay): the brief tells
+                                             it with its age instead of a knock that reads as news
   urgency >= bypass_urgency          -> yes  (urgency_bypass) — pierces cooldown and quiet hours,
                                              but NOT the daily quota (quota is the hard ceiling)
   quiet hours                        -> no   (quiet_hours)
@@ -11,7 +13,8 @@ this decides *worth interrupting?*. Rule order (first match wins):
   otherwise                          -> yes  (ok)
 
 `bypass_reserve` keeps the last slots of the daily quota for urgency >= bypass_urgency, so an
-ordinary morning cannot starve an afternoon emergency. The quota itself is never exceeded.
+ordinary morning cannot starve an afternoon emergency. The quota itself is never exceeded. A notification the
+person marked 👎 noise gives its slot back (core/repo/budget_repo.sent_today).
 """
 from __future__ import annotations
 
@@ -25,7 +28,7 @@ from core.models import Observation
 
 Reason = Literal[
     "quota_exhausted", "thread_cooldown", "muted_sender", "quiet_hours",
-    "urgency_bypass", "ok", "below_threshold",
+    "urgency_bypass", "ok", "below_threshold", "stale",
 ]
 
 
@@ -43,6 +46,7 @@ class BudgetSettings:
     quiet_hours: tuple[int, int] | None = None   # (start_hour, end_hour), end exclusive, may wrap midnight
     bypass_urgency: int = 5
     bypass_reserve: int = 2              # slots of daily_quota only bypass-level urgency may use
+    stale_after_minutes: int = 180       # anything older never knocks, whatever its urgency
 
 
 @dataclass
@@ -93,6 +97,8 @@ def decide(obs: Observation, triage: TriageResult, state: GateState) -> Decision
     s = state.settings
     if is_muted(obs, triage, state):
         return Decision(False, "muted_sender")
+    if state.now - obs.occurred_at > timedelta(minutes=s.stale_after_minutes):
+        return Decision(False, "stale")
     quota_exhausted = state.sent_today >= s.daily_quota
     if triage.urgency >= s.bypass_urgency:
         return Decision(False, "quota_exhausted") if quota_exhausted else Decision(True, "urgency_bypass")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from adapters.composio.webhook import parse_envelope, to_observation
@@ -68,13 +68,14 @@ async def test_calendar_flows_through_gate(conn, settings):
     obs = await observation_repo.insert(conn, to_observation(parse_envelope(_event()), USER_ID))
     tg = FakeTelegram()
     notifier = triage.Notifier(tg, "777", USER_ID)
-    await triage.handle(obs, settings=settings, agent=fake_agent(5, "calendar"), notifier=notifier)
+    fired = obs.occurred_at - timedelta(minutes=15)   # the trigger fires 15 minutes before the start
+    await triage.handle(obs, settings=settings, agent=fake_agent(5, "calendar"), notifier=notifier, now=fired)
     assert (await budget_repo.get_triage(conn, obs.id))["category"] == "calendar"
     assert len(tg.sent) == 1 and "· calendar" in tg.sent[0]["text"] and "Standup with client team" in tg.sent[0]["text"]
     # and a low-urgency calendar event stays silent, same gate
     quiet = _event(); quiet["data"]["event_id"] = "evt_other"
     obs2 = await observation_repo.insert(conn, to_observation(parse_envelope(quiet), USER_ID))
-    await triage.handle(obs2, settings=settings, agent=fake_agent(2, "calendar"), notifier=notifier)
+    await triage.handle(obs2, settings=settings, agent=fake_agent(2, "calendar"), notifier=notifier, now=fired)
     assert len(tg.sent) == 1
 
 
