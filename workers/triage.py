@@ -254,7 +254,8 @@ async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifie
         await notifier.send(conn, obs, result)
         if check is not None and approval is not None and may_offer_reply(obs, result):
             try:
-                await approval.on_draft(conn, obs, {"channel": obs.source, "thread_key": obs.thread_key, "to": [], "subject": None,
+                await approval.on_draft(conn, obs, {"channel": obs.source, "thread_key": obs.thread_key,
+                                                    "to": [ctx["sender"]] if ctx else [], "subject": None,
                                                     "body": result.reply.strip()})
             except Exception as e:  # noqa: BLE001 - the notification already went out: a queue retry would send it twice
                 log.error("triage.reply_draft_failed", observation_id=str(obs.id), error=str(e)[:200])

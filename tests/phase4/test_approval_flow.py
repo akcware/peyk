@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,6 +16,7 @@ import pytest
 from core.adapter import AdapterRegistry
 from core.models import Connection, Observation
 from core.phrases import phrase
+from core.repo import observation_repo, user_repo
 from workers import actions
 from workers.approval import ApprovalFlow, send_failure_key
 
@@ -137,6 +138,38 @@ async def test_repeated_send_on_same_failure_does_not_post_duplicates(conn):
     other = FakeNotifier(edit_error="telegram editMessageText failed: Bad Request: message to edit not found")
     await _draft_and_approve(conn, flow, uuid4(), "555", other, "thread-z")
     assert other.texts == ["⚠️ " + phrase("tr", "send_failed_thread")]   # a real edit failure still falls back to a new message
+
+
+@pytest.mark.asyncio
+async def test_a_thread_reply_without_an_address_goes_to_whoever_wrote_last(conn):
+    """Production 2026-09-14: triage's reply card (and a chat reply in a thread) carried no address, and Gmail's reply
+    tool refused every Send: "At least one of 'recipient_email', 'cc', or 'bcc' must be provided"."""
+    user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "888")
+    uid = user["id"]
+    await user_repo.merge_state(conn, uid, {"emails": ["me@example.test"]})
+
+    def mail(key: str, kind: str, sender: str, to: str, minutes_ago: int) -> Observation:
+        return Observation(user_id=uid, source="gmail", source_key=key, kind=kind, thread_key="th-carla",
+                           occurred_at=datetime.now(tz=UTC) - timedelta(minutes=minutes_ago),
+                           payload={"from": sender, "to": to, "subject": "Apartment viewing"})
+
+    notifier = FakeNotifier()
+    flow = ApprovalFlow(AdapterRegistry({"composio": FakeMailAdapter()}), notifier)
+    draft = {"body": "18:00 uyar mı?", "to": [], "channel": "gmail", "thread_key": "th-carla"}
+
+    await observation_repo.insert(conn, mail("m1", "message_in", "Carla <Carla@Example.test>", "me@example.test", 30))
+    action = await flow.on_draft(conn, _draft_obs(uid, "888"), draft)
+    assert action["content"]["to"] == ["carla@example.test"]
+    assert notifier.markups[-1][0].splitlines()[1] == "Kime: carla@example.test"   # the person sees who gets it
+
+    # the person wrote last: the reply goes to whom they wrote, never back to themselves
+    await observation_repo.insert(conn, mail("m2", "message_out", "Me <me@example.test>", "Carla <carla@example.test>, bo@example.test", 10))
+    action = await flow.on_draft(conn, _draft_obs(uid, "888"), draft)
+    assert action["content"]["to"] == ["carla@example.test", "bo@example.test"]
+
+    # a thread we know nothing about: no guessed address
+    action = await flow.on_draft(conn, _draft_obs(uid, "888"), {**draft, "thread_key": "th-unknown"})
+    assert action["content"]["to"] == []
 
 
 def test_send_failure_key_classifies_known_errors():

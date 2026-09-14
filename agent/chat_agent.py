@@ -398,7 +398,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         Args:
             body: the message text
             thread_key: the thread id to reply in (from an observation), empty for a new message
-            to: recipient address(es), comma separated, for a new message
+            to: recipient address(es), comma separated, for a new message; empty on a reply answers whoever wrote last
             subject: subject for a new message
             channel: gmail (default) or another channel the person mentioned
         """

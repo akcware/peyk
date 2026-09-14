@@ -10,16 +10,18 @@ from __future__ import annotations
 import copy
 import re
 from datetime import UTC, datetime
+from email.utils import getaddresses
 from typing import Any
 from uuid import UUID
 
 import psycopg
 
 from core.adapter import AdapterRegistry
+from core.identity import normalize_email
 from core.log import get_logger
 from core.models import Observation
 from core.phrases import phrase
-from core.repo import action_repo, observation_repo
+from core.repo import action_repo, observation_repo, user_repo
 from core.routing import callback_data, control_text
 from workers import actions
 
@@ -43,6 +45,28 @@ def send_failure_key(error: BaseException, *, calendar: bool = False) -> str:
     if "expired" in s or "401" in s or "unauthorized" in s or "invalid_grant" in s:
         return "send_failed_auth"
     return "send_failed"
+
+
+async def reply_recipients(conn: psycopg.AsyncConnection, user_id: UUID, thread_key: str) -> list[str]:
+    """Who a mail reply in this thread goes to: whoever wrote last, or whom the person wrote to when they wrote last.
+    Gmail's reply tool needs an address; without one every Send failed (2026-09-14: "At least one of
+    'recipient_email', 'cc', or 'bcc' must be provided"). Nothing known about the thread -> no guess."""
+    own = set(user_repo.own_emails(await user_repo.get(conn, user_id)))
+    for o in await observation_repo.list_by_thread(conn, user_id, thread_key):
+        if o.source != "gmail":
+            continue
+        if o.kind == "message_in":
+            sender = normalize_email(str(o.payload.get("from") or ""))
+            if sender and sender not in own:
+                return [sender]
+            continue
+        raw = o.payload.get("to")
+        raw = ", ".join(map(str, raw)) if isinstance(raw, list) else str(raw or "")
+        to = [e.strip().lower() for _, e in getaddresses([raw]) if e.strip()]
+        to = list(dict.fromkeys(e for e in to if e not in own))
+        if to:
+            return to
+    return []
 
 
 class ApprovalFlow:
@@ -80,11 +104,14 @@ class ApprovalFlow:
     # ---- entry points ----
 
     async def on_draft(self, conn: psycopg.AsyncConnection, obs: Observation, intent: dict[str, Any]) -> dict:
-        content = {"body": intent.get("body", ""), "subject": intent.get("subject"), "to": list(intent.get("to") or [])}
+        channel, thread_key = intent.get("channel") or "gmail", intent.get("thread_key") or None
+        to = list(intent.get("to") or [])
+        if not to and thread_key and channel == "gmail" and not intent.get("event"):
+            to = await reply_recipients(conn, obs.user_id, thread_key)   # shown on the card, so the person sees who gets it
+        content = {"body": intent.get("body", ""), "subject": intent.get("subject"), "to": to}
         if intent.get("event"):   # a calendar change: the card and the send read everything from here
             content["event"] = intent["event"]
-        action = await action_repo.create(conn, obs.user_id, channel=intent.get("channel") or "gmail",
-                                          thread_key=intent.get("thread_key") or None, content=content)
+        action = await action_repo.create(conn, obs.user_id, channel=channel, thread_key=thread_key, content=content)
         action = await actions.present(conn, action["id"])
         await self._show(conn, action)
         return action

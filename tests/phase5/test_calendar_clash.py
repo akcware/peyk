@@ -172,10 +172,11 @@ async def test_a_mail_asking_to_meet_is_checked_against_the_calendar_and_gets_a_
 
     note, card = tg.sent
     assert note["text"].endswith("Ekin asks to meet tomorrow at 13:00, but your lunch runs 13:00-14:00.")
-    assert card["text"] == "📝 Draft (reply in thread)\n\n13:00 olmuyor, öğle yemeğim var. 14:00 uyar mı?"
+    assert card["text"] == "📝 Draft (reply in thread)\nTo: dekin031@gmail.com\n\n13:00 olmuyor, öğle yemeğim var. 14:00 uyar mı?"
     assert [b["text"] for b in card["markup"]["inline_keyboard"][0]] == ["✅ Send", "✏️ Edit", "❌ Cancel"]
     action = (await action_repo.list_open(conn, uid))[0]
-    assert action["channel"] == "gmail" and action["thread_key"] == "th-m1" and action["content"]["to"] == []
+    # the reply goes to the sender: with no address Gmail's reply tool refused every Send (prod, 2026-09-14)
+    assert action["channel"] == "gmail" and action["thread_key"] == "th-m1" and action["content"]["to"] == ["dekin031@gmail.com"]
 
     stored = await observation_repo.get(conn, obs.id)
     assert stored.payload["calendar_check"]["free"] is False and stored.payload["suggested_reply"].startswith("13:00 olmuyor")
