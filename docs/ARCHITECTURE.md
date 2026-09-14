@@ -29,7 +29,9 @@ flowchart TB
         ING[ingest] --> Q[("Postgres = queue<br/>one observation per input, deduplicated")]
         SCH[scheduler → tick observations] --> Q
         Q --> LOOP["consumer loop — route by data"]
-        LOOP -- world event --> TRI[triage: urgency 1–5] --> GATE["gate (pure): quota · cooldown · quiet hours · mutes · reserve"]
+        LOOP -- world event --> PRE["pretriage: is this news?<br/>drops own edits · replays · already-told"]
+        PRE -- news --> TRI[triage: urgency 1–5] --> GATE["gate (pure): quota · cooldown · quiet hours · mutes · reserve"]
+        PRE -. not news .-> DROP[("dropped — no notification, no triage")]
         LOOP -- your message --> CHAT["chat: reflex, then answer with tools"]
         CHAT --> INT["intents applied here:<br/>reminder · memory · connect · learn · document · delete"]
         INT --> APPR["approval: draft → ✅ Send only with matching hash"]
@@ -155,7 +157,7 @@ this decides whether it is worth interrupting. First matching rule wins:
 | quiet hours | no |
 | urgency ≤ 2 | no |
 | same thread notified within the cooldown (default 4 h) | no |
-| ordinary slots used (`daily_quota − bypass_reserve`, default 5 − 2) | no |
+| ordinary slots used (`daily_quota − bypass_reserve`, default 10 − 2) | no |
 | otherwise | yes |
 
 The reserve exists because a replay of labelled mail showed a busy morning of urgency-3/4 pings starving an

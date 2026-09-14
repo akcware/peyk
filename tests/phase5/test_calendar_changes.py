@@ -243,6 +243,9 @@ async def test_calendar_news_shares_the_daily_quota_with_mail(conn, settings):
     user = await user_repo.create(conn, control_source="telegram", control_thread_key="903")
     uid = user["id"]
     await user_repo.add_own_email(conn, uid, ME)
+    # a quota of 5 (the default is 10), so the shared count and the reserve show within a few observations
+    await conn.execute("insert into budget_settings (user_id, daily_quota) values (%s, 5) "
+                       "on conflict (user_id) do update set daily_quota = 5", (uid,))
     tg = FakeTelegram()
     notifier = triage.Notifier(tg, "903", uid)
     normal, _ = triage_agent(4)
@@ -253,7 +256,7 @@ async def test_calendar_news_shares_the_daily_quota_with_mail(conn, settings):
         await triage.handle(stored, settings=settings, agent=agent, notifier=notifier)
         return ((await budget_repo.get_triage(conn, stored.id)) or {}).get("gate_reason")
 
-    # defaults: 5 in 24 h, the last 2 kept for urgency 5 -> three ordinary notifications, whatever their source
+    # 5 in 24 h, the last 2 kept for urgency 5 -> three ordinary notifications, whatever their source
     assert await gate_reason(mail(uid, "q1", "Invoice 1")) == "ok"
     assert await gate_reason(obs_of(uid, change(event_id="q-inv", event_type="created"))) == "ok"          # an invite takes a slot
     assert await gate_reason(mail(uid, "q2", "Invoice 2")) == "ok"

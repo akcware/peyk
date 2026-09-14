@@ -41,7 +41,7 @@ class MuteRule:
 
 @dataclass(frozen=True)
 class BudgetSettings:
-    daily_quota: int = 5
+    daily_quota: int = 10
     thread_cooldown_minutes: int = 240
     quiet_hours: tuple[int, int] | None = None   # (start_hour, end_hour), end exclusive, may wrap midnight
     bypass_urgency: int = 5

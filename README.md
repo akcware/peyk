@@ -25,9 +25,9 @@ newsletter and a receipt. Peyk starts from the other end.
 ## What it does
 
 **Interrupts on a budget.** Each mail or event gets an urgency 1–5 and a one-line summary in your language. A
-deterministic gate then applies your budget: a daily quota (default 5), a per-thread cooldown, quiet hours,
+deterministic gate then applies your budget: a daily quota (default 10), a per-thread cooldown, quiet hours,
 mutes — with slots reserved for real emergencies so a busy morning cannot starve an afternoon crisis. Sixty
-mails a day become three or four knocks; everything else lands in the 08:00 brief.
+mails a day become a handful of knocks; everything else lands in the 08:00 brief.
 
 **Talks like a secretary.** Ask "who wrote today?", "when is the deadline in my Notion page?", "did I answer
 Mara?". Peyk answers first with a natural reflex ("Sure, checking today's mail…"), then with facts from your

@@ -20,7 +20,7 @@ async def test_gate_state_from_db_and_quiet_hours_wrap(conn):
     now = datetime(2026, 9, 10, 14, 0, tzinfo=UTC)
     stored = await observation_repo.insert(conn, _obs("a"))
     st = await gate_state.load(conn, stored, now)
-    assert st.settings.daily_quota == 5 and st.settings.quiet_hours is None and st.sender == "mara@example-client.test"
+    assert st.settings.daily_quota == 10 and st.settings.quiet_hours is None and st.sender == "mara@example-client.test"
     assert decide(stored, TriageResult(urgency=3, category="person", reason="r"), st).notify
 
     await budget_repo.set_quiet_hours(conn, USER_ID, 23, 8)
