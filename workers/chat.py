@@ -35,6 +35,7 @@ BUBBLE_MARK = re.compile(r"^\s*(?:---|\*\*\*|___)\s*$", re.MULTILINE)   # the ag
 MAX_BUBBLES = 3
 CONTEXT_SKIP_KINDS = ("tick", "event_snapshot")   # scheduler ticks and calendar baselines are state, not things that happened
 TIME_KEYS = ("start_time", "was_start")          # calendar times the chat agent may say out loud
+CALENDAR_RETRY_WAITS = (8.0,)                    # a person is waiting: one short wait for Google's per-minute quota
 
 
 def zone_of(name: Any) -> ZoneInfo | None:
@@ -349,7 +350,8 @@ async def resolve_calendar(queries: list[dict[str, Any]], store: dict[str, dict]
             if op == "free":
                 bucket[key] = await adapter.calendar_free(handle, str(q.get("start")), str(q.get("end")), tz)
             elif op == "check":
-                bucket[key] = await adapter.calendar_check(handle, str(q.get("start")), str(q.get("end") or ""), tz, now=now)
+                bucket[key] = await adapter.calendar_check(handle, str(q.get("start")), str(q.get("end") or ""), tz, now=now,
+                                                           waits=CALENDAR_RETRY_WAITS)
             else:
                 bucket[key] = await adapter.calendar_events(handle, str(q.get("start")), str(q.get("end")),
                                                             str(q.get("query") or ""), tz=tz)

@@ -177,12 +177,25 @@ class ComposioAdapter:
         """{"free": [{start, end}], "busy": [{start, end}]} for the primary calendar."""
         return await asyncio.to_thread(gcal.find_free_slots, self._execute, conn.data.get("composio_user_id"), start, end, tz)
 
+    async def _calendar_read(self, fn: Callable[..., Any], *args: Any, waits: tuple[float, ...] = (), **kwargs: Any) -> Any:
+        """One Google Calendar read. When Google's per-minute quota is used up (calendar.rate_limited), each entry of
+        `waits` is one more try after that many seconds; any other error is raised at once."""
+        for wait in waits:
+            try:
+                return await asyncio.to_thread(fn, *args, **kwargs)
+            except Exception as e:  # only the per-minute quota is worth waiting for
+                if not gcal.rate_limited(e):
+                    raise
+                log.warning("composio.calendar_rate_limited", retry_in_s=wait)
+                await asyncio.sleep(wait)
+        return await asyncio.to_thread(fn, *args, **kwargs)
+
     async def calendar_check(self, conn: Connection, start: str, end: str, tz: str | None, *, now: datetime | None = None,
-                             exclude_id: str = "", exclude_title: str = "") -> dict[str, Any]:
+                             exclude_id: str = "", exclude_title: str = "", waits: tuple[float, ...] = ()) -> dict[str, Any]:
         """Is the person free at [start, end]? One read of that local day, judged by calendar.check_time."""
         first, last = gcal.day_window(start, end, tz)
-        events = await asyncio.to_thread(gcal.list_events, self._execute, conn.data.get("composio_user_id"), first, last,
-                                         tz=tz, limit=50)
+        events = await self._calendar_read(gcal.list_events, self._execute, conn.data.get("composio_user_id"), first, last,
+                                           tz=tz, limit=50, waits=waits)
         return gcal.check_time(events, start, end, tz=tz, now=now, exclude_id=exclude_id, exclude_title=exclude_title)
 
     async def calendar_write(self, conn: Connection, event: dict[str, Any]) -> dict[str, Any]:

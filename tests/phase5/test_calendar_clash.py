@@ -88,12 +88,25 @@ def test_triage_prompt_carries_the_calendar_but_not_old_findings():
 
 # ---------------- the triage worker ----------------
 
+# what Composio's managed Google project answered on 2026-09-14, the first time this ran in production
+QUOTA = ('{\n  "error": {\n    "code": 403,\n    "message": "Quota exceeded for quota metric \'Queries\' and limit \'Queries '
+         'per minute\' of service \'calendar-json.googleapis.com\' for consumer \'project_number:1\'."\n  }\n}')
+
+
+def test_only_the_per_minute_quota_counts_as_rate_limited():
+    assert gcal.rate_limited(RuntimeError(QUOTA)) and gcal.rate_limited(RuntimeError("HTTP 429 Too Many Requests"))
+    assert gcal.rate_limited(RuntimeError("403 rateLimitExceeded"))
+    assert not gcal.rate_limited(RuntimeError("401 Unauthorized: invalid_grant"))
+    assert not gcal.rate_limited(RuntimeError("Quota exceeded for quota metric 'Queries' and limit 'Queries per day'"))
+    assert not gcal.rate_limited(RuntimeError("event 14290 not found"))
+
+
 class ClashAdapter(ComposioAdapter):
-    def __init__(self, settings, calls, *, fail=False):
+    def __init__(self, settings, calls, *, fails: int = 0, error: str = QUOTA):
         def execute(slug, args, *, user_id=None):
             calls.append((slug, args))
-            if fail:
-                raise RuntimeError("403 rateLimitExceeded")
+            if len(calls) <= fails:
+                return {"successful": False, "error": error, "data": {}}
             assert slug == "GOOGLECALENDAR_FIND_EVENT"
             return {"successful": True, "data": {"event_data": {"event_data": EVENTS + [INVITED]}}}
         super().__init__(settings=settings, execute=execute)
@@ -124,10 +137,10 @@ def two_looks(seen: list, *, urgency: int = 4, second_urgency: int | None = None
     return AgentClient("local", handle_fn=handle)
 
 
-async def _setup(conn, settings, *, connected=True, fail=False):
+async def _setup(conn, settings, *, connected=True, fails: int = 0, error: str = QUOTA):
     calls: list = []
     tg = FakeTelegram()
-    registry = AdapterRegistry({"composio": ClashAdapter(settings, calls, fail=fail), "telegram": tg})
+    registry = AdapterRegistry({"composio": ClashAdapter(settings, calls, fails=fails, error=error), "telegram": tg})
     user, _ = await user_repo.get_or_create_by_control(conn, "telegram", "777", timezone=TR)
     if connected:
         await user_repo.merge_state(conn, user["id"], {"connected": {"gmail": "ca_g", "googlecalendar": "ca_c"}})
@@ -181,13 +194,29 @@ async def test_no_calendar_no_second_look(conn, settings):
     assert tg.sent[0]["text"].endswith("Ekin asks to meet tomorrow at 13:00.")
 
 
-async def test_an_unreadable_calendar_keeps_the_first_look(conn, settings):
-    uid, tg, registry, notifier, calls = await _setup(conn, settings, fail=True)
+async def test_googles_per_minute_quota_is_waited_out(conn, settings, monkeypatch):
+    """Production, 2026-09-14: the first real check hit Google's per-minute quota and the notification went out
+    without the calendar. The quota clears within a minute, so the check waits and tries again."""
+    monkeypatch.setattr(triage, "CALENDAR_RETRY_WAITS", (0.0, 0.0))
+    uid, tg, registry, notifier, calls = await _setup(conn, settings, fails=1)
+    seen: list = []
+    await _run(await observation_repo.insert(conn, mail(uid, "m7")), settings, two_looks(seen), notifier, registry)
+    assert len(calls) == 2 and len(seen) == 2 and len(tg.sent) == 2       # read on the second try: clash told, card offered
+
+
+async def test_an_unreadable_calendar_keeps_the_first_look(conn, settings, monkeypatch):
+    monkeypatch.setattr(triage, "CALENDAR_RETRY_WAITS", (0.0, 0.0))
+    uid, tg, registry, notifier, calls = await _setup(conn, settings, fails=99)
     seen: list = []
     obs = await observation_repo.insert(conn, mail(uid, "m3"))
     await _run(obs, settings, two_looks(seen), notifier, registry)
-    assert len(seen) == 1 and len(calls) == 1 and len(tg.sent) == 1        # notified, no card, nothing guessed
+    assert len(seen) == 1 and len(calls) == 3 and len(tg.sent) == 1        # three tries; notified, no card, nothing guessed
     assert "calendar_check" not in (await observation_repo.get(conn, obs.id)).payload
+
+    # any other error is not waited for: one try
+    uid, tg, registry, notifier, calls = await _setup(conn, settings, fails=99, error="401 Unauthorized: invalid_grant")
+    await _run(await observation_repo.insert(conn, mail(uid, "m8")), settings, two_looks([]), notifier, registry)
+    assert len(calls) == 1 and len(tg.sent) == 1
 
 
 async def test_a_failed_second_look_never_offers_the_blind_reply(conn, settings):

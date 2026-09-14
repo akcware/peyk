@@ -169,6 +169,7 @@ async def sender_context(conn, obs: Observation) -> dict | None:
 
 
 CHECK_AHEAD = timedelta(days=90)                       # a proposed time further out is not looked up
+CALENDAR_RETRY_WAITS = (20.0, 40.0)                    # Google's per-minute quota clears within a minute; nobody waits here
 NO_TIME_CHANGES = ("cancelled", "guest_answered")      # calendar news that asks the person to be nowhere
 
 
@@ -198,7 +199,8 @@ async def check_calendar(obs: Observation, user: dict, span: tuple[str, str], re
         handle = await adapter.connect(obs.user_id)
         # a calendar observation's thread is its event (never its own clash); a mail thread id matches no event id
         return await adapter.calendar_check(handle, span[0], span[1], user.get("timezone") or None, now=now,
-                                            exclude_id=obs.thread_key or "", exclude_title=event_title_of(obs.payload))
+                                            exclude_id=obs.thread_key or "", exclude_title=event_title_of(obs.payload),
+                                            waits=CALENDAR_RETRY_WAITS)
     except Exception as e:  # noqa: BLE001 - the notification goes out without the calendar
         log.warning("triage.calendar_check_failed", observation_id=str(obs.id), error=str(e)[:200])
         return None

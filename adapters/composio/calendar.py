@@ -131,6 +131,16 @@ def find_free_slots(execute: ExecuteFn, uid: str | None, time_min: str, time_max
 
 # ---------------- is the person free then? ----------------
 
+_TOO_MANY = re.compile(r"ratelimitexceeded|too many requests|\b429\b|quota exceeded.*per minute", re.DOTALL)
+
+
+def rate_limited(error: BaseException) -> bool:
+    """Google's per-minute query quota (403 "Queries per minute", rateLimitExceeded, or a 429). With Composio's
+    managed Google project that quota is shared by every app on it; it clears within a minute, so another try is
+    worth it. Every other error is not."""
+    return bool(_TOO_MANY.search(str(error).lower()))
+
+
 NEAR = timedelta(minutes=15)       # an event ending or starting closer than this to the asked time is back to back
 DAY_HOURS = (8, 20)                # alternatives are looked for in this part of the day, stretched to the asked time
 SLOT_STEP = timedelta(minutes=30)
