@@ -338,6 +338,12 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
             return {"status": "a confirm card follows your reply", "note": "say it is ready for their tap; nothing happens before it"}
         return {"status": "done right after your reply", "note": "say it is done, in a few words"}
 
+    def _later(tool_name: str, reading: str, what: str) -> str:
+        """The note of a round-based tool whose data is not loaded yet. Without the last sentence the model calls the
+        tool again in the same round and tells the person that `what` is slow."""
+        return (f"{reading}; the answer arrives when you are re-run. Do not call {tool_name} again now and do not "
+                f"say {what} is slow: end this turn with one short line.")
+
     @tool
     def search_observations(query: str, source: str = "", since_iso: str = "") -> list[dict]:
         """Search the person's recent observations (emails, calendar events, messages) already loaded for this chat.
@@ -413,7 +419,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if hits:
             return {"contacts": hits[:8]}
         intents.append({"intent": "FindContact", "name": name})
-        return {"contacts": [], "note": "lookup requested; you will be re-run with the results"}
+        return {"contacts": [], "note": _later("find_contact", "looking that name up", "the lookup")}
 
     @tool
     def connect_service(service: str) -> dict:
@@ -474,7 +480,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return {"results": cached[:12]}
         intents.append({"intent": "DocumentQuery", "op": "search", "query": query, "service": service or None, "key": key})
-        return {"results": [], "note": "searching; you will be re-run with the results"}
+        return {"results": [], "note": _later("search_documents", "searching the documents", "the search")}
 
     @tool
     def read_document(service: str, id: str) -> dict:
@@ -489,7 +495,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return cached
         intents.append({"intent": "DocumentQuery", "op": "read", "service": service, "id": id, "key": key})
-        return {"text": "", "note": "loading; you will be re-run with the document"}
+        return {"text": "", "note": _later("read_document", "loading the document", "the document")}
 
     @tool
     def create_document(service: str, title: str, body_markdown: str, parent: str = "") -> dict:
@@ -528,7 +534,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return {"timezone": zone["tz"], "events": _local_times(cached)} if isinstance(cached, list) else cached
         intents.append({"intent": "CalendarQuery", "op": "events", "start": start_iso, "end": end_iso, "query": query, "key": key})
-        return {"events": [], "note": "reading the calendar; you will be re-run with the events"}
+        return {"events": [], "note": _later("find_events", "reading the calendar", "the calendar")}
 
     @tool
     def find_free_time(start_iso: str, end_iso: str) -> dict:
@@ -552,7 +558,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
                 return {"timezone": zone["tz"], "free": _local_times(cached.get("free") or []), "busy": _local_times(cached.get("busy") or [])}
             return cached
         intents.append({"intent": "CalendarQuery", "op": "free", "start": start_iso, "end": end_iso, "key": key})
-        return {"free": [], "busy": [], "note": "reading the calendar; you will be re-run with the result"}
+        return {"free": [], "busy": [], "note": _later("find_free_time", "reading the calendar", "the calendar")}
 
     @tool
     def check_time(start_iso: str, end_iso: str = "") -> dict:
@@ -576,8 +582,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return {"timezone": zone["tz"], **cached} if isinstance(cached, dict) else cached
         intents.append({"intent": "CalendarQuery", "op": "check", "start": start_iso, "end": end_iso, "key": key})
-        return {"note": "reading that day of the calendar; the answer arrives when you are re-run. Do not call "
-                        "check_time again now and do not say the calendar is slow: end this turn with one short line."}
+        return {"note": _later("check_time", "reading that day of the calendar", "the calendar")}
 
     @tool
     def create_event(title: str, start_iso: str, end_iso: str = "", guests: str = "", location: str = "",
@@ -702,7 +707,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return {"results": cached}
         intents.append({"intent": "WebQuery", "op": "search", "query": query, "key": key})
-        return {"results": [], "note": "searching; you will be re-run with the results"}
+        return {"results": [], "note": _later("web_search", "searching the web", "the search")}
 
     @tool
     def open_web_page(url: str) -> dict:
@@ -716,7 +721,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         if cached is not None:
             return cached
         intents.append({"intent": "WebQuery", "op": "open", "url": key, "key": key})
-        return {"text": "", "note": "loading; you will be re-run with the page"}
+        return {"text": "", "note": _later("open_web_page", "loading the page", "the page")}
 
     @tool
     def need_more(query: str, since_days: int = 7) -> dict:
