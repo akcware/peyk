@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import html
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from adapters.composio.calendar import event_title_of
 from agent.client import AgentClient
 from agent.schemas import TriageResult
 from core import db, queue
@@ -167,22 +168,94 @@ async def sender_context(conn, obs: Observation) -> dict | None:
     return {"sender": email, "prior_messages_from_sender": max(prior - 1, 0), "known_person": str(person_id)}
 
 
-async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifier: Notifier, now: datetime) -> gate.Decision:
+CHECK_AHEAD = timedelta(days=90)                       # a proposed time further out is not looked up
+NO_TIME_CHANGES = ("cancelled", "guest_answered")      # calendar news that asks the person to be nowhere
+
+
+def proposed_span(result: TriageResult, obs: Observation, now: datetime, tz: str | None) -> tuple[str, str] | None:
+    """The time this observation asks the person to be somewhere, when it is worth a look at their calendar: triage
+    found one, it lies ahead (not a meeting starting now, not the past), and the event matters at least a little."""
+    if not result.proposed_start or result.urgency < 3 or obs.kind == "event_starting":
+        return None
+    if str(obs.payload.get("change") or "") in NO_TIME_CHANGES:
+        return None
+    try:
+        start = datetime.fromisoformat(result.proposed_start)
+        start = start if start.tzinfo else start.replace(tzinfo=ZoneInfo(tz or "UTC"))
+    except (ValueError, KeyError):
+        return None
+    if not now < start < now + CHECK_AHEAD:
+        return None
+    return result.proposed_start, result.proposed_end
+
+
+async def check_calendar(obs: Observation, user: dict, span: tuple[str, str], registry, now: datetime) -> dict | None:
+    """The person's calendar at the proposed time (calendar.check_time), or None when there is none to read."""
+    if registry is None or "googlecalendar" not in ((user.get("state") or {}).get("connected") or {}):
+        return None
+    try:
+        adapter = registry.get("composio")
+        handle = await adapter.connect(obs.user_id)
+        # a calendar observation's thread is its event (never its own clash); a mail thread id matches no event id
+        return await adapter.calendar_check(handle, span[0], span[1], user.get("timezone") or None, now=now,
+                                            exclude_id=obs.thread_key or "", exclude_title=event_title_of(obs.payload))
+    except Exception as e:  # noqa: BLE001 - the notification goes out without the calendar
+        log.warning("triage.calendar_check_failed", observation_id=str(obs.id), error=str(e)[:200])
+        return None
+
+
+NOT_FROM_A_PERSON = ("newsletter", "automated", "transactional")   # a meeting proposal is "person" or "calendar", either way
+
+
+def may_offer_reply(obs: Observation, result: TriageResult) -> bool:
+    """A reply card only for a message a person wrote asking to meet; it answers in the same thread and channel.
+    Google's own calendar mails are answered in the calendar, not by mail."""
+    return (bool(result.reply.strip()) and result.category not in NOT_FROM_A_PERSON and obs.kind == "message_in"
+            and bool(obs.thread_key) and not event_title_of(obs.payload))
+
+
+async def triage_and_gate(conn, obs: Observation, *, agent: AgentClient, notifier: Notifier, now: datetime,
+                          registry=None, approval=None) -> gate.Decision:
+    """Triage, then the gate. When the observation asks the person to be somewhere at a time and their calendar is
+    connected, triage looks a second time with that day's calendar: the notification says whether they are free,
+    and a mail asking to meet comes with a reply draft card right under it."""
     ctx = await sender_context(conn, obs)
     user = await user_repo.get(conn, obs.user_id) or {}
     observation = {"source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(), "payload": obs.payload,
                    "user": {"profile": user.get("profile") or "", "language": user.get("language") or "", "display_name": user.get("display_name"),
                             "emails": user_repo.own_emails(user), "timezone": user.get("timezone") or ""}}
     result, meta = await agent.triage(observation, ctx)
+    result = result.model_copy(update={"reply": ""})     # an answer written without the calendar is never offered
+    span = proposed_span(result, obs, now, user.get("timezone"))
+    check = await check_calendar(obs, user, span, registry, now) if span is not None else None
+    if check is not None:
+        try:
+            second, meta2 = await agent.triage({**observation, "calendar_check": check}, ctx)
+            result = second.model_copy(update={"proposed_start": second.proposed_start or result.proposed_start,
+                                               "proposed_end": second.proposed_end or result.proposed_end})
+            meta = {**meta2, "latency_ms": (meta.get("latency_ms") or 0) + (meta2.get("latency_ms") or 0)}
+        except Exception as e:  # noqa: BLE001 - the first look still stands
+            log.warning("triage.second_look_failed", observation_id=str(obs.id), error=str(e)[:200])
+        # kept with the observation: the chat agent and the brief read what the calendar said and what to answer
+        found = {"calendar_check": check, **({"suggested_reply": result.reply.strip()} if result.reply.strip() else {})}
+        await observation_repo.update_payload(conn, obs.id, {**obs.payload, **found})
+        obs = obs.model_copy(update={"payload": {**obs.payload, **found}})
     await budget_repo.insert_triage(conn, obs.id, urgency=result.urgency, category=result.category, reason=result.reason,
                                     summary=result.summary, model_id=meta.get("model_id", "?"), latency_ms=meta.get("latency_ms"))
     state = await gate_state.load(conn, obs, now)
     decision = gate.decide(obs, result, state)
     await budget_repo.set_gate_reason(conn, obs.id, decision.reason)
     log.info("triage.decided", observation_id=str(obs.id), urgency=result.urgency, category=result.category,
-             notify=decision.notify, reason=decision.reason, latency_ms=meta.get("latency_ms"))
+             notify=decision.notify, reason=decision.reason, latency_ms=meta.get("latency_ms"),
+             calendar_checked=check is not None, calendar_free=check.get("free") if check else None)
     if decision.notify:
         await notifier.send(conn, obs, result)
+        if check is not None and approval is not None and may_offer_reply(obs, result):
+            try:
+                await approval.on_draft(conn, obs, {"channel": obs.source, "thread_key": obs.thread_key, "to": [], "subject": None,
+                                                    "body": result.reply.strip()})
+            except Exception as e:  # noqa: BLE001 - the notification already went out: a queue retry would send it twice
+                log.error("triage.reply_draft_failed", observation_id=str(obs.id), error=str(e)[:200])
     return decision
 
 
@@ -234,7 +307,7 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
             ctx = tick_ctx or ticks.TickContext(settings=settings, registry=None, notifier=notifier)
             if ctx.retriage is None:
                 async def _retriage(c, o):
-                    return await triage_and_gate(c, o, agent=agent, notifier=notifier, now=datetime.now(tz=UTC))
+                    return await triage_and_gate(c, o, agent=agent, notifier=notifier, now=datetime.now(tz=UTC), registry=ctx.registry)
                 ctx.retriage = _retriage
             await ticks.handle_tick(conn, obs, ctx)
             return
@@ -249,7 +322,8 @@ async def handle(obs: Observation, *, settings: Settings, agent: AgentClient, no
         if not verdict.news:
             log.info("triage.not_news", observation_id=str(obs.id), kind=obs.kind, reason=verdict.reason)
             return
-        await triage_and_gate(conn, verdict.obs, agent=agent, notifier=notifier, now=now)
+        await triage_and_gate(conn, verdict.obs, agent=agent, notifier=notifier, now=now,
+                              registry=tick_ctx.registry if tick_ctx else None, approval=approval)
 
 
 async def record_own_message(conn, obs: Observation) -> None:

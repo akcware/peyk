@@ -73,6 +73,7 @@ def compact_event(e: dict[str, Any]) -> dict[str, Any]:
         "start": _when(start),
         "end": _when(end),
         "all_day": bool(isinstance(start, dict) and start.get("date") and not start.get("dateTime")),
+        "transparent": e.get("transparency") == "transparent",      # "show as free": never a clash
         "location": _first(e, "location"),
         "organizer": _first(organizer, "email") if isinstance(organizer, dict) else "",
         "organized_by_me": bool(isinstance(organizer, dict) and organizer.get("self")),
@@ -126,6 +127,87 @@ def find_free_slots(execute: ExecuteFn, uid: str | None, time_min: str, time_max
         entry = data
     return {"free": [s for s in (entry.get("free") or []) if isinstance(s, dict)],
             "busy": [s for s in (entry.get("busy") or []) if isinstance(s, dict)]}
+
+
+# ---------------- is the person free then? ----------------
+
+NEAR = timedelta(minutes=15)       # an event ending or starting closer than this to the asked time is back to back
+DAY_HOURS = (8, 20)                # alternatives are looked for in this part of the day, stretched to the asked time
+SLOT_STEP = timedelta(minutes=30)
+MAX_ALTERNATIVES = 3
+
+
+def _at(value: Any, zone: ZoneInfo) -> datetime | None:
+    """An ISO time on the clock of `zone` (a naive one is read in it); None when it is no time."""
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return (dt if dt.tzinfo else dt.replace(tzinfo=zone)).astimezone(zone)
+
+
+def asked_span(start_iso: str, end_iso: str, tz: str | None) -> tuple[datetime, datetime]:
+    """The asked time on the person's clock; no end (or one before the start) means DEFAULT_DURATION."""
+    zone = _zone(tz)
+    start = _at(start_iso, zone)
+    if start is None:
+        raise ValueError(f"not an ISO time: {start_iso!r}")
+    end = _at(end_iso, zone) if end_iso else None
+    return start, end if end is not None and end > start else start + DEFAULT_DURATION
+
+
+def day_window(start_iso: str, end_iso: str, tz: str | None) -> tuple[str, str]:
+    """The person's whole local day around the asked time (into the next day when the time runs past midnight)."""
+    start, end = asked_span(start_iso, end_iso, tz)
+    first = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    last = end.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    return first.isoformat(), last.isoformat()
+
+
+def _brief(e: dict[str, Any], start: datetime, end: datetime) -> dict[str, Any]:
+    out = {"title": e.get("title") or "(no title)", "start": start.isoformat(), "end": end.isoformat()}
+    if e.get("location"):
+        out["location"] = e["location"]
+    return out
+
+
+def _alternatives(busy: list[tuple[datetime, datetime]], start: datetime, end: datetime, now: datetime | None) -> list[dict[str, str]]:
+    """Free times of the asked length on the asked day, nearest to the asked start, in time order."""
+    length, day = end - start, start.replace(hour=0, minute=0, second=0, microsecond=0)
+    slot, last = min(day + timedelta(hours=DAY_HOURS[0]), start), max(day + timedelta(hours=DAY_HOURS[1]), end)
+    free: list[datetime] = []
+    while slot + length <= last:
+        if slot != start and (now is None or slot >= now) and not any(s < slot + length and f > slot for s, f in busy):
+            free.append(slot)
+        slot += SLOT_STEP
+    nearest = sorted(sorted(free, key=lambda s: abs(s - start))[:MAX_ALTERNATIVES])
+    return [{"start": s.isoformat(), "end": (s + length).isoformat()} for s in nearest]
+
+
+def check_time(events: list[dict[str, Any]], start_iso: str, end_iso: str = "", *, tz: str | None, now: datetime | None = None,
+               exclude_id: str = "", exclude_title: str = "") -> dict[str, Any]:
+    """Is the person free at the asked time? From one day of compact events: what overlaps it, what ends right before
+    or starts right after it (closer than NEAR), and when it is taken, up to MAX_ALTERNATIVES free times of the same
+    length that day. Busy means a timed event they have not declined that does not show as free; the event being
+    asked about (exclude_id, or its title for Google's invitation mails) is not its own clash. Every time in the
+    answer is on the person's clock (tz)."""
+    zone = _zone(tz)
+    start, end = asked_span(start_iso, end_iso, tz)
+    busy: list[tuple[datetime, datetime, dict[str, Any]]] = []
+    for e in events:
+        if e.get("all_day") or e.get("transparent") or e.get("my_response") == "declined" or e.get("status") == "cancelled":
+            continue
+        if (exclude_id and e.get("id") == exclude_id) or (exclude_title and norm_title(e.get("title")) == exclude_title):
+            continue
+        s, f = _at(e.get("start"), zone), _at(e.get("end"), zone)
+        if s is not None and f is not None and f > s:
+            busy.append((s, f, e))
+    busy.sort(key=lambda b: b[0])
+    overlaps = [_brief(e, s, f) for s, f, e in busy if s < end and f > start]
+    return {"asked": {"start": start.isoformat(), "end": end.isoformat()}, "free": not overlaps, "overlaps": overlaps,
+            "right_before": [_brief(e, s, f) for s, f, e in busy if start - NEAR < f <= start],
+            "right_after": [_brief(e, s, f) for s, f, e in busy if end <= s < end + NEAR],
+            "alternatives": _alternatives([(s, f) for s, f, _ in busy], start, end, now) if overlaps else []}
 
 
 # ---------------- write ----------------

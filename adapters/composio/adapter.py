@@ -177,6 +177,14 @@ class ComposioAdapter:
         """{"free": [{start, end}], "busy": [{start, end}]} for the primary calendar."""
         return await asyncio.to_thread(gcal.find_free_slots, self._execute, conn.data.get("composio_user_id"), start, end, tz)
 
+    async def calendar_check(self, conn: Connection, start: str, end: str, tz: str | None, *, now: datetime | None = None,
+                             exclude_id: str = "", exclude_title: str = "") -> dict[str, Any]:
+        """Is the person free at [start, end]? One read of that local day, judged by calendar.check_time."""
+        first, last = gcal.day_window(start, end, tz)
+        events = await asyncio.to_thread(gcal.list_events, self._execute, conn.data.get("composio_user_id"), first, last,
+                                         tz=tz, limit=50)
+        return gcal.check_time(events, start, end, tz=tz, now=now, exclude_id=exclude_id, exclude_title=exclude_title)
+
     async def calendar_write(self, conn: Connection, event: dict[str, Any]) -> dict[str, Any]:
         """create | update | delete | rsvp on the primary calendar -> {"id", "url"}."""
         return await asyncio.to_thread(gcal.write, self._execute, conn.data.get("composio_user_id"), event)

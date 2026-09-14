@@ -15,6 +15,10 @@ class TriageResult(BaseModel):
     reason: str = Field(max_length=200, description="one short internal sentence: why this urgency")
     summary: str = Field(default="", max_length=320,
                          description="what a good assistant would tell the person: who, what, what is needed, by when")
+    proposed_start: str = Field(default="", description="when the event asks the person to meet, attend or be somewhere at a "
+                                "clock time: that start, ISO-8601 with the offset of their time zone; empty otherwise")
+    proposed_end: str = Field(default="", description="that end when the text gives one, same format; empty otherwise")
+    reply: str = Field(default="", max_length=800, description="only with a calendar section: the reply the person could send")
 
 
 class ScheduleRequest(BaseModel):

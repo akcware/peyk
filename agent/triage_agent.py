@@ -45,6 +45,20 @@ Rules:
   time; was_start is the old start), changed (a new title or place), cancelled, guest_answered (a guest answered
   the person's own invitation; answer says how). A change to something today or tomorrow is 4, a later one 3; a
   guest's answer is 2, or 3 when it is a decline for a meeting within a day. Say what changed and when it is.
+- proposed_start / proposed_end: when the event asks the person to meet, attend or be somewhere at a clock time
+  (someone proposes a meeting or a call, an invitation, a meeting moved to a new time), give that start, and the end
+  only when the text says it, as ISO-8601 with the offset of the person's time zone now, on the date the text means
+  ("tomorrow" is the day after occurred_at on their clock). Leave both empty for anything else: a deadline, a past
+  event, a delivery window, a meeting starting now (kind event_starting), marketing.
+- A "calendar at that time" section means their calendar was just read for that time. Then the summary must also
+  say, in a few words, whether they are free then: name what overlaps and its time, or what ends right before or
+  starts right after it (back to back); if nothing is near, that they are free. Without that section never say
+  anything about their calendar.
+- reply: without that section reply is always empty. With it, and only when a person wrote to them asking or
+  proposing to meet at that time: the answer the person could send back, first person, 1-3 short sentences, no
+  signature, plain words, no em dashes (—). Write it in the language the message itself is written in, which may
+  differ from {language} (the summary's language): a Turkish mail gets a Turkish reply. Free: accept. Taken: say
+  that time does not work and offer one or two of the free alternatives. Leave it empty for calendar invitations.
 - reason: one short internal sentence (max 200 characters) explaining the urgency.
 - summary: what Peyk, the person's assistant — a quiet messenger who brings only what matters — would say to
   the person about this, 1-2 sentences, max 320 characters.
@@ -86,6 +100,36 @@ def render_observation(payload: dict[str, Any], *, max_text: int = 1200, zone: Z
     return "\n".join(lines)
 
 
+DERIVED_KEYS = ("calendar_check", "suggested_reply")   # what an earlier triage added to the payload; not the event
+
+
+def _clock(start: str, end: str = "") -> str:
+    """'Tue 15 Sep 13:00-14:00' from ISO times that are already on the person's clock."""
+    try:
+        s = datetime.fromisoformat(start)
+        e = datetime.fromisoformat(end) if end else None
+    except ValueError:
+        return start
+    if e is None:
+        return f"{s:%a %d %b %H:%M}"
+    return f"{s:%a %d %b %H:%M}-{e:%H:%M}" if e.date() == s.date() else f"{s:%a %d %b %H:%M} - {e:%a %d %b %H:%M}"
+
+
+def render_calendar_check(check: dict[str, Any]) -> list[str]:
+    """calendar.check_time's answer as prompt lines."""
+    asked = check.get("asked") or {}
+    lines = [f"asked time: {_clock(str(asked.get('start') or ''), str(asked.get('end') or ''))}",
+             f"free then: {'yes' if check.get('free') else 'no'}"]
+    for key, label in (("overlaps", "overlaps with"), ("right_before", "ends right before it"), ("right_after", "starts right after it")):
+        items = check.get(key) or []
+        if items:
+            lines.append(f"{label}: " + "; ".join(f"{e.get('title')} ({_clock(str(e.get('start')), str(e.get('end')))})" for e in items))
+    alternatives = check.get("alternatives") or []
+    if alternatives:
+        lines.append("free alternatives that day: " + ", ".join(_clock(str(a.get("start")), str(a.get("end"))) for a in alternatives))
+    return lines
+
+
 def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | None) -> str:
     src = observation.get("source", "unknown")
     kind = observation.get("kind", "event")
@@ -97,16 +141,22 @@ def render_prompt(observation: dict[str, Any], sender_context: dict[str, Any] | 
     parts = [f"source: {src}", f"kind: {kind}", f"occurred_at: {_in_zone(str(occurred), zone)}"]
     if zone is not None:
         parts.append(f"the person's time zone now: {tz} (every timestamp below is shown in it)")
-    parts += ["", "--- event ---", render_observation(observation.get("payload") or {}, zone=zone)]
+    payload = {k: v for k, v in (observation.get("payload") or {}).items() if k not in DERIVED_KEYS}
+    parts += ["", "--- event ---", render_observation(payload, zone=zone)]
     if ctx_lines:
         parts += ["", "--- sender context ---", *ctx_lines]
+    if observation.get("calendar_check"):
+        parts += ["", "--- calendar at that time (read just now, times on the person's clock) ---",
+                  *render_calendar_check(observation["calendar_check"]),
+                  ("(if a person asks to meet: write reply in the language of the event text above, which can differ "
+                   "from the summary's language)")]
     parts += ["", "Return the triage result."]
     return "\n".join(parts)
 
 
 @lru_cache
 def _model():
-    return build_model("triage", temperature=0.0, max_tokens=512)
+    return build_model("triage", temperature=0.0, max_tokens=1024)   # room for a summary and a reply draft
 
 
 def _agent(observation: dict[str, Any]) -> Agent:

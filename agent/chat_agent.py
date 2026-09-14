@@ -109,12 +109,18 @@ long-term memory. Rules:
   reminder) and you have a reason to doubt where they are now (they mentioned a trip or a flight, a mail shows
   travel, a time they mention does not fit Now) but nothing tells you for sure, ask one short question first
   instead of guessing ("Hâlâ Türkiye'de misin? Saati ona göre ayarlayayım."). With no such reason, use Now.
-- Calendar: for their schedule ("yarın ne var", "am I free at 3", "Ekin'le ne zaman görüşüyorum") call
-  find_events, or find_free_time to find an open slot, with a window in their timezone (see Now).
-  search_observations only holds events that already pinged them. Both work in rounds like documents. If Google
-  Calendar is not connected, the tools say so: offer to connect it instead of guessing.
+- Calendar: for their schedule ("yarın ne var", "Ekin'le ne zaman görüşüyorum") call find_events; for whether a
+  time works ("am I free at 3", "o saatte müsait miyim", a time someone proposed) call check_time; to find an open
+  slot call find_free_time. Times and windows in their timezone (see Now). search_observations only holds events
+  that already pinged them. All of them work in rounds like documents. If Google Calendar is not connected, the
+  tools say so: offer to connect it instead of guessing.
+- check_time also names what ends right before or starts right after the time: say it ("13:00'te boşsun ama öğle
+  yemeğin tam 13:00'te bitiyor"). When the time came from someone asking to meet, answer and offer a reply in that
+  thread with draft_reply: accept when free, otherwise say it does not work and propose one of its alternatives.
+  An observation may carry calendar_check (read when it arrived) and suggested_reply: call check_time anyway, the
+  calendar may have changed since.
 - To put something in the calendar call create_event. Take the time the person gives as it is. Before adding or
-  moving an event, look at that day with find_events; if something overlaps, say so in one clause and ask
+  moving an event, call check_time for that time; if something overlaps, say so in one clause and ask
   instead of silently choosing another time. No title given: make a short sensible one yourself, do not ask.
   Default length is one hour. Guests by name: find_contact first. A calendar invitation already tells the
   guests, so do not also draft a mail unless they ask for one.
@@ -167,7 +173,7 @@ def render_capabilities(payload: dict[str, Any]) -> str:
         "- watch their connected mail and calendar, rate what matters, and ping them only within a daily interruption budget",
         "- answer questions about their recent mail, events and messages, and about what you already told them",
         "- draft replies or new mails that they approve in chat before anything is sent",
-        "- read their Google Calendar (a day's events, free time), add, move or cancel events and answer invitations;",
+        "- read their Google Calendar (a day's events, free time, whether a time clashes), add, move or cancel events and answer invitations;",
         "  anything that notifies other people waits for their tap on a confirm card",
         "- set reminders and a morning brief; remember durable facts about them; look up contacts by name",
         "- search and read their documents in connected Notion / Google Drive / Google Docs, and create Notion pages or",
@@ -549,6 +555,31 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"free": [], "busy": [], "note": "reading the calendar; you will be re-run with the result"}
 
     @tool
+    def check_time(start_iso: str, end_iso: str = "") -> dict:
+        """Is the person free at a given time? Reads that whole day of their Google Calendar and answers with what
+        overlaps the time, what ends right before or starts right after it (back to back), and, when it is taken,
+        free alternatives of the same length that day. Use it for "am I free at 3", before saying yes to or proposing
+        a time, and before adding or moving an event. Works in rounds like documents. Times come back in the
+        person's current time zone.
+
+        Args:
+            start_iso: the asked start, ISO-8601 with offset in the person's timezone
+            end_iso: optional end, ISO-8601 with offset; empty means one hour
+        """
+        if not calendar_on:
+            return not_connected
+        bad = _bad_iso(start_iso, "start_iso") or _bad_iso(end_iso, "end_iso", required=False)
+        if bad:
+            return bad
+        key = f"check|{start_iso}|{end_iso}"
+        cached = (calendar.get("check") or {}).get(key)
+        if cached is not None:
+            return {"timezone": zone["tz"], **cached} if isinstance(cached, dict) else cached
+        intents.append({"intent": "CalendarQuery", "op": "check", "start": start_iso, "end": end_iso, "key": key})
+        return {"note": "reading that day of the calendar; the answer arrives when you are re-run. Do not call "
+                        "check_time again now and do not say the calendar is slow: end this turn with one short line."}
+
+    @tool
     def create_event(title: str, start_iso: str, end_iso: str = "", guests: str = "", location: str = "",
                      description: str = "", video_call: bool = False) -> dict:
         """Put an event in the person's Google Calendar. Without guests it goes in right away (their own calendar,
@@ -699,7 +730,7 @@ def make_tools(ctx: dict[str, Any], intents: list[dict[str, Any]]) -> list[Any]:
         return {"requested": True}
 
     tools = [search_observations, search_memory, remember, schedule_followup, draft_reply, find_contact, connect_service, set_profile,
-             confirm_learned, search_documents, read_document, create_document, find_events, find_free_time, create_event,
+             confirm_learned, search_documents, read_document, create_document, find_events, find_free_time, check_time, create_event,
              update_event, cancel_event, respond_to_invite, delete_my_data, need_more]
     if web.get("enabled", True):
         tools += [web_search, open_web_page]

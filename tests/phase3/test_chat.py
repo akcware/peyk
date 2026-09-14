@@ -131,7 +131,7 @@ def test_chat_contract_and_tools():
     ], "memory_hits": [{"text": "Uses Postgres", "score": 0.9}, {"text": "Lives in Berlin", "score": 0.5}]}
     tools = {t.tool_name: t for t in make_tools(ctx, intents)}
     assert set(tools) == {"search_observations", "search_memory", "remember", "schedule_followup", "draft_reply", "find_contact", "connect_service", "set_profile", "confirm_learned", "search_documents", "read_document", "create_document", "delete_my_data", "need_more", "web_search", "open_web_page",
-                          "find_events", "find_free_time", "create_event", "update_event", "cancel_event", "respond_to_invite"}
+                          "find_events", "find_free_time", "check_time", "create_event", "update_event", "cancel_event", "respond_to_invite"}
     fn = {name: t._tool_func for name, t in tools.items()}
     assert [o["id"] for o in fn["search_observations"]("invoice mara")] == ["1"]
     assert [o["id"] for o in fn["search_observations"]("", "calendar")] == ["2"]

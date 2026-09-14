@@ -132,7 +132,7 @@ def compact(obs: Observation, urgency: int | None = None, tz: str | None = None)
     p = obs.payload
     d = {"id": str(obs.id), "source": obs.source, "kind": obs.kind, "occurred_at": obs.occurred_at.isoformat(),
          "thread_key": obs.thread_key}
-    for k in ("from", "to", "subject", "summary", "location", "change", "start_time", "was_start"):
+    for k in ("from", "to", "subject", "summary", "location", "change", "start_time", "was_start", "calendar_check", "suggested_reply"):
         if p.get(k):
             d[k] = p[k]
     snippet = p.get("snippet") or p.get("text") or ""
@@ -326,9 +326,11 @@ def chat_text(obs: Observation) -> str:
     return "\n".join(p for p in (ev.reply_to, as_chat_text(ev.text)) if p)
 
 
-async def resolve_calendar(queries: list[dict[str, Any]], store: dict[str, dict], user_id: UUID, registry, tz: str) -> None:
-    """CalendarQuery intents -> results in the payload (events or free/busy), under the keys the tools look up.
-    A failure is stored as an error the agent can say out loud, never as an empty (falsely free) calendar."""
+async def resolve_calendar(queries: list[dict[str, Any]], store: dict[str, dict], user_id: UUID, registry, tz: str,
+                           now: datetime | None = None) -> None:
+    """CalendarQuery intents -> results in the payload (events, free/busy, or a time checked for clashes), under the
+    keys the tools look up. A failure is stored as an error the agent can say out loud, never as an empty (falsely
+    free) calendar."""
     adapter = handle = None
     if registry is not None:
         try:
@@ -339,19 +341,21 @@ async def resolve_calendar(queries: list[dict[str, Any]], store: dict[str, dict]
             adapter = None
     for q in queries:
         op, key = str(q.get("op") or "events"), str(q.get("key") or "")
-        bucket = "free" if op == "free" else "events"
+        bucket = store.setdefault(op if op in ("free", "check") else "events", {})
         if adapter is None:
-            store[bucket][key] = {"error": "the calendar cannot be read right now"}
+            bucket[key] = {"error": "the calendar cannot be read right now"}
             continue
         try:
             if op == "free":
-                store["free"][key] = await adapter.calendar_free(handle, str(q.get("start")), str(q.get("end")), tz)
+                bucket[key] = await adapter.calendar_free(handle, str(q.get("start")), str(q.get("end")), tz)
+            elif op == "check":
+                bucket[key] = await adapter.calendar_check(handle, str(q.get("start")), str(q.get("end") or ""), tz, now=now)
             else:
-                store["events"][key] = await adapter.calendar_events(handle, str(q.get("start")), str(q.get("end")),
-                                                                     str(q.get("query") or ""), tz=tz)
+                bucket[key] = await adapter.calendar_events(handle, str(q.get("start")), str(q.get("end")),
+                                                            str(q.get("query") or ""), tz=tz)
         except Exception as e:  # noqa: BLE001
             log.warning("chat.calendar_query_failed", op=op, error=str(e)[:200])
-            store[bucket][key] = {"error": "the calendar could not be read just now"}
+            bucket[key] = {"error": "the calendar could not be read just now"}
 
 
 async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings: Settings, agent: AgentClient,
@@ -389,7 +393,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
     payload["contacts"] = []
     payload["documents"] = {"search": {}, "read": {}}
     payload["web"] = {"enabled": web is not None, "search": {}, "open": {}}
-    payload["calendar"] = {"events": {}, "free": {}}
+    payload["calendar"] = {"events": {}, "free": {}, "check": {}}
     data_rounds = 0
     for round_no in range(1, MAX_DOC_ROUNDS + 1):
         out = await agent.chat(payload)
@@ -413,7 +417,7 @@ async def converse(conn: psycopg.AsyncConnection, obs: Observation, *, settings:
             break
         data_rounds += 1
         if calq:
-            await resolve_calendar(calq, payload["calendar"], obs.user_id, registry, tz)
+            await resolve_calendar(calq, payload["calendar"], obs.user_id, registry, tz, now=now)
             log.info("chat.calendar_query", round=round_no, count=len(calq))
             if not need and not lookups and not docq and not webq:
                 continue
