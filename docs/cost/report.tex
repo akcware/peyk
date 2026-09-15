@@ -1,0 +1,569 @@
+% Peyk - Model maliyeti ve acik agirlikli model alternatifleri
+% Tablolar docs/cost/model.py tarafindan uretilir:  python3 model.py --latex
+% Derleme:  pdflatex report.tex  (iki kez, icindekiler icin)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[shorthands=off,turkish]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{a4paper,margin=2.4cm,top=2.6cm,bottom=2.6cm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={Peyk --- Model maliyeti ve acik agirlikli model alternatifleri},
+            pdfsubject={Teknik degerlendirme raporu},
+            pdfkeywords={unit economics, Bedrock, open-weight models, triage}}
+
+\definecolor{ink}{HTML}{16332C}
+\definecolor{accent}{HTML}{8C5A0B}
+\definecolor{soft}{HTML}{F1ECDF}
+\definecolor{rule}{HTML}{9DB5AA}
+
+\captionsetup{font=small,labelfont={bf,color=ink},skip=6pt}
+\titleformat{\section}{\Large\bfseries\color{ink}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{ink}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{18pt}{8pt}
+
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{ink}Peyk --- Model maliyeti ve açık model alternatifleri}
+\fancyhead[R]{\small\thepage}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newsavebox{\kbox}
+\newenvironment{keybox}
+  {\begin{center}\begin{lrbox}{\kbox}\begin{minipage}{0.90\textwidth}\color{ink}\small}
+  {\end{minipage}\end{lrbox}\setlength{\fboxsep}{11pt}\colorbox{soft}{\usebox{\kbox}}\end{center}}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries\color{ink} Peyk\par}
+\vspace{0.6cm}
+{\LARGE\color{ink} Model maliyeti ve açık ağırlıklı\\ model alternatifleri\par}
+\vspace{0.8cm}
+{\large\color{accent} Teknik değerlendirme raporu\par}
+\vspace{2.2cm}
+\begin{minipage}{0.8\textwidth}\small\color{ink}
+\textbf{Kapsam.} Peyk'in kullanıcı başına model maliyetinin ölçülmesi, Claude Haiku~4.5
+yerine açık ağırlıklı (open-weight) modellere geçiş senaryolarının değerlendirilmesi ve
+maliyet--kalite dengesinin nicel olarak ortaya konması.
+\vspace{0.5cm}
+
+\textbf{Temel bulgu.} Açık modele geçiş, maliyet sıralamasında yanlış adımdır. Mevcut
+kodda yapılacak ve hiçbir kalite riski taşımayan üç değişiklik aylık \$12{,}06 kazandırır;
+triage'ı açık bir modele taşımak bunun üzerine yalnızca \$3{,}55 ekler ve ürünün tek
+teknik iddiasını riske atar.
+\end{minipage}
+\vfill
+{\small\color{ink} 15 Eylül 2026 \quad\textbullet\quad Ölçümler \code{akcware/peyk} deposundan\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ==========================================================================
+\section{Yönetici özeti}
+
+Peyk'in bugünkü kullanıcı başına model maliyeti, orta yoğunlukta bir kullanıcı için
+(günde 50 mail, 8 sohbet turu) \textbf{aylık \$19{,}30}'dur. Bu rakam \$25'lik bir abonelik
+fiyatında \%23 brüt marj bırakır ki, Composio ve altyapı eklendiğinde sıfıra iner.
+
+Sorunun kaynağı model \emph{seçimi} değil, model \emph{kullanımıdır}. Maliyetin
+\%73'ü sohbet akışından gelir ve bu akış, her çağrıda 12.401 token'lık bir girdiyi
+önbelleksiz olarak yeniden göndermektedir.
+
+\begin{keybox}
+\textbf{Bu raporun ana sonucu:} Takas edilmesi \emph{kolay} olan iş yükü (triage) ucuz
+olandır; pahalı olan iş yükü (sohbet) ise takas edilmesi \emph{riskli} olandır. Açık
+model geçişi, optimizasyonlardan önce yapılırsa üçte bir kadar kazanç için ürünün
+güvenilirliği riske atılmış olur.
+\end{keybox}
+
+Önerilen sıra:
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{Ölçüm altyapısı} (1 hafta). Her model çağrısının \code{usage} alanı
+        veritabanına yazılmadan hiçbir karar veriye dayanmıyor.
+  \item \textbf{Risksiz optimizasyonlar} (1--2 hafta). Prompt caching, bağlam küçültme,
+        araç setinin bölünmesi, Sonnet~5'e geçiş. \$19{,}30 $\rightarrow$ \$7{,}24.
+  \item \textbf{Değerlendirme setinin büyütülmesi} (2--3 hafta). Mevcut 60 mail'lik eval,
+        model karşılaştırması için istatistiksel olarak yetersizdir.
+  \item \textbf{Gölge modu ile aday ölçümü} (3--4 hafta). Ancak bundan sonra açık model
+        kararı verilebilir; beklenen ek kazanç \$3{,}55.
+\end{enumerate}
+
+% ==========================================================================
+\section{Yöntem ve kaynak güvenilirliği}
+
+Bu raporun iki tür girdisi vardır ve ikisi çok farklı güvenilirlik taşır.
+
+\subsection{Ölçülen veriler (yüksek güven)}
+
+Token sayıları 15 Eylül 2026 tarihinde \code{akcware/peyk} deposundan doğrudan
+çıkarılmıştır. Kaynaklar Ek~B'de dosya ve satır numarasıyla listelenmiştir. Sayımlar
+karakter uzunluğunun 4'e bölünmesiyle yapılmıştır; gerçek tokenizer çıktısına göre
+\textbf{$\pm$\%30} sapma payı vardır.
+
+\subsection{Varsayılan veriler (düşük güven, doğrulanmalı)}
+
+\begin{keybox}
+\textbf{Uyarı.} Bu raporun hazırlandığı ortamın ağ politikası fiyat kaynaklarının
+tamamını engellemiştir: \code{aws.amazon.com/bedrock/pricing},
+\code{docs.aws.amazon.com}, \code{openrouter.ai}, \code{artificialanalysis.ai},
+\code{huggingface.co} ve \code{together.ai} çağrıları 403 ile reddedilmiştir.
+Hiçbir fiyat canlı kaynaktan doğrulanamamıştır.
+\end{keybox}
+
+Bu kısıt nedeniyle rapor iki savunma mekanizması kullanır:
+
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{Anthropic fiyatları} liste fiyatlarıdır (Haiku~4.5 \$1/\$5,
+        Sonnet~4.6 \$3/\$15, Sonnet~5 \$2/\$10 --- milyon token başına giriş/çıkış).
+        Bedrock ayrı fiyatlandırılan bir iş ortağı platformudur; Claude modellerinde
+        tarihsel olarak liste fiyatıyla örtüşmüştür ancak \textbf{bu doğrulanmalıdır}.
+  \item \textbf{Açık model fiyatları tedarikçi iddiası olarak değil, fiyat bandı olarak}
+        modellenmiştir (Bant A--D, \$0{,}05--\$0{,}70). Böylece sonuçlar belirli bir
+        satıcının güncel fiyatına bağlı kalmaz. Hangi modelin hangi banda düştüğü
+        Bölüm~6'da ayrıca tartışılmıştır ve doğrulanması gereken tek şey budur.
+\end{itemize}
+
+Tüm hesaplar \code{docs/cost/model.py} dosyasındadır. Fiyatlar tek bir sözlükte
+parametredir; güncellenip çalıştırıldığında bu rapordaki her tablo yeniden üretilir.
+
+% ==========================================================================
+\section{Ölçülen token profili}
+
+\begin{table}[h]
+\centering\small
+\input{t1.tex}
+\caption{Çağrı başına token profili. Ack ve sohbet her kullanıcı mesajında birlikte çalışır.}
+\end{table}
+
+Buradan çıkan birim maliyetler: \textbf{bir mail triage'ı \$0{,}0025},
+\textbf{bir sohbet turu \$0{,}0590}. Depodaki \code{docs/DEPLOY.md} dosyası triage için
+``\$0{,}001 per mail'' demektedir; gerçek rakam bunun 2{,}5 katıdır. Fark, mailin
+kendisinden değil, her çağrıda yeniden gönderilen 1.140 token'lık sistem promptundan
+kaynaklanır.
+
+\subsection{Görev bazında maliyet payı}
+
+\begin{table}[h]
+\centering\small
+\input{t7.tex}
+\caption{Orta profil (50 mail, 8 sohbet/gün), bugünkü yapılandırma.}
+\end{table}
+
+Bu tablo raporun geri kalanını belirler: \textbf{triage toplam maliyetin yalnızca
+\%19{,}4'üdür.} Triage'ı tamamen bedava bir modele taşımak bile, en iyi ihtimalle aylık
+\$3{,}73 kazandırır.
+
+% ==========================================================================
+\section{Maliyet nerede yoğunlaşıyor}
+
+Bir sohbet turunun 12.401 token'lık girdisinin dağılımı:
+
+\begin{table}[h]
+\centering\small
+\input{t2.tex}
+\caption{Sohbet girdisinin bileşenleri (\code{workers/chat.py}).}
+\end{table}
+
+Üç yapısal sorun görünüyor:
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=4pt]
+  \item \textbf{Bağlam peşin yükleniyor.} \code{RECENT\_LIMIT = 50}, 48 saatlik 50 gözlemi
+        her sohbete önden koyuyor --- girdinin \%40'ı. Oysa ajanda zaten \code{need\_more}
+        aracı var; veriyi isteyebiliyor. Bu, tek satırlık bir değişiklikle düzelir ve
+        önbelleklemeye hiç bağlı değildir.
+  \item \textbf{23 araç şeması her çağrıda gidiyor.} Takvimle ilgili altı araç
+        (\code{find\_events}, \code{find\_free\_time}, \code{check\_time},
+        \code{create\_event}, \code{update\_event}, \code{cancel\_event}) yalnızca
+        mesajda bir zaman geçtiğinde gereklidir.
+  \item \textbf{Hiçbir yerde prompt caching yok.} Sistem promptu ve araç şemaları birlikte
+        6.476 token'lık, çağrıdan çağrıya \emph{bayt bayt aynı} bir önek oluşturuyor.
+\end{enumerate}
+
+\subsection{Önbelleklemede sessiz bir tuzak}
+
+Prompt caching'in modele göre değişen bir minimum önek uzunluğu vardır; bu eşiğin altında
+önbellek \emph{sessizce} çalışmaz --- hata verilmez, yalnızca
+\code{cache\_creation\_input\_tokens} sıfır döner.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llrl@{}}
+\toprule
+\textbf{Çağrı} & \textbf{Model} & \textbf{Önek} & \textbf{Minimum / sonuç} \\
+\midrule
+Sohbet & Sonnet 4.6 & 6.476 tok & 1.024 --- çalışır \\
+Triage & Haiku 4.5 & 1.340 tok & \textbf{4.096 --- sessizce çalışmaz} \\
+\bottomrule
+\end{tabular}
+\caption{Haiku 4.5'in minimum önbelleklenebilir önek uzunluğu 4.096 token'dır.}
+\end{table}
+
+Sonuç: sohbet önbelleklenebilir, \textbf{triage önbelleklenemez}. Bu, triage'ın birim
+maliyetini \$0{,}0025'te sabitler ve açık model arayışının asıl gerekçesini oluşturur.
+
+İlginç bir ara sonuç: triage'ı önbellekli Sonnet~5 ile çalıştırmak \$0{,}0026'ya mal olur
+--- yani \emph{aynı paraya belirgin biçimde daha güçlü bir model}. Ancak önbelleğin
+5~dakikalık yaşam süresi, seyrek gelen maillerde önbelleğin çoğu zaman soğuk olması
+anlamına gelir; bu durumda yazma cezası (1{,}25$\times$) devreye girer ve avantaj kaybolur.
+Sohbet turları kümelendiği için orada aynı sorun yoktur.
+
+% ==========================================================================
+\section{Hangi iş yükü takas edilebilir?}
+
+Her model çağrısının farklı bir gereksinim profili vardır. Takas edilebilirlik, fiyattan
+önce bu profille belirlenir.
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lccccl@{}}
+\toprule
+\textbf{Görev} & \textbf{Yapısal} & \textbf{Araç} & \textbf{Çok} & \textbf{Bağlam} & \textbf{Takas} \\
+ & \textbf{çıktı} & \textbf{çağrısı} & \textbf{dilli} & & \textbf{edilebilirlik} \\
+\midrule
+Triage & evet & hayır & evet & 1{,}7K & \textbf{Yüksek} \\
+Ack / refleks & evet & hayır & evet & 1{,}3K & \textbf{Çok yüksek} \\
+Learn & evet & hayır & evet & $\sim$8K & Yüksek (seyrek) \\
+Sohbet & hayır & \textbf{23 araç} & evet & 12{,}4K & \textbf{Düşük} \\
+Gömme (Titan v2) & --- & --- & --- & --- & Zaten ucuz \\
+\bottomrule
+\end{tabular}
+\caption{İş yükü profilleri. Sohbet dışındaki her şey tek atışlık yapısal çıktıdır.}
+\end{table}
+
+\textbf{Triage ve ack} tek atışlık sınıflandırma görevleridir: sabit şema, kısa çıktı,
+araç yok. Açık ağırlıklı küçük modellerin en güçlü olduğu alan tam da budur.
+
+\textbf{Sohbet} ise tersidir. 23 aracın arasından doğru olanı seçmek, çok turlu araç
+çağrısı zincirini bozmadan yürütmek ve bunu kullanıcının dilinde yapmak, küçük açık
+modellerin sistematik olarak zorlandığı bir iştir. Üstelik burada bir hata sessiz değildir:
+yanlış araç çağrısı yanlış bir taslak maile veya yanlış bir takvim değişikliğine dönüşür.
+Onay akışı (\code{approval.py}) bunu büyük ölçüde yakalar, ama kullanıcı deneyimi bozulur.
+
+\begin{keybox}
+Maliyetin \%73'ü sohbette, takas kolaylığının tamamı triagededir. Bu raporun merkezi
+gerilimi budur: \textbf{ucuzlatması kolay olan yer az para tutuyor.}
+\end{keybox}
+
+% ==========================================================================
+\section{Açık ağırlıklı model manzarası}
+
+\subsection{Bedrock içinde kalan seçenekler}
+
+Bedrock, Claude dışında birden fazla açık ağırlıklı model ailesi barındırır: Meta Llama
+(3.x ve 4 serisi), Mistral, DeepSeek, Qwen ve \code{gpt-oss} aileleri; ayrıca açık
+ağırlıklı olmayan ama çok ucuz olan Amazon Nova serisi. Bunların Peyk açısından belirleyici
+avantajı fiyat değil, \textbf{tedarikçi değişmemesidir}: aynı IAM anahtarı, aynı bölge,
+aynı veri işleme sözleşmesi, GDPR alt işleyici listesinde yeni bir satır yok.
+
+\subsection{Bedrock dışı seçenekler ve gizli maliyeti}
+
+Groq, Together, Fireworks, DeepInfra ve OpenRouter gibi sağlayıcılar aynı açık modelleri
+genellikle daha ucuza sunar. Ancak Peyk için bu \textbf{yalnızca bir fiyat kararı değildir}:
+
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item Triage girdisi kullanıcının \emph{mail gövdesini} içerir
+        (\code{mappings.py}, \code{message\_text} alanı, 1.200 karakteri kapsar).
+        Yeni bir sağlayıcı, kullanıcının mail içeriğine erişen yeni bir alt işleyicidir.
+  \item Bu, GDPR alt işleyici listesini, kullanıcıya açıklanan gizlilik politikasını ve
+        Google'ın kısıtlı kapsam (restricted scope) değerlendirmesinde beyan edilen veri
+        akışını doğrudan etkiler.
+  \item Aylık \$3{,}55'lik bir tasarruf için yeni bir DPA müzakeresi, yeni bir
+        güvenlik değerlendirmesi ve gizlilik politikası revizyonu gerekir.
+\end{itemize}
+
+\begin{keybox}
+\textbf{Öneri:} Açık model denemeleri Bedrock içinde kalsın. Fiyat avantajının bir kısmı
+kaybedilir, ancak hukuki ve operasyonel maliyet sıfırdır. Bedrock dışına çıkmak ancak
+kullanıcı sayısı bu ek yükü haklı çıkardığında --- kabaca birkaç bin kullanıcıda ---
+gündeme gelmelidir.
+\end{keybox}
+
+\subsection{Fiyat bantları}
+
+Belirli tedarikçi fiyatları doğrulanamadığı için modelleme dört bant üzerinden yapılmıştır.
+Her bandın karşılığı olarak verilen model sınıfları \textbf{örnektir, doğrulanmalıdır}.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Bant} & \textbf{Giriş/Çıkış (\$/MTok)} & \textbf{Tipik model sınıfı} & \textbf{Triage için} \\
+\midrule
+A & 0{,}05 / 0{,}20 & Nova Micro sınıfı & Kalite riski yüksek \\
+B & 0{,}15 / 0{,}30 & 3B--20B açık modeller & Aday \\
+C & 0{,}35 / 0{,}60 & 7--8B açık modeller & \textbf{En dengeli aday} \\
+D & 0{,}70 / 0{,}90 & 70B açık modeller & Güvenli ama az kazanç \\
+\midrule
+--- & 1{,}00 / 5{,}00 & Claude Haiku 4.5 (mevcut) & Referans \\
+\bottomrule
+\end{tabular}
+\caption{Fiyat bantları. Model sınıfı eşlemeleri doğrulanmayı bekleyen varsayımlardır.}
+\end{table}
+
+% ==========================================================================
+\section{Senaryo matrisi}
+
+Aşağıdaki tablo kümülatiftir: her satır bir öncekinin üzerine ekler.
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.2}
+\input{t3.tex}
+\caption{Kümülatif senaryo matrisi. Hafif = 20 mail + 3 sohbet/gün; Orta = 50 + 8;
+Yoğun = 120 + 20.}
+\end{table}
+
+Okunması gereken üç eşik:
+
+\begin{description}[leftmargin=0pt,style=unboxed,itemsep=5pt]
+  \item[S0 $\rightarrow$ S4: \$19{,}30 $\rightarrow$ \$7{,}24.] Tamamı mevcut kodda
+        yapılacak değişikliklerdir. Model değişmez, kalite riski yoktur, tek fark
+        Sonnet~4.6 yerine hem daha yeni hem daha ucuz olan Sonnet~5'tir.
+        \textbf{Kazanç: \$12{,}06.}
+  \item[S4 $\rightarrow$ S6: \$7{,}24 $\rightarrow$ \$3{,}69.] Triage'ın açık modele
+        taşınması. \textbf{Kazanç: \$3{,}55}, ve bu kazanç için ürünün tek teknik iddiası
+        ölçüm altına alınmak zorundadır.
+  \item[S7 $\rightarrow$ S8: \$3{,}32 $\rightarrow$ \$1{,}08.] Sohbetin de açık modele
+        taşınması. Mutlak kazanç büyüktür (\$2{,}24) çünkü maliyetin \%73'ü oradadır ---
+        ama 23 araçlı çok turlu akışta bu, ürünün davranışını baştan doğrulamayı gerektirir.
+        Bu rapor bunu önermez; yalnızca üst sınırı göstermek için tabloda tutulmuştur.
+\end{description}
+
+% ==========================================================================
+\section{Triage fiyat duyarlılığı}
+
+\begin{table}[h]
+\centering\small
+\input{t4.tex}
+\caption{Orta profil (50 mail/gün). ``Tasarruf'' Haiku 4.5'e göredir.}
+\end{table}
+
+Bu tablonun en önemli özelliği \textbf{azalan getiridir}. Bant~D'den Bant~A'ya inmek ---
+yani 14 kat daha ucuz bir modele geçmek --- yalnızca \$1{,}85 ek kazandırır. Maliyetin
+büyük kısmı zaten sabit sistem promptundadır ve o token'lar hangi modelde olursa olsun
+gönderilir.
+
+\begin{keybox}
+``En ucuz modeli bulma'' yarışının anlamı yoktur. Bant~C'nin (\$0{,}35) altına inmenin
+getirisi \$1{,}05/ay'dır; buna karşılık model küçüldükçe kalite riski hızla artar.
+\textbf{Aday aralığı Bant C--D'dir.}
+\end{keybox}
+
+% ==========================================================================
+\section{Kendi altyapında barındırma (self-hosting)}
+
+Açık ağırlıklı modelin asıl cazibesi marjinal maliyetin sıfıra yaklaşmasıdır. Ancak sabit
+maliyet GPU kirasıdır ve başabaş noktası şaşırtıcı biçimde yüksektir.
+
+\begin{table}[h]
+\centering\small
+\input{t5.tex}
+\caption{Başabaş, Haiku 4.5 ile triage maliyetine göre. On-demand fiyatlar varsayımdır.}
+\end{table}
+
+Yani \textbf{yaklaşık 190 aktif kullanıcının altında kendi GPU'nu çalıştırmak
+doğrudan zarardır} --- ve bu hesap yalnızca GPU kirasıdır. Dahil olmayanlar: model
+sunucusunun (vLLM vb.) işletimi, ölçekleme, yedeklilik, gece nöbeti, model güncellemeleri
+ve GPU kotası temini.
+
+Ayrıca Peyk'in mevcut mimarisi tek Fly.io makinesine kilitlidir (\code{fly.toml},
+\code{auto\_stop\_machines = off}) çünkü Telegram \code{getUpdates} ve Composio websocket
+tek tüketicidir. Kendi model sunucusunu eklemek, henüz yatay ölçeklenemeyen bir sisteme
+ikinci bir durum bilgili bileşen eklemek anlamına gelir.
+
+\begin{keybox}
+Self-hosting bu aşamada gündem dışıdır. 200+ ödeyen kullanıcıya ulaşıldığında, ve ancak
+Bölüm~2'deki webhook geçişi tamamlandıktan sonra yeniden değerlendirilmelidir.
+\end{keybox}
+
+% ==========================================================================
+\section{Kalite riski: asimetrik maliyet}
+
+Ucuz model kararı, tasarrufu kalite riskine karşı tartmadan verilemez. Peyk'te bu denge
+özellikle asimetriktir çünkü ürünün tüm vaadi ``doğru olanı geçiriyorum'' iddiasıdır.
+
+İki hata türü eşit değildir:
+
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{Yanlış pozitif} (önemsizi acil sanmak): kullanıcı bir gereksiz bildirim alır,
+        \code{noise} basar, bütçe slotu geri verilir (\code{budget\_repo.py}). Maliyeti düşüktür.
+  \item \textbf{Yanlış negatif} (gerçek acili kaçırmak): kullanıcı müşterisini, kirasını
+        veya çocuğunun okulundan gelen çağrıyı kaçırır. Bu tek olay, ürüne olan güveni
+        bitirir.
+\end{itemize}
+
+Aşağıdaki tablo, bir tasarrufun hangi ek kaçırma oranında sıfırlandığını gösterir.
+Varsayımlar: abonelik \$25/ay, ortalama ömür 12 ay (LTV \$300), kaçırılan bir acil olayın
+ayrılmaya yol açma olasılığı \%50.
+
+\begin{table}[h]
+\centering\small
+\input{t6.tex}
+\caption{``Başabaş ek kaçırma'', 100 kullanıcı-ayında kaç ek kaçırılmış acilin tasarrufu
+sıfırladığını gösterir.}
+\end{table}
+
+Okuması şudur: Bant~B'ye geçmek, \textbf{100 kullanıcı-ayında 2{,}2 ek kaçırılmış acile
+mal olursa} tasarruf tamamen silinir. Bu, çok dar bir hata bütçesidir --- ve tam olarak
+ölçülmesi gereken şeydir.
+
+% ==========================================================================
+\section{Karar protokolü}
+
+Peyk'in bu kararı ampirik olarak verebilecek altyapısı büyük ölçüde hazırdır.
+\code{tests/phase1/}\allowbreak\code{test\_triage\_eval.py} 60 etiketli mail üzerinde çalışır; mevcut ölçüm
+\%98 within-1 doğruluk ve 6/6 urgency-5 recall'dur.
+
+\subsection{Önce: değerlendirme seti büyütülmeli}
+
+60 mail, model \emph{karşılaştırması} için yetersizdir. Kritik metrik olan urgency-5
+recall yalnızca 6 örneğe dayanmaktadır; bir modelin 6/6, diğerinin 5/6 alması istatistiksel
+olarak anlamlı bir fark değildir. Bölüm~10'daki hata bütçesini ölçebilmek için
+\textbf{en az 300 etiketli mail ve bunların içinde en az 30 urgency-5 örneği} gerekir.
+
+Bu setin kaynağı hazırdır: \code{sent\_notification.user\_feedback} alanında biriken
+\code{useful}/\code{noise} geri bildirimleri ve gate'in sustuğu olaylar. Ayrıca bu veri
+zamanla rakiplerin sahip olmadığı bir varlığa dönüşür --- küçük bir modelin bu veriyle
+ince ayarlanması (fine-tuning), uzun vadede hem maliyet hem savunulabilirlik avantajıdır.
+
+\subsection{Sonra: gölge modu}
+
+Aday modeller üretimde şu şekilde risksiz ölçülebilir:
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=3pt]
+  \item Her gerçek triage çağrısı \emph{ayrıca} aday modele de gönderilir.
+  \item Kullanıcıya \textbf{yalnızca} Haiku'nun sonucu gider; aday modelin çıktısı sadece
+        loglanır.
+  \item İki model arasındaki farklar, özellikle Haiku'nun 4--5 verdiği ama adayın 1--3
+        verdiği olaylar, elle incelenir.
+\end{enumerate}
+
+Gölge modunun maliyeti aday modelin fiyatı kadardır (Bant~C için aylık \$1{,}05) ve
+kullanıcı için sıfır risk taşır. İki hafta çalıştırmak, bu raporun tüm varsayımlarını
+gerçek veriyle değiştirir.
+
+\subsection{Kabul kriterleri}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Metrik} & \textbf{Eşik} & \textbf{Gerekçe} \\
+\midrule
+Urgency-5 recall & \textbf{\%100} & Kaçırılan acil ürünü bitirir \\
+Within-1 doğruluk & $\geq$ \%95 & Mevcut: \%98 \\
+Yapısal çıktı hata oranı & $<$ \%0{,}5 & Şema uyumsuzluğu = düşen olay \\
+Türkçe/Almanca özet kalitesi & elle kontrol & Çok dilli özet küçük modellerde zayıflar \\
+p95 gecikme & $<$ 3 sn & Gate zaten dakikalarca bekliyor, esnek \\
+\bottomrule
+\end{tabular}
+\caption{Bir aday modelin üretime alınabilmesi için karşılaması gereken eşikler.}
+\end{table}
+
+% ==========================================================================
+\section{Sonuç ve yol haritası}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Faz} & \textbf{İş} & \textbf{Süre} & \textbf{Sonuç} \\
+\midrule
+0 & \code{usage} muhasebesi (\code{model\_call} tablosu) & 1 hafta & Varsayım $\rightarrow$ veri \\
+1 & Caching + bağlam + araç bölme + Sonnet 5 & 1--2 hafta & \$19{,}30 $\rightarrow$ \$7{,}24 \\
+2 & Eval seti 60 $\rightarrow$ 300+ mail & 2--3 hafta & Ölçülebilir karar \\
+3 & Gölge modu, Bant C--D adayları & 3--4 hafta & Kanıt \\
+4 & Karar & --- & Olası \$7{,}24 $\rightarrow$ \$3{,}69 \\
+\bottomrule
+\end{tabular}
+\caption{Önerilen sıralama.}
+\end{table}
+
+Faz~1 ile Faz~4'ün karşılaştırması bu raporun özetidir: birincisi \$12{,}06 kazandırır ve
+hiçbir şeyi riske atmaz; ikincisi \$3{,}55 kazandırır ve ürünün tek teknik iddiasını
+ölçüm altına almayı zorunlu kılar. İkisi de yapılmalıdır --- ama bu sırayla.
+
+\$25'lik fiyat noktasında brüt marjın seyri:
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Aşama} & \textbf{Hafif} & \textbf{Orta} & \textbf{Yoğun} \\
+\midrule
+Bugün (S0) & \%67 & \%23 & \textbf{--\%83} \\
+Faz 1 sonrası (S4) & \%88 & \%71 & \%31 \\
+Faz 4 sonrası (S6) & \%94 & \%85 & \%65 \\
+\bottomrule
+\end{tabular}
+\caption{Brüt marj, \$25/ay abonelik. Composio ve altyapı hariç.}
+\end{table}
+
+Yoğun kullanıcı satırı ayrıca dikkat ister: bugün ürüne en çok değer veren kullanıcı en
+çok para kaybettiren kullanıcıdır. Faz~1 bunu düzeltir, ancak uzun vadede bir adil
+kullanım sınırı gerekecektir. Peyk'in ürün anlatısı buna elverişlidir --- knock bütçesinin
+yanına bir sohbet bütçesi koymak, ürünün hikâyesiyle çelişmez.
+
+\appendix
+% ==========================================================================
+\section{Modeli yeniden çalıştırma}
+
+\begin{verbatim}
+cd docs/cost
+python3 model.py              # okunabilir tablolar
+python3 model.py --latex      # LaTeX tablo gövdeleri
+pdflatex report.tex           # (iki kez)
+\end{verbatim}
+
+Fiyatlar \code{model.py} içindeki \code{PRICES} sözlüğündedir. Bedrock'un gerçek
+fiyatları doğrulandığında yalnızca o sözlük güncellenir; bu rapordaki her tablo yeniden
+üretilir. Aynı şekilde \code{PROFILES} (kullanım yoğunluğu) ve
+\code{CHURN\_GIVEN\_MISS} / \code{LTV} (risk varsayımları) da parametredir.
+
+\section{Token sayımlarının kaynağı}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Değer} & \textbf{Kaynak} & \textbf{Ölçüm} \\
+\midrule
+Triage sistem promptu & \code{agent/triage\_agent.py} & 4.151 karakter \\
+Sohbet sistem promptu & \code{agent/chat\_agent.py} & 12.504 karakter \\
+Ack sistem promptu & \code{agent/chat\_agent.py} & 3.121 karakter \\
+23 araç şeması & \code{agent/chat\_agent.py} & 10.358 karakter \\
+Gözlem limiti & \code{workers/chat.py} & \code{RECENT\_LIMIT = 50} \\
+Geçmiş tur sayısı & \code{workers/chat.py} & \code{HISTORY\_TURNS = 10} \\
+Bağlam penceresi & \code{workers/chat.py} & \code{RECENT\_HOURS = 48} \\
+Mail gövdesi kırpma & \code{agent/triage\_agent.py} & \code{max\_text = 1200} \\
+Tur sayısı & \code{workers/chat.py} & \code{MAX\_ROUNDS = 2}, \code{MAX\_DOC\_ROUNDS = 4} \\
+\bottomrule
+\end{tabular}
+\caption{Ölçümlerin depo içindeki kaynakları (15 Eylül 2026).}
+\end{table}
+
+\vspace{1cm}
+\begin{center}
+\small\color{ink}
+\textit{Bu rapordaki fiyat varsayımları canlı kaynaktan doğrulanmamıştır (bkz. Bölüm 2).\\
+Herhangi bir tedarikçi kararından önce güncel fiyatlar teyit edilmelidir.}
+\end{center}
+
+\end{document}
